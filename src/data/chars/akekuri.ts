@@ -1,4 +1,74 @@
 import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const AKEKURI_COMMANDS: CommandDefinition[] = [
+  {
+    id: "akekuri_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "cycling",
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([20, 22, 24, 26, 28, 30, 32, 34, 36, 39, 42, 45]), frameData: flat12(30) },
+      { name: "Hit 2", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), frameData: flat12(30) },
+      { name: "Hit 3", multiplier: pct([33, 36, 39, 42, 46, 49, 52, 55, 59, 63, 67, 73]), frameData: flat12(30) },
+      { name: "Hit 4", multiplier: pct([50, 54, 59, 64, 69, 74, 79, 84, 89, 95, 103, 111]), stagger: flat12(17), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "akekuri_basic_finisher",
+    name: "Finisher",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), frameData: flat12(30) }],
+  },
+  {
+    id: "akekuri_basic_dive",
+    name: "Dive Attack",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), frameData: flat12(30) }],
+  },
+  {
+    id: "akekuri_battle_skill",
+    name: "Burst of Passion",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Heat",
+    mode: "single",
+    spCost: flat12(100),
+    hits: [{ multiplier: pct([142, 156, 171, 185, 199, 213, 228, 242, 256, 274, 295, 320]), stagger: flat12(10), frameData: flat12(30) }],
+  },
+  {
+    id: "akekuri_combo_skill",
+    name: "Flash and Dash",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ name: "Dash Sequence x2", multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), stagger: flat12(5), frameData: flat12(30), times: 2 }],
+  },
+  {
+    id: "akekuri_ultimate",
+    name: "SQUAD! ON ME!",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Physical",
+    mode: "single",
+    spCost: flat12(0),
+    energyCost: flat12(120),
+    hits: [],
+  },
+];
 
 export const AKEKURI: CharacterBase = {
   id: "akekuri",
@@ -17,6 +87,7 @@ export const AKEKURI: CharacterBase = {
   secondaryAttr: "INT",
 
   weaponType: "SWORD",
+  commands: AKEKURI_COMMANDS,
 
   levels: {
   STR: [

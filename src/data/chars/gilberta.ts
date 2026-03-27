@@ -1,4 +1,77 @@
 import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const GILBERTA_COMMANDS: CommandDefinition[] = [
+  {
+    id: "gilberta_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    mode: "cycling",
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), frameData: flat12(30) },
+      { name: "Hit 2", multiplier: pct([36, 40, 43, 47, 50, 54, 58, 61, 65, 69, 75, 81]), frameData: flat12(30) },
+      { name: "Hit 3", multiplier: pct([41, 45, 49, 53, 57, 61, 65, 69, 73, 78, 84, 91]), frameData: flat12(30) },
+      { name: "Hit 4", multiplier: pct([50, 55, 60, 65, 70, 75, 80, 85, 90, 96, 104, 112]), stagger: flat12(16), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "gilberta_basic_finisher",
+    name: "Finisher",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), frameData: flat12(30) }],
+  },
+  {
+    id: "gilberta_basic_dive",
+    name: "Dive Attack",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), frameData: flat12(30) }],
+  },
+  {
+    id: "gilberta_battle_skill",
+    name: "Arcane Staff: Gravity Mode",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(100),
+    hits: [
+      { name: "Gravity Pull", multiplier: pct([97, 107, 117, 126, 136, 146, 156, 165, 175, 187, 202, 219]), frameData: flat12(30) },
+      { name: "Explosion", multiplier: pct([58, 63, 69, 75, 81, 86, 92, 98, 104, 111, 120, 130]), stagger: flat12(10), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "gilberta_combo_skill",
+    name: "Arcane Staff: Matrix Displacement",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([140, 154, 168, 182, 196, 210, 224, 238, 252, 270, 291, 315]), stagger: flat12(5), frameData: flat12(30) }],
+  },
+  {
+    id: "gilberta_ultimate",
+    name: "Arcane Staff: Gravity Field",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    energyCost: flat12(90),
+    hits: [{ multiplier: pct([333, 367, 400, 433, 467, 500, 534, 567, 600, 642, 692, 750]), stagger: flat12(20), frameData: flat12(30) }],
+  },
+];
 
 export const GILBERTA: CharacterBase = {
   id: "gilberta",
@@ -81,4 +154,5 @@ export const GILBERTA: CharacterBase = {
       ],
   },
   weaponType: "ARTS_UNIT",
+  commands: GILBERTA_COMMANDS,
 };

@@ -1,4 +1,8 @@
-import type { CharacterBase, CharacterBenchmark } from "@/data/characters";
+import {
+  benchmarkCommandDamage,
+  type CharacterBase,
+  type CharacterBenchmark,
+} from "@/data/characters";
 import { pct, flat12, type CommandDefinition, type CommandHitDefinition } from "@/lib/commands";
 
 const LAEVATAIN_UBS_HIT_1: CommandHitDefinition = {
@@ -217,20 +221,60 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
 ];
 
 const LAEVATAIN_BENCHMARKS: CharacterBenchmark[] = [
-  {
+  benchmarkCommandDamage({
     id: "laevatain_benchmark_enhanced_skill",
     name: "Enhanced Skill",
     commandId: "laevatain_enhanced_battle_skill",
-  },
-  {
+  }),
+  benchmarkCommandDamage({
     id: "laevatain_benchmark_ultimate_enhanced_skill",
     name: "Ultimate Enhanced Battle Skill",
     commandId: "laevatain_enhanced_ultimate_battle_skill",
-  },
-  {
+  }),
+  benchmarkCommandDamage({
     id: "laevatain_benchmark_ultimate_basic_sequence",
     name: "Ultimate Basic Attack Sequence",
     commandId: "laevatain_ultimate_basic_sequence",
+  }),
+];
+
+const LAEVATAIN_PROMOTIONS = [
+  {
+    stage: 1 as const,
+    levelCap: 40 as const,
+    costs: [
+      { resource: "Protodisk", amount: 8 },
+      { resource: "Pink Bolete", amount: 3 },
+      { resource: "T-Creds", amount: 1600 },
+    ],
+  },
+  {
+    stage: 2 as const,
+    levelCap: 60 as const,
+    costs: [
+      { resource: "Protodisk", amount: 25 },
+      { resource: "Red Bolete", amount: 5 },
+      { resource: "T-Creds", amount: 6500 },
+    ],
+  },
+  {
+    stage: 3 as const,
+    levelCap: 80 as const,
+    costs: [
+      { resource: "Protoset", amount: 24 },
+      { resource: "Ruby Bolete", amount: 5 },
+      { resource: "T-Creds", amount: 18000 },
+    ],
+  },
+  {
+    stage: 4 as const,
+    levelCap: 90 as const,
+    costs: [
+      { resource: "Protoset", amount: 36 },
+      { resource: "D96 Steel Sample 4", amount: 20 },
+      { resource: "Bloodcap", amount: 8 },
+      { resource: "T-Creds", amount: 100000 },
+    ],
   },
 ];
 
@@ -317,4 +361,5 @@ export const LAEVATAIN: CharacterBase = {
   weaponType: "SWORD",
   commands: LAEVATAIN_COMMANDS,
   benchmarks: LAEVATAIN_BENCHMARKS,
+  promotions: LAEVATAIN_PROMOTIONS,
 };
