@@ -1,4 +1,77 @@
 import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const ARDELIA_COMMANDS: CommandDefinition[] = [
+  {
+    id: "ardelia_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    mode: "cycling",
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), frameData: flat12(30) },
+      { name: "Hit 2", multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), frameData: flat12(30) },
+      { name: "Hit 3", multiplier: pct([53, 58, 63, 68, 74, 79, 84, 89, 95, 101, 109, 118]), frameData: flat12(30) },
+      { name: "Hit 4", multiplier: pct([55, 61, 66, 72, 77, 83, 88, 94, 99, 106, 114, 124]), stagger: flat12(18), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "ardelia_basic_finisher",
+    name: "Finisher",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), frameData: flat12(30) }],
+  },
+  {
+    id: "ardelia_basic_dive",
+    name: "Dive Attack",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), frameData: flat12(30) }],
+  },
+  {
+    id: "ardelia_battle_skill",
+    name: "Dolly Rush",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(100),
+    hits: [{ multiplier: pct([142, 156, 171, 185, 199, 213, 228, 242, 256, 274, 295, 320]), stagger: flat12(10), frameData: flat12(30) }],
+  },
+  {
+    id: "ardelia_combo_skill",
+    name: "Eruption Column",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [
+      { name: "Volcanic Cloud", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), frameData: flat12(30) },
+      { name: "Explosion", multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]), stagger: flat12(10), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "ardelia_ultimate",
+    name: "Wooly Party",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Nature",
+    mode: "single",
+    spCost: flat12(0),
+    energyCost: flat12(90),
+    hits: [{ multiplier: pct([73, 81, 88, 95, 103, 110, 117, 125, 132, 141, 152, 165]), frameData: flat12(30) }],
+  },
+];
 
 export const ARDELIA: CharacterBase = {
   id: "ardelia",
@@ -17,6 +90,7 @@ export const ARDELIA: CharacterBase = {
   secondaryAttr: "WIL",
 
   weaponType: "ARTS_UNIT",
+  commands: ARDELIA_COMMANDS,
 
   // Ardelis
   levels: {

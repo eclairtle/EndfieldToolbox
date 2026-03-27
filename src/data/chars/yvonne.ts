@@ -1,4 +1,84 @@
 import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const YVONNE_COMMANDS: CommandDefinition[] = [
+  {
+    id: "yvonne_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    mode: "cycling",
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([24, 26, 28, 31, 33, 35, 38, 40, 42, 45, 49, 53]), frameData: flat12(30) },
+      { name: "Hit 2", multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]), frameData: flat12(30) },
+      { name: "Hit 3", multiplier: pct([32, 35, 38, 41, 44, 47, 50, 54, 57, 61, 65, 71]), frameData: flat12(30) },
+      { name: "Hit 4", multiplier: pct([41, 45, 49, 53, 58, 62, 66, 70, 74, 79, 85, 92]), frameData: flat12(30) },
+      { name: "Hit 5", multiplier: pct([56, 62, 67, 73, 79, 84, 90, 96, 101, 108, 117, 126]), stagger: flat12(17), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "yvonne_basic_finisher",
+    name: "Finisher",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), frameData: flat12(30) }],
+  },
+  {
+    id: "yvonne_basic_dive",
+    name: "Dive Attack",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), frameData: flat12(30) }],
+  },
+  {
+    id: "yvonne_battle_skill",
+    name: "Brr-Brr-Bomb β",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Cryo",
+    mode: "single",
+    spCost: flat12(100),
+    hits: [
+      { name: "Base Hit", multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]), frameData: flat12(30) },
+      { name: "Solidification Hit", multiplier: pct([67, 73, 80, 87, 93, 100, 107, 113, 120, 128, 138, 150]), stagger: flat12(10), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "yvonne_combo_skill",
+    name: "Flashfreezer υ37",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Cryo",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [
+      { name: "Energy Release x4", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), frameData: flat12(30), times: 4 },
+      { name: "Explosion", multiplier: pct([89, 98, 107, 116, 125, 134, 142, 151, 160, 171, 185, 200]), stagger: flat12(10), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "yvonne_ultimate",
+    name: "Cryoblasting Pistolier",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Cryo",
+    mode: "single",
+    spCost: flat12(0),
+    energyCost: flat12(220),
+    hits: [
+      { name: "Enhanced Final Strike", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), stagger: flat12(20), frameData: flat12(30) },
+      { name: "Additional Attack", multiplier: pct([267, 294, 320, 347, 374, 400, 427, 454, 480, 514, 554, 600]), frameData: flat12(30) },
+    ],
+  },
+];
 
 export const YVONNE: CharacterBase = {
   id: "yvonne",
@@ -81,4 +161,5 @@ export const YVONNE: CharacterBase = {
       ],
   },
   weaponType: "HANDCANNON",
+  commands: YVONNE_COMMANDS,
 };

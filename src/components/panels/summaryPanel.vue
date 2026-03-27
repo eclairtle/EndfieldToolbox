@@ -15,10 +15,11 @@ const props = defineProps<{
     kit2: GearBase | null;
   };
   benchmarks: {
-  id: string;
-  name: string;
-  commandId: string;
-  damage: number;
+    id: string;
+    name: string;
+    label: string;
+    value: number;
+    suffix?: string;
   }[];
 }>();
 
@@ -146,9 +147,9 @@ const visibleModifiers = computed(() => displayModifierEntries(props.out.mods));
               :key="bm.id"
               class="flex justify-between gap-3"
             >
-              <span class="text-[#666]">{{ bm.name }}</span>
+              <span class="text-[#666]">{{ bm.label || bm.name }}</span>
               <span class="font-semibold tabular-nums">
-                {{ Math.round(bm.damage) }}
+                {{ Math.round(bm.value) }}{{ bm.suffix ?? "" }}
               </span>
             </div>
           </div>

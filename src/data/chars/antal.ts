@@ -1,4 +1,74 @@
 import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const ANTAL_COMMANDS: CommandDefinition[] = [
+  {
+    id: "antal_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Electric",
+    mode: "cycling",
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([23, 25, 28, 30, 32, 35, 37, 39, 41, 44, 48, 52]), frameData: flat12(30) },
+      { name: "Hit 2", multiplier: pct([28, 31, 34, 36, 39, 42, 45, 48, 50, 54, 58, 63]), frameData: flat12(30) },
+      { name: "Hit 3", multiplier: pct([34, 37, 41, 44, 48, 51, 54, 58, 61, 65, 71, 77]), frameData: flat12(30) },
+      { name: "Hit 4", multiplier: pct([51, 56, 61, 66, 71, 77, 82, 87, 92, 98, 106, 115]), stagger: flat12(15), frameData: flat12(30) },
+    ],
+  },
+  {
+    id: "antal_basic_finisher",
+    name: "Finisher",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Electric",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), frameData: flat12(30) }],
+  },
+  {
+    id: "antal_basic_dive",
+    name: "Dive Attack",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Electric",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), frameData: flat12(30) }],
+  },
+  {
+    id: "antal_battle_skill",
+    name: "Specified Research Subject",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Electric",
+    mode: "single",
+    spCost: flat12(100),
+    hits: [{ multiplier: pct([89, 98, 107, 116, 124, 133, 142, 151, 160, 171, 185, 200]), frameData: flat12(30) }],
+  },
+  {
+    id: "antal_combo_skill",
+    name: "EMP Test Site",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Electric",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([151, 166, 181, 196, 211, 227, 242, 257, 272, 291, 313, 340]), stagger: flat12(10), frameData: flat12(30) }],
+  },
+  {
+    id: "antal_ultimate",
+    name: "Overclocked Moment",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Electric",
+    mode: "single",
+    spCost: flat12(0),
+    energyCost: flat12(100),
+    hits: [],
+  },
+];
 
 export const ANTAL: CharacterBase = {
   id: "antal",
@@ -17,6 +87,7 @@ export const ANTAL: CharacterBase = {
   secondaryAttr: "STR",
 
   weaponType: "ARTS_UNIT",
+  commands: ANTAL_COMMANDS,
 
   levels: {
     STR: [

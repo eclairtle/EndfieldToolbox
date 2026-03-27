@@ -28,7 +28,6 @@ import {
   resolveCommandsDefinition,
   resolveCommandsAtLevel,
 } from "@/lib/commands";
-import { calculateCommandDamage } from "@/lib/combat/combatDamage";
 import type { BuffInstance } from "@/lib/buffs";
 import type { CharacterTalentToggles, CharacterTalentKey } from "@/lib/build/characterTalents";
 
@@ -255,31 +254,19 @@ export function useCharacterBuild() {
   );
 
   const benchmarkResults = computed(() => {
-    const commandsById = new Map(resolvedCommands.value.map((cmd) => [cmd.id, cmd]));
-
     return (selectedChar.value.benchmarks ?? []).map((bm) => {
-      const command = commandsById.get(bm.commandId);
-
-      if (!command) {
-        return {
-          id: bm.id,
-          name: bm.name,
-          commandId: bm.commandId,
-          damage: 0,
-        };
-      }
-
-      const damage = calculateCommandDamage({
-        finalAtk: out.value.statsCard.ATK,
-        command,
-        mods: out.value.mods,
+      const result = bm.compute({
+        char: selectedChar.value,
+        finalStats: out.value,
+        resolvedCommands: resolvedCommands.value,
       });
 
       return {
         id: bm.id,
         name: bm.name,
-        commandId: bm.commandId,
-        damage,
+        label: result.label,
+        value: result.value,
+        suffix: result.suffix,
       };
     });
   });
