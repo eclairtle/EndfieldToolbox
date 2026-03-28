@@ -38,6 +38,8 @@ function getDamageTypeBonus(damageType: ElementType, mods: ModifierStats): numbe
 
     case "Nature":
       return mods.ARTS_DMG_PCT + mods.NATURE_DMG_PCT;
+    case "Healing":
+      return mods.HEALING_PCT;
 
     default:
       return 0;
@@ -70,9 +72,23 @@ function getEnemyResistance(damageType: ElementType, enemyMods: ModifierStats): 
       return enemyMods.NATURE_RESIST_PCT;
     case "Aether":
       return enemyMods.AETHER_RESIST_PCT;
+    case "Healing":
+      return 0;
     default:
       return 0;
   }
+}
+
+export function calculateHealingAmount(args: {
+  baseAmount: number;
+  healerMods: ModifierStats;
+  targetHealingReceivedBonus: number;
+}): number {
+  return (
+    args.baseAmount *
+    (1 + args.healerMods.HEALING_PCT) *
+    (1 + args.targetHealingReceivedBonus)
+  );
 }
 
 export function calculateResolvedHitDamage(args: {

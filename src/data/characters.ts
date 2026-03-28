@@ -7,7 +7,7 @@ import type {
   ModifierStats
 } from "@/lib/build/stats";
 import type { CommandDefinition, ResolvedCommandAtLevel } from "@/lib/commands";
-import { calculateCommandDamage } from "@/lib/combat/combatDamage";
+import { calculateCommandDamage, calculateHealingAmount } from "@/lib/combat/combatDamage";
 import type { WeaponType } from "./weapons";
 
 export type ElementType =
@@ -16,7 +16,8 @@ export type ElementType =
   | "Electric"
   | "Nature"
   | "Cryo"
-  | "Aether";
+  | "Aether"
+  | "Healing";
 
 export type CharacterClass = "Striker" | "Vanguard" | "Guard" | "Caster" | "Supporter" | "Defender";
 
@@ -82,6 +83,11 @@ export type CharacterTalentEffect = {
   };
 };
 
+export type CharacterUniqueTalent = {
+  name: string;
+  effect?: CharacterTalentEffect;
+};
+
 export type CharacterPotentialEffect = {
   apply?: (ctx: CharacterRuntimeContext) => {
     modsDelta?: Partial<ModifierStats>;
@@ -116,8 +122,40 @@ export type CharacterBase = {
   promotions?: PromotionStageCost[];
 
   uniqueTalents?: Record<string, CharacterTalentEffect>;
+  uniqueTalentDefs?: Record<string, CharacterUniqueTalent>;
   potentialEffects?: Record<number, CharacterPotentialEffect>;
 };
+
+export function benchmarkHealing(args: {
+  id: string;
+  name: string;
+  commandId: string;
+  label?: string;
+  computeBaseAmount: (ctx: CharacterBenchmarkContext, command: ResolvedCommandAtLevel) => number;
+  extraHealingMultiplier?: (ctx: CharacterBenchmarkContext) => number;
+}): CharacterBenchmark {
+  return {
+    id: args.id,
+    name: args.name,
+    compute: (ctx) => {
+      const command = ctx.resolvedCommands.find((c) => c.id === args.commandId);
+      if (!command) return { label: args.label ?? args.name, value: 0 };
+
+      const baseAmount = args.computeBaseAmount(ctx, command);
+      const value =
+        calculateHealingAmount({
+          baseAmount,
+          healerMods: ctx.finalStats.mods,
+          targetHealingReceivedBonus: 0,
+        }) * (args.extraHealingMultiplier?.(ctx) ?? 1);
+
+      return {
+        label: args.label ?? args.name,
+        value,
+      };
+    },
+  };
+}
 
 function getLevelStats(levels: LevelStatTable, level: number): CharacterStats {
   const i = Math.max(1, Math.min(90, level)) - 1;

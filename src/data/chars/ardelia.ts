@@ -1,7 +1,39 @@
-import type { CharacterBase } from "@/data/characters";
+import { benchmarkHealing, type CharacterBase, type CharacterBenchmark } from "@/data/characters";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
 const ARDELIA_COMMANDS: CommandDefinition[] = [
+  {
+    id: "ardelia_friendly_presence",
+    name: "Friendly Presence",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Healing",
+    mode: "single",
+    spCost: flat12(0),
+    hits: [
+      {
+        name: "E0",
+        multiplier: flat12(0.38),
+        flatAmount: flat12(45),
+        scalingStat: "WIL",
+        frameData: flat12(0),
+      },
+      {
+        name: "E1",
+        multiplier: flat12(0.53),
+        flatAmount: flat12(63),
+        scalingStat: "WIL",
+        frameData: flat12(0),
+      },
+      {
+        name: "E2",
+        multiplier: flat12(0.75),
+        flatAmount: flat12(90),
+        scalingStat: "WIL",
+        frameData: flat12(0),
+      },
+    ],
+  },
   {
     id: "ardelia_basic_sequence",
     name: "Basic Attack Sequence",
@@ -73,6 +105,25 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
   },
 ];
 
+const ARDELIA_BENCHMARKS: CharacterBenchmark[] = [
+  benchmarkHealing({
+    id: "ardelia_benchmark_talent_healing",
+    name: "Talent Healing",
+    commandId: "ardelia_friendly_presence",
+    label: "Talent Healing",
+    computeBaseAmount: (ctx, command) => {
+      const hitIndex = Math.min(Math.max(ctx.slot?.characterAscension ?? 0, 0), 2);
+      const hit = command.hits[hitIndex];
+      if (!hit) return 0;
+
+      return hit.flatAmount + ctx.finalStats.statsCard.WIL * hit.multiplier;
+    },
+    extraHealingMultiplier: (ctx) => (
+      ctx.slot?.uniqueTalentToggles?.game_rewards ? 1.5 : 1
+    ),
+  }),
+];
+
 export const ARDELIA: CharacterBase = {
   id: "ardelia",
   name: "Ardelia",
@@ -91,6 +142,12 @@ export const ARDELIA: CharacterBase = {
 
   weaponType: "ARTS_UNIT",
   commands: ARDELIA_COMMANDS,
+  benchmarks: ARDELIA_BENCHMARKS,
+  uniqueTalentDefs: {
+    game_rewards: {
+      name: "Game Rewards",
+    },
+  },
 
   // Ardelis
   levels: {

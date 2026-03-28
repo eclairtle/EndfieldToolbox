@@ -67,6 +67,7 @@ export const MODIFIER_STAT_KEYS = [
   "AETHER_RESIST_PCT",
 
   "HEALING_PCT",
+  "HEALING_RECEIVED_PCT",
   "PHYSICAL_SUS_PCT",
   "ARTS_SUS_PCT",
   "HEAT_SUS_PCT",
@@ -129,6 +130,7 @@ export function makeBaseModifierStats(): ModifierStats {
     AETHER_RESIST_PCT: 0,
 
     HEALING_PCT: 0,
+    HEALING_RECEIVED_PCT: 0,
     PHYSICAL_SUS_PCT: 0,
     ARTS_SUS_PCT: 0,
     HEAT_SUS_PCT: 0,
@@ -282,6 +284,9 @@ export function computeFinalStats(args: {
   
   // 5) apply main/secondary attr %
   attrs = applyAttributePercentMods(attrs, char, mods);
+
+  // Every 1 point of WIL gives +0.1% healing received bonus.
+  mods.HEALING_RECEIVED_PCT += attrs.WIL * 0.001;
 
   // 6) weapon base ATK
   const weaponATK = lerpLevel(weapon.baseAtkLv1, weapon.baseAtkLv90, weaponLevel);

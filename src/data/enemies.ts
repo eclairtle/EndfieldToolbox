@@ -3,7 +3,7 @@ import type { ModifierStats } from "@/lib/build/stats";
 import * as Bonekrushers from "./enemies/bonekrushers";
 import type { AppliedStatus } from "@/lib/status";
 
-export type EnemyResistances = Record<ElementType, number>;
+export type EnemyResistances = Partial<Record<ElementType, number>>;
 
 export type EnemyBase = {
   id: string;
