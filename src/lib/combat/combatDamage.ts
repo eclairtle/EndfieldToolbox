@@ -38,6 +38,8 @@ function getDamageTypeBonus(damageType: ElementType, mods: ModifierStats): numbe
 
     case "Nature":
       return mods.ARTS_DMG_PCT + mods.NATURE_DMG_PCT;
+    case "Healing":
+      return mods.HEALING_PCT;
 
     default:
       return 0;
@@ -70,9 +72,40 @@ function getEnemyResistance(damageType: ElementType, enemyMods: ModifierStats): 
       return enemyMods.NATURE_RESIST_PCT;
     case "Aether":
       return enemyMods.AETHER_RESIST_PCT;
+    case "Healing":
+      return 0;
     default:
       return 0;
   }
+}
+
+function getEnemySusceptibility(damageType: ElementType, enemyMods: ModifierStats): number {
+  switch (damageType) {
+    case "Physical":
+      return enemyMods.PHYSICAL_SUS_PCT;
+    case "Heat":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.HEAT_SUS_PCT;
+    case "Cryo":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.CRYO_SUS_PCT;
+    case "Electric":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.ELECTRIC_SUS_PCT;
+    case "Nature":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.NATURE_SUS_PCT;
+    default:
+      return 0;
+  }
+}
+
+export function calculateHealingAmount(args: {
+  baseAmount: number;
+  healerMods: ModifierStats;
+  targetHealingReceivedBonus: number;
+}): number {
+  return (
+    args.baseAmount *
+    (1 + args.healerMods.HEALING_PCT) *
+    (1 + args.targetHealingReceivedBonus)
+  );
 }
 
 export function calculateResolvedHitDamage(args: {
@@ -100,7 +133,8 @@ export function calculateResolvedHitDamage(args: {
   const critMultiplier = getAverageCritMultiplier(attackerMods);
 
   const damageTakenMultiplier = 1 + enemyMods.DMG_TAKEN_PCT;
-  const resistMultiplier = 1 - getEnemyResistance(damageType, enemyMods);
+  const resistMultiplier =
+    1 - getEnemyResistance(damageType, enemyMods) + getEnemySusceptibility(damageType, enemyMods);
 
   // simple first-pass formula: ignore DEF for now
   const base =

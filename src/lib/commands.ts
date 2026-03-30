@@ -1,5 +1,6 @@
 import type { CharacterSkillLevels, CharacterSkillKey } from "@/lib/build/characterSkills";
 import type { ElementType } from "@/data/characters";
+import type { ModifierStatKey } from "@/lib/build/stats";
 
 export type AttackType =
   | "BASIC_ATTACK"
@@ -12,6 +13,8 @@ export type ScalingTable = number[]; // length 12, index 0 = Lv1
 export type CommandHitDefinition = {
   name?: string;
   multiplier: ScalingTable;
+  flatAmount?: ScalingTable; // default 0, used by healing/flat formulas
+  scalingStat?: "ATK" | "WIL"; // default ATK
   stagger?: ScalingTable; //default 0
   spReturn?: ScalingTable; // default 0
   frameData: ScalingTable; // per-hit now
@@ -19,6 +22,11 @@ export type CommandHitDefinition = {
   energyReturn?: ScalingTable; //default 0
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
+  targetDebuffs?: {
+    stat: ModifierStatKey;
+    value: ScalingTable;
+    durationSeconds: number;
+  }[];
 };
 
 export type CommandDefinition = {
@@ -37,6 +45,8 @@ export type CommandDefinition = {
 export type ResolvedCommandHit = {
   name?: string;
   multiplier: ScalingTable;
+  flatAmount: ScalingTable;
+  scalingStat: "ATK" | "WIL";
   stagger: ScalingTable;
   spReturn: ScalingTable;
   frameData: ScalingTable;
@@ -44,6 +54,11 @@ export type ResolvedCommandHit = {
   energyReturn: ScalingTable;
   attackType: AttackType;
   damageType: ElementType;
+  targetDebuffs: {
+    stat: ModifierStatKey;
+    value: ScalingTable;
+    durationSeconds: number;
+  }[];
 };
 
 export type ResolvedCommandDefinition = {
@@ -73,6 +88,8 @@ export function resolveCommandDefinition(
     hits: command.hits.map((hit) => ({
       name: hit.name,
       multiplier: hit.multiplier,
+      flatAmount: hit.flatAmount ?? flat12(0),
+      scalingStat: hit.scalingStat ?? "ATK",
       stagger: hit.stagger ?? flat12(0),
       spReturn: hit.spReturn ?? flat12(0),
       frameData: hit.frameData,
@@ -80,6 +97,7 @@ export function resolveCommandDefinition(
       energyReturn: hit.energyReturn ?? flat12(0),
       attackType: hit.attackType ?? command.attackType,
       damageType: hit.damageType ?? command.damageType,
+      targetDebuffs: hit.targetDebuffs ?? [],
     })),
   };
 }
@@ -93,6 +111,8 @@ export function resolveCommandsDefinition(
 export type ResolvedCommandHitAtLevel = {
   name?: string;
   multiplier: number;
+  flatAmount: number;
+  scalingStat: "ATK" | "WIL";
   stagger: number;
   spReturn: number;
   frameData: number;
@@ -100,6 +120,11 @@ export type ResolvedCommandHitAtLevel = {
   energyReturn: number;
   attackType: AttackType;
   damageType: ElementType;
+  targetDebuffs: {
+    stat: ModifierStatKey;
+    value: number;
+    durationSeconds: number;
+  }[];
 };
 
 export type ResolvedCommandAtLevel = {
@@ -137,6 +162,8 @@ export function resolveCommandAtLevel(
     hits: command.hits.map((hit) => ({
       name: hit.name,
       multiplier: resolveTable(hit.multiplier, level),
+      flatAmount: hit.flatAmount ? resolveTable(hit.flatAmount, level) : 0,
+      scalingStat: hit.scalingStat ?? "ATK",
       stagger: hit.stagger ? resolveTable(hit.stagger, level) : 0,
       spReturn: hit.spReturn ? resolveTable(hit.spReturn, level) : 0,
       frameData: resolveTable(hit.frameData, level),
@@ -144,6 +171,11 @@ export function resolveCommandAtLevel(
       energyReturn: hit.energyReturn ? resolveTable(hit.energyReturn, level) : 0,
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,
+      targetDebuffs: (hit.targetDebuffs ?? []).map((debuff) => ({
+        stat: debuff.stat,
+        value: resolveTable(debuff.value, level),
+        durationSeconds: debuff.durationSeconds,
+      })),
     })),
   };
 }

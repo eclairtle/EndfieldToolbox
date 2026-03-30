@@ -45,6 +45,7 @@ export type CharacterBuildSlot = {
   level: number;
 
   characterTalentToggles: CharacterTalentToggles;
+  uniqueTalentToggles: Record<string, boolean>;
   characterSkillLevels: CharacterSkillLevels;
 
   selectedWeaponId: string;
@@ -84,6 +85,7 @@ function makeDefaultSlot(index: number): CharacterBuildSlot {
     level: 1,
 
     characterTalentToggles: makeDefaultTalentToggles(),
+    uniqueTalentToggles: {},
     characterSkillLevels: makeDefaultCharacterSkillLevels(),
 
     selectedWeaponId: defaultWeapon.id,
@@ -125,6 +127,9 @@ export const useBuildStore = defineStore("buildStore", () => {
 
       if (parsed.slots && parsed.slots.length === 4) {
         slots.value = parsed.slots;
+        for (const slot of slots.value) {
+          slot.uniqueTalentToggles = slot.uniqueTalentToggles ?? {};
+        }
       }
 
       if (
@@ -247,9 +252,10 @@ export const useBuildStore = defineStore("buildStore", () => {
 
   function setCharacter(id: string) {
     activeSlot.value!.selectedCharId = id;
+    const nextCharacter = getCharacterById(id);
 
     const allowedWeapons = WEAPONS.filter(
-      (w) => w.weaponType === getCharacterById(id).weaponType,
+      (w) => w.weaponType === nextCharacter.weaponType,
     );
 
     if (!allowedWeapons.some((w) => w.id === activeSlot.value!.selectedWeaponId)) {
@@ -258,6 +264,13 @@ export const useBuildStore = defineStore("buildStore", () => {
         activeSlot.value!.selectedWeaponId = fallback.id;
       }
     }
+
+    const allowedTalentKeys = new Set(Object.keys(nextCharacter.uniqueTalentDefs ?? {}));
+    const nextUniqueToggles: Record<string, boolean> = {};
+    for (const key of allowedTalentKeys) {
+      nextUniqueToggles[key] = activeSlot.value!.uniqueTalentToggles?.[key] === true;
+    }
+    activeSlot.value!.uniqueTalentToggles = nextUniqueToggles;
   }
 
   function setCharacterLevel(level: number) {
@@ -276,6 +289,11 @@ export const useBuildStore = defineStore("buildStore", () => {
   function toggleTalent(key: CharacterTalentKey) {
     activeSlot.value!.characterTalentToggles[key] =
       !activeSlot.value!.characterTalentToggles[key];
+  }
+
+  function toggleUniqueTalent(key: string) {
+    activeSlot.value!.uniqueTalentToggles[key] =
+      !activeSlot.value!.uniqueTalentToggles[key];
   }
 
   function setCharacterSkillLevel(key: CharacterSkillKey, value: number) {
@@ -389,6 +407,7 @@ export const useBuildStore = defineStore("buildStore", () => {
     setCharacterAscension,
     setCharacterPotential,
     toggleTalent,
+    toggleUniqueTalent,
     setCharacterSkillLevel,
 
     setWeapon,

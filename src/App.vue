@@ -9,7 +9,6 @@ import SummaryPanel from "@/components/panels/summaryPanel.vue";
 import { useEnemyState } from "@/composables/useEnemyState";
 import EnemyPanel from "@/components/panels/enemyPanel.vue";
 import { CHARACTERS } from "@/data/characters";
-import { build } from "vite";
 
 const buildStore = useBuildStore();
 const {
@@ -94,12 +93,14 @@ const {
               :ascension-stage="activeSlot!.characterAscension"
               :potential="activeSlot!.characterPotential"
               :talent-toggles="activeSlot!.characterTalentToggles"
+              :unique-talent-toggles="activeSlot!.uniqueTalentToggles"
               :skill-levels="activeSlot!.characterSkillLevels"
               @update:selected-char-id="buildStore.setCharacter($event)"
               @update:level="buildStore.setCharacterLevel($event)"
               @update:ascension-stage="buildStore.setCharacterAscension($event)"
               @update:potential="buildStore.setCharacterPotential($event)"
               @toggle:talent="buildStore.toggleTalent($event)"
+              @toggle:unique-talent="buildStore.toggleUniqueTalent($event)"
               @update:skill-level="buildStore.setCharacterSkillLevel($event.key, $event.value)"
             />
 

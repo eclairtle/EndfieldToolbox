@@ -23,6 +23,7 @@ const props = defineProps<{
   ascensionStage: AscensionStage;
   potential: PotentialLevel;
   talentToggles: CharacterTalentToggles;
+  uniqueTalentToggles: Record<string, boolean>;
   skillLevels: CharacterSkillLevels;
 }>();
 
@@ -32,6 +33,7 @@ const emit = defineEmits<{
   (e: "update:ascensionStage", value: AscensionStage): void;
   (e: "update:potential", value: PotentialLevel): void;
   (e: "toggle:talent", key: CharacterTalentKey): void;
+  (e: "toggle:unique-talent", key: string): void;
   (e: "update:skill-level", payload: { key: CharacterSkillKey; value: number }): void;
 }>();
 
@@ -161,6 +163,30 @@ const skillRows: { key: CharacterSkillKey; label: string }[] = [
             <div class="mt-1 text-xs">
               +{{ getCharacterTalentBonus(index) }} {{ selectedCharacter.mainAttr }}
             </div>
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="Object.keys(selectedCharacter.uniqueTalentDefs ?? {}).length > 0"
+        class="grid gap-2"
+      >
+        <div class="text-sm font-medium text-[#555]">Unique Talents</div>
+
+        <div class="grid gap-2">
+          <button
+            v-for="(talent, key) in selectedCharacter.uniqueTalentDefs"
+            :key="key"
+            type="button"
+            @click="emit('toggle:unique-talent', key)"
+            class="rounded-xl border px-3 py-3 text-left text-sm transition"
+            :class="
+              uniqueTalentToggles[key]
+                ? 'border-[#c8d13c] bg-[#dfe86a] text-[#1b1b1b]'
+                : 'border-[#d4d4d4] bg-[#f8f8f8] text-[#333]'
+            "
+          >
+            <div class="font-semibold">{{ talent.name }}</div>
           </button>
         </div>
       </div>
