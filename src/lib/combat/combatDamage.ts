@@ -79,6 +79,23 @@ function getEnemyResistance(damageType: ElementType, enemyMods: ModifierStats): 
   }
 }
 
+function getEnemySusceptibility(damageType: ElementType, enemyMods: ModifierStats): number {
+  switch (damageType) {
+    case "Physical":
+      return enemyMods.PHYSICAL_SUS_PCT;
+    case "Heat":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.HEAT_SUS_PCT;
+    case "Cryo":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.CRYO_SUS_PCT;
+    case "Electric":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.ELECTRIC_SUS_PCT;
+    case "Nature":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.NATURE_SUS_PCT;
+    default:
+      return 0;
+  }
+}
+
 export function calculateHealingAmount(args: {
   baseAmount: number;
   healerMods: ModifierStats;
@@ -116,7 +133,8 @@ export function calculateResolvedHitDamage(args: {
   const critMultiplier = getAverageCritMultiplier(attackerMods);
 
   const damageTakenMultiplier = 1 + enemyMods.DMG_TAKEN_PCT;
-  const resistMultiplier = 1 - getEnemyResistance(damageType, enemyMods);
+  const resistMultiplier =
+    1 - getEnemyResistance(damageType, enemyMods) + getEnemySusceptibility(damageType, enemyMods);
 
   // simple first-pass formula: ignore DEF for now
   const base =

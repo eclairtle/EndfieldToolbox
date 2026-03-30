@@ -2,6 +2,13 @@ import { makeBaseModifierStats, type ModifierStats } from "@/lib/build/stats";
 import type { EnemyResolvedStats } from "@/lib/enemy/enemyScaling";
 import type { Rotation, CharacterCombatSnapshot, RotationSimulationResult } from "@/lib/combat/rotation";
 import { calculateResolvedHitDamage } from "@/lib/combat/combatDamage";
+import type { ModifierStatKey } from "@/lib/build/stats";
+
+type TimedEnemyDebuff = {
+  stat: ModifierStatKey;
+  value: number;
+  expiresAt: number;
+};
 
 export function makeEnemyModifierSnapshot(input: {
   resistances: {
@@ -39,6 +46,7 @@ export function simulateRotation(args: {
 
   let currentTime = 0;
   let totalDamage = 0;
+  let timedEnemyDebuffs: TimedEnemyDebuff[] = [];
 
   const timeline: RotationSimulationResult["timeline"] = [];
 
@@ -56,13 +64,19 @@ export function simulateRotation(args: {
 
       currentTime += hit.frameData / 30; // treating 30 frames = 1 second
 
+      timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) => debuff.expiresAt > currentTime);
+      const effectiveEnemyMods: ModifierStats = { ...enemyMods };
+      for (const debuff of timedEnemyDebuffs) {
+        effectiveEnemyMods[debuff.stat] += debuff.value;
+      }
+
       const damage = calculateResolvedHitDamage({
         finalAtk: actor.finalAtk,
         attackType: command.attackType,
         damageType: hit.damageType,
         hit,
         attackerMods: actor.mods,
-        enemyMods,
+        enemyMods: effectiveEnemyMods,
         enemyStats,
       });
 
@@ -81,6 +95,14 @@ export function simulateRotation(args: {
         multiplier: hit.multiplier,
         damage,
       });
+
+      for (const debuff of hit.targetDebuffs) {
+        timedEnemyDebuffs.push({
+          stat: debuff.stat,
+          value: debuff.value,
+          expiresAt: currentTime + debuff.durationSeconds,
+        });
+      }
     }
   }
 

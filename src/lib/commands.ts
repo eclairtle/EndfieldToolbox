@@ -1,5 +1,6 @@
 import type { CharacterSkillLevels, CharacterSkillKey } from "@/lib/build/characterSkills";
 import type { ElementType } from "@/data/characters";
+import type { ModifierStatKey } from "@/lib/build/stats";
 
 export type AttackType =
   | "BASIC_ATTACK"
@@ -21,6 +22,11 @@ export type CommandHitDefinition = {
   energyReturn?: ScalingTable; //default 0
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
+  targetDebuffs?: {
+    stat: ModifierStatKey;
+    value: ScalingTable;
+    durationSeconds: number;
+  }[];
 };
 
 export type CommandDefinition = {
@@ -48,6 +54,11 @@ export type ResolvedCommandHit = {
   energyReturn: ScalingTable;
   attackType: AttackType;
   damageType: ElementType;
+  targetDebuffs: {
+    stat: ModifierStatKey;
+    value: ScalingTable;
+    durationSeconds: number;
+  }[];
 };
 
 export type ResolvedCommandDefinition = {
@@ -86,6 +97,7 @@ export function resolveCommandDefinition(
       energyReturn: hit.energyReturn ?? flat12(0),
       attackType: hit.attackType ?? command.attackType,
       damageType: hit.damageType ?? command.damageType,
+      targetDebuffs: hit.targetDebuffs ?? [],
     })),
   };
 }
@@ -108,6 +120,11 @@ export type ResolvedCommandHitAtLevel = {
   energyReturn: number;
   attackType: AttackType;
   damageType: ElementType;
+  targetDebuffs: {
+    stat: ModifierStatKey;
+    value: number;
+    durationSeconds: number;
+  }[];
 };
 
 export type ResolvedCommandAtLevel = {
@@ -154,6 +171,11 @@ export function resolveCommandAtLevel(
       energyReturn: hit.energyReturn ? resolveTable(hit.energyReturn, level) : 0,
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,
+      targetDebuffs: (hit.targetDebuffs ?? []).map((debuff) => ({
+        stat: debuff.stat,
+        value: resolveTable(debuff.value, level),
+        durationSeconds: debuff.durationSeconds,
+      })),
     })),
   };
 }

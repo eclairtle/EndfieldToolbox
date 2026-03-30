@@ -77,7 +77,23 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     damageType: "Nature",
     mode: "single",
     spCost: flat12(100),
-    hits: [{ multiplier: pct([142, 156, 171, 185, 199, 213, 228, 242, 256, 274, 295, 320]), stagger: flat12(10), frameData: flat12(30) }],
+    hits: [{
+      multiplier: pct([142, 156, 171, 185, 199, 213, 228, 242, 256, 274, 295, 320]),
+      stagger: flat12(10),
+      frameData: flat12(30),
+      targetDebuffs: [
+        {
+          stat: "PHYSICAL_SUS_PCT",
+          value: pct([12, 12, 12, 13, 13, 13, 14, 14, 16, 17, 18, 20]),
+          durationSeconds: 30,
+        },
+        {
+          stat: "ARTS_SUS_PCT",
+          value: pct([12, 12, 12, 13, 13, 13, 14, 14, 16, 17, 18, 20]),
+          durationSeconds: 30,
+        },
+      ],
+    }],
   },
   {
     id: "ardelia_combo_skill",
@@ -122,6 +138,21 @@ const ARDELIA_BENCHMARKS: CharacterBenchmark[] = [
       ctx.slot?.uniqueTalentToggles?.game_rewards ? 1.5 : 1
     ),
   }),
+  {
+    id: "ardelia_benchmark_battle_skill_susceptibility",
+    name: "Battle Skill Susceptibility",
+    compute: (ctx) => {
+      const command = ctx.resolvedCommands.find((c) => c.id === "ardelia_battle_skill");
+      const susceptibility =
+        command?.hits[0]?.targetDebuffs.find((debuff) => debuff.stat === "PHYSICAL_SUS_PCT")?.value ?? 0;
+
+      return {
+        label: "Battle Skill Susceptibility",
+        value: susceptibility * 100,
+        suffix: "%",
+      };
+    },
+  },
 ];
 
 export const ARDELIA: CharacterBase = {
