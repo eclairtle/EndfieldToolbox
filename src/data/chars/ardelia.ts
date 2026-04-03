@@ -164,8 +164,8 @@ export const ARDELIA: CharacterBase = {
   element: "Nature",
 
   scaling: {
-    INT: 0.006,
-    WIL: 0.003
+    INT: 0.005,
+    WIL: 0.002
   },
 
   mainAttr: "INT",
@@ -175,8 +175,8 @@ export const ARDELIA: CharacterBase = {
   commands: ARDELIA_COMMANDS,
   benchmarks: ARDELIA_BENCHMARKS,
   uniqueTalentDefs: {
-    game_rewards: {
-      name: "Game Rewards",
+    friendly_prescence_1: {
+      name: "Friendly Presence I",
     },
   },
 
