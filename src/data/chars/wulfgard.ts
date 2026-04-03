@@ -9,28 +9,29 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     mode: "cycling",
+    durationFrames: flat12(270),
     spCost: flat12(0),
     hits: [
         {
         name: "Hit 1",
         multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]),
-        frameData: flat12(30),
+        offsetFrames: flat12(14),
         },
         {
         name: "Hit 2",
         multiplier: pct([35, 39, 42, 46, 49, 53, 56, 60, 63, 67, 73, 79]),
-        frameData: flat12(30),
+        offsetFrames: flat12(30),
         },
         {
         name: "Hit 3",
         multiplier: pct([56, 61, 67, 72, 78, 83, 89, 94, 100, 107, 115, 125]),
-        frameData: flat12(30),
+        offsetFrames: flat12(30),
         },
         {
         name: "Hit 4",
         multiplier: pct([68, 74, 81, 88, 95, 101, 108, 115, 122, 130, 140, 152]),
         stagger: flat12(18),
-        frameData: flat12(30),
+        offsetFrames: flat12(30),
         },
     ],
     },
@@ -41,11 +42,12 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
         {
         multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]),
-        frameData: flat12(30),
+        offsetFrames: flat12(30),
         },
     ],
     },
@@ -56,11 +58,12 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
         {
         multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
-        frameData: flat12(30),
+        offsetFrames: flat12(30),
         },
     ],
     },
