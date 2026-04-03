@@ -9,26 +9,27 @@ const LAEVATAIN_UBS_HIT_1: CommandHitDefinition = {
   name: "UBS Hit 1",
   multiplier: pct([147, 161, 176, 191, 205, 220, 235, 249, 264, 282, 304, 330]),
   stagger: flat12(10),
-  frameData: flat12(30),
+  offsetFrames: flat12(44),
 }
 const LAEVATAIN_UBS_HIT_2: CommandHitDefinition = {
   name: "UBS Hit 2",
   multiplier: pct([164, 181, 197, 214, 230, 247, 263, 279, 296, 316, 341, 370]),
   stagger: flat12(10),
-  frameData: flat12(30),
+  offsetFrames: flat12(58),
 }
 const LAEVATAIN_BS_INITIAL_HIT: CommandHitDefinition = {
   name: "Initial Explosion",
   multiplier: pct([62, 68, 75, 81, 87, 93, 99, 106, 112, 120, 129, 140]),
   stagger: flat12(10),
-  frameData: flat12(30),
+  offsetFrames: flat12(44),
 }
 
 const LAEVATAIN_BS_CONTINUOUS_HIT: CommandHitDefinition = {
   name: "Continuous Hit ×10",
   multiplier: pct([6, 7, 8, 8, 9, 9, 10, 11, 11, 12, 13, 14]),
-  frameData: flat12(30),
+  offsetFrames: flat12(58),
   times: 10,
+  repeatIntervalFrames: flat12(8),
 }
 
 const LAEVATAIN_COMMANDS: CommandDefinition[] = [
@@ -39,33 +40,34 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     mode: "cycling",
+    durationFrames: flat12(197),
     spCost: flat12(0),
     hits: [
       {
         name: "Hit 1",
         multiplier: pct([16, 18, 19, 21, 22, 24, 26, 27, 29, 31, 33, 36]),
-        frameData: flat12(30),
+        offsetFrames: flat12(12),
       },
       {
         name: "Hit 2",
         multiplier: pct([24, 26, 29, 31, 34, 36, 38, 41, 43, 46, 50, 54]),
-        frameData: flat12(30),
+        offsetFrames: flat12(34),
       },
       {
         name: "Hit 3",
         multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]),
-        frameData: flat12(30),
+        offsetFrames: flat12(74),
       },
       {
         name: "Hit 4",
         multiplier: pct([39, 43, 47, 51, 55, 59, 62, 66, 70, 75, 81, 88]),
-        frameData: flat12(30),
+        offsetFrames: flat12(120),
       },
       {
         name: "Hit 5",
         multiplier: pct([53, 58, 64, 69, 74, 80, 85, 90, 95, 102, 110, 119]),
         stagger: flat12(18),
-        frameData: flat12(30),
+        offsetFrames: flat12(174),
       },
     ],
   },
@@ -76,11 +78,12 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
       {
         multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]),
-        frameData: flat12(30),
+        offsetFrames: flat12(30),
       },
     ],
   },
@@ -91,11 +94,12 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
       {
         multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
-        frameData: flat12(30),
+        offsetFrames: flat12(30),
       },
     ],
   },
@@ -108,7 +112,9 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(132),
     spCost: flat12(100),
+    energyGain: flat12(0),
     hits: [
       LAEVATAIN_BS_INITIAL_HIT,
       LAEVATAIN_BS_CONTINUOUS_HIT,
@@ -123,7 +129,9 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(132),
     spCost: flat12(100),
+    energyGain: flat12(0),
     hits: [
       LAEVATAIN_BS_INITIAL_HIT,
       LAEVATAIN_BS_CONTINUOUS_HIT,
@@ -132,7 +140,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
         multiplier: pct([342, 376, 410, 445, 479, 513, 547, 581, 616, 658, 710, 770]),
         stagger: flat12(10),
         energyReturn: flat12(100),
-        frameData: flat12(30),
+        offsetFrames: flat12(124),
       },
     ],
   },
@@ -145,6 +153,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "ULTIMATE",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(142),
     spCost: flat12(0),
     energyCost: flat12(300),
     hits: [],
@@ -158,7 +167,9 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(132),
     spCost: flat12(100),
+    energyGain: flat12(0),
     hits: [
       LAEVATAIN_UBS_HIT_1,
       LAEVATAIN_UBS_HIT_2,
@@ -173,7 +184,9 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     mode: "single",
+    durationFrames: flat12(132),
     spCost: flat12(100),
+    energyGain: flat12(0),
     hits: [
       LAEVATAIN_UBS_HIT_1,
       LAEVATAIN_UBS_HIT_2,
@@ -181,7 +194,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
         name: "Additional Hit",
         multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]),
         stagger: flat12(10),
-        frameData: flat12(30),
+        offsetFrames: flat12(124),
       },
     ],
   },
@@ -194,27 +207,28 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     mode: "cycling",
+    durationFrames: flat12(197),
     spCost: flat12(0),
     hits: [
       {
         name: "Enhanced Hit 1",
         multiplier: pct([65, 71, 78, 84, 91, 97, 104, 110, 117, 125, 134, 146]),
-        frameData: flat12(30),
+        offsetFrames: flat12(12),
       },
       {
         name: "Enhanced Hit 2",
         multiplier: pct([81, 89, 97, 105, 113, 122, 130, 138, 146, 156, 168, 182]),
-        frameData: flat12(30),
+        offsetFrames: flat12(34),
       },
       {
         name: "Enhanced Hit 3",
         multiplier: pct([115, 127, 139, 150, 162, 173, 185, 196, 208, 222, 240, 260]),
-        frameData: flat12(30),
+        offsetFrames: flat12(74),
       },
       {
         name: "Enhanced Hit 4",
         multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
-        frameData: flat12(30),
+        offsetFrames: flat12(120),
       },
     ],
   },

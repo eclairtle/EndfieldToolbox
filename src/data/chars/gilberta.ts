@@ -9,12 +9,13 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
     mode: "cycling",
+    durationFrames: flat12(214),
     spCost: flat12(0),
     hits: [
-      { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), frameData: flat12(30) },
-      { name: "Hit 2", multiplier: pct([36, 40, 43, 47, 50, 54, 58, 61, 65, 69, 75, 81]), frameData: flat12(30) },
-      { name: "Hit 3", multiplier: pct([41, 45, 49, 53, 57, 61, 65, 69, 73, 78, 84, 91]), frameData: flat12(30) },
-      { name: "Hit 4", multiplier: pct([50, 55, 60, 65, 70, 75, 80, 85, 90, 96, 104, 112]), stagger: flat12(16), frameData: flat12(30) },
+      { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), offsetFrames: flat12(14) },
+      { name: "Hit 2", multiplier: pct([36, 40, 43, 47, 50, 54, 58, 61, 65, 69, 75, 81]), offsetFrames: flat12(46) },
+      { name: "Hit 3", multiplier: pct([41, 45, 49, 53, 57, 61, 65, 69, 73, 78, 84, 91]), offsetFrames: flat12(98) },
+      { name: "Hit 4", multiplier: pct([50, 55, 60, 65, 70, 75, 80, 85, 90, 96, 104, 112]), stagger: flat12(16), offsetFrames: flat12(178) },
     ],
   },
   {
@@ -24,8 +25,9 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
     mode: "single",
+    durationFrames: flat12(60),
     spCost: flat12(0),
-    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), frameData: flat12(30) }],
+    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
   },
   {
     id: "gilberta_basic_dive",
@@ -34,8 +36,9 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
     mode: "single",
+    durationFrames: flat12(60),
     spCost: flat12(0),
-    hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), frameData: flat12(30) }],
+    hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
   },
   {
     id: "gilberta_battle_skill",
@@ -44,10 +47,12 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Nature",
     mode: "single",
+    durationFrames: flat12(246),
     spCost: flat12(100),
+    energyGain: flat12(0),
     hits: [
-      { name: "Gravity Pull", multiplier: pct([97, 107, 117, 126, 136, 146, 156, 165, 175, 187, 202, 219]), frameData: flat12(30) },
-      { name: "Explosion", multiplier: pct([58, 63, 69, 75, 81, 86, 92, 98, 104, 111, 120, 130]), stagger: flat12(10), frameData: flat12(30) },
+      { name: "Gravity Pull", multiplier: pct([97, 107, 117, 126, 136, 146, 156, 165, 175, 187, 202, 219]), offsetFrames: flat12(58) },
+      { name: "Explosion", multiplier: pct([58, 63, 69, 75, 81, 86, 92, 98, 104, 111, 120, 130]), stagger: flat12(10), offsetFrames: flat12(216) },
     ],
   },
   {
@@ -57,8 +62,9 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "COMBO_SKILL",
     damageType: "Nature",
     mode: "single",
+    durationFrames: flat12(106),
     spCost: flat12(0),
-    hits: [{ multiplier: pct([140, 154, 168, 182, 196, 210, 224, 238, 252, 270, 291, 315]), stagger: flat12(5), frameData: flat12(30) }],
+    hits: [{ multiplier: pct([140, 154, 168, 182, 196, 210, 224, 238, 252, 270, 291, 315]), stagger: flat12(5), offsetFrames: flat12(96) }],
   },
   {
     id: "gilberta_ultimate",
@@ -67,9 +73,10 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "ULTIMATE",
     damageType: "Nature",
     mode: "single",
+    durationFrames: flat12(128),
     spCost: flat12(0),
     energyCost: flat12(90),
-    hits: [{ multiplier: pct([333, 367, 400, 433, 467, 500, 534, 567, 600, 642, 692, 750]), stagger: flat12(20), frameData: flat12(30) }],
+    hits: [{ multiplier: pct([333, 367, 400, 433, 467, 500, 534, 567, 600, 642, 692, 750]), stagger: flat12(20), offsetFrames: flat12(120) }],
   },
 ];
 

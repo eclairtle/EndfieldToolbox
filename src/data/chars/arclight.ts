@@ -1,0 +1,87 @@
+import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const ARCLIGHT_COMMANDS: CommandDefinition[] = [
+  {
+    id: "arclight_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "cycling",
+    durationFrames: flat12(200),
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 23]), offsetFrames: flat12(10) },
+      { name: "Hit 2", multiplier: pct([13, 14, 15, 16, 18, 19, 20, 21, 23, 24, 26, 28]), offsetFrames: flat12(30) },
+      { name: "Hit 3-1", multiplier: pct([26, 29, 31, 34, 36, 39, 42, 44, 47, 50, 54, 59]), offsetFrames: flat12(56) },
+      { name: "Hit 3-2", multiplier: pct([36, 40, 43, 47, 50, 54, 58, 61, 65, 69, 75, 81]), offsetFrames: flat12(68) },
+      { name: "Hit 4", multiplier: pct([48, 52, 57, 62, 67, 71, 76, 81, 86, 91, 99, 107]), stagger: flat12(16), offsetFrames: flat12(164) },
+    ],
+  },
+  { id: "arclight_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "arclight_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  {
+    id: "arclight_battle_skill",
+    name: "Tempestuous Arc",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Electric",
+    mode: "single",
+    durationFrames: flat12(72),
+    spCost: flat12(100),
+    energyGain: flat12(0),
+    hits: [
+      { name: "Seq 1", multiplier: pct([45, 50, 54, 59, 63, 68, 72, 77, 81, 87, 93, 101]), offsetFrames: flat12(38) },
+      { name: "Seq 2", multiplier: pct([45, 50, 54, 59, 63, 68, 72, 77, 81, 87, 93, 101]), stagger: flat12(5), offsetFrames: flat12(48) },
+      { name: "Bonus", multiplier: pct([180, 198, 216, 234, 252, 270, 288, 306, 324, 347, 374, 405]), stagger: flat12(5), offsetFrames: flat12(48) },
+    ],
+  },
+  {
+    id: "arclight_combo_skill",
+    name: "Peal of Thunder",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    durationFrames: flat12(54),
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([155, 171, 186, 202, 218, 233, 249, 264, 280, 299, 322, 350]), stagger: flat12(5), offsetFrames: flat12(50) }],
+  },
+  {
+    id: "arclight_ultimate",
+    name: "Exploding Blitz",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Electric",
+    mode: "single",
+    durationFrames: flat12(154),
+    spCost: flat12(0),
+    energyCost: flat12(90),
+    hits: [
+      { name: "Seq 1", multiplier: pct([156, 171, 187, 202, 218, 234, 249, 265, 280, 300, 323, 350]), stagger: flat12(7), offsetFrames: flat12(122) },
+      { name: "Seq 2", multiplier: pct([244, 269, 293, 318, 342, 367, 391, 415, 440, 470, 507, 550]), stagger: flat12(7), offsetFrames: flat12(234) },
+    ],
+  },
+];
+
+export const ARCLIGHT: CharacterBase = {
+  id: "arclight",
+  name: "Arclight",
+  rarity: 5,
+  class: "Vanguard",
+  element: "Electric",
+  scaling: { AGI: 0.005, INT: 0.002 },
+  mainAttr: "AGI",
+  secondaryAttr: "INT",
+  weaponType: "SWORD",
+  commands: ARCLIGHT_COMMANDS,
+  levels: {
+    STR: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107],
+    AGI: [14, 16, 17, 19, 20, 22, 23, 24, 26, 27, 29, 30, 32, 33, 35, 36, 38, 39, 41, 42, 44, 45, 47, 48, 49, 51, 52, 54, 55, 57, 58, 60, 61, 63, 64, 66, 67, 69, 70, 71, 73, 74, 76, 77, 79, 80, 82, 83, 85, 86, 88, 89, 91, 92, 94, 95, 96, 98, 99, 101, 102, 104, 105, 107, 108, 110, 111, 113, 114, 116, 117, 118, 120, 121, 123, 124, 126, 127, 129, 130, 132, 133, 135, 136, 138, 139, 141, 142, 143, 145],
+    INT: [12, 13, 14, 16, 17, 18, 19, 21, 22, 23, 24, 26, 27, 28, 29, 31, 32, 33, 34, 36, 37, 38, 39, 41, 42, 43, 44, 46, 47, 48, 49, 51, 52, 53, 54, 56, 57, 58, 59, 61, 62, 63, 64, 66, 67, 68, 69, 71, 72, 73, 74, 76, 77, 78, 79, 81, 82, 83, 84, 86, 87, 88, 89, 91, 92, 93, 94, 96, 97, 98, 99, 101, 102, 103, 104, 106, 107, 108, 109, 111, 112, 113, 114, 116, 117, 118, 119, 120, 122, 123],
+    WIL: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 98, 99, 100],
+    ATK: [30, 33, 36, 39, 42, 45, 49, 52, 55, 58, 61, 64, 67, 70, 73, 76, 80, 83, 86, 89, 92, 95, 98, 101, 104, 107, 111, 114, 117, 120, 123, 126, 129, 132, 135, 138, 142, 145, 148, 151, 154, 157, 160, 163, 166, 169, 173, 176, 179, 182, 185, 188, 191, 194, 197, 200, 204, 207, 210, 213, 216, 219, 222, 225, 228, 231, 235, 238, 241, 244, 247, 250, 253, 256, 259, 262, 266, 269, 272, 275, 278, 281, 284, 287, 290, 293, 297, 300, 303, 306],
+    HP: [500, 556, 612, 668, 724, 781, 837, 893, 949, 1005, 1061, 1117, 1173, 1230, 1286, 1342, 1398, 1454, 1510, 1566, 1622, 1679, 1735, 1791, 1847, 1903, 1959, 2015, 2071, 2128, 2184, 2240, 2296, 2352, 2408, 2464, 2520, 2577, 2633, 2689, 2745, 2801, 2857, 2913, 2969, 3026, 3082, 3138, 3194, 3250, 3306, 3362, 3418, 3474, 3531, 3587, 3643, 3699, 3755, 3811, 3867, 3923, 3980, 4036, 4092, 4148, 4204, 4260, 4316, 4372, 4429, 4485, 4541, 4597, 4653, 4709, 4765, 4821, 4878, 4934, 4990, 5046, 5102, 5158, 5214, 5270, 5327, 5383, 5439, 5495],
+  },
+};

@@ -1,0 +1,90 @@
+import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const LIFENG_COMMANDS: CommandDefinition[] = [
+  {
+    id: "lifeng_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "cycling",
+    durationFrames: flat12(190),
+    spCost: flat12(0),
+    hits: [
+      { multiplier: pct([24, 27, 29, 32, 34, 36, 39, 41, 44, 47, 50, 55]), offsetFrames: flat12(18) },
+      { multiplier: pct([29, 32, 35, 38, 41, 44, 47, 49, 52, 56, 60, 65]), offsetFrames: flat12(58) },
+      { multiplier: pct([35, 39, 42, 46, 49, 53, 56, 60, 63, 67, 73, 79]), offsetFrames: flat12(110) },
+      { multiplier: pct([68, 74, 81, 88, 95, 101, 108, 115, 122, 130, 140, 152]), stagger: flat12(19), offsetFrames: flat12(166) },
+    ],
+  },
+  { id: "lifeng_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "lifeng_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  {
+    id: "lifeng_battle_skill",
+    name: "Turbid Avatar",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    durationFrames: flat12(134),
+    spCost: flat12(100),
+    energyGain: flat12(0),
+    hits: [
+      { multiplier: pct([38, 42, 46, 50, 53, 57, 61, 65, 69, 73, 79, 86]), offsetFrames: flat12(14) },
+      { multiplier: pct([38, 42, 46, 50, 53, 57, 61, 65, 69, 73, 79, 86]), offsetFrames: flat12(40) },
+      { multiplier: pct([119, 131, 143, 155, 167, 178, 190, 202, 214, 229, 247, 268]), stagger: flat12(10), offsetFrames: flat12(108) },
+    ],
+  },
+  {
+    id: "lifeng_combo_skill",
+    name: "Aspect of Wrath",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    durationFrames: flat12(100),
+    spCost: flat12(0),
+    hits: [
+      { name: "Seq 1", multiplier: pct([47, 51, 56, 61, 65, 70, 75, 79, 84, 90, 97, 105]), offsetFrames: flat12(38) },
+      { name: "Seq 2", multiplier: pct([167, 183, 200, 217, 233, 250, 267, 283, 300, 321, 346, 375]), stagger: flat12(10), offsetFrames: flat12(96) },
+    ],
+  },
+  {
+    id: "lifeng_ultimate",
+    name: "Heart of the Unmoving",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Physical",
+    mode: "single",
+    durationFrames: flat12(132),
+    spCost: flat12(0),
+    energyCost: flat12(90),
+    hits: [
+      { name: "Seq 1", multiplier: pct([178, 196, 213, 231, 249, 267, 284, 302, 320, 342, 369, 400]), stagger: flat12(5), offsetFrames: flat12(128) },
+      { name: "Seq 2", multiplier: pct([178, 196, 213, 231, 249, 267, 284, 302, 320, 342, 369, 400]), stagger: flat12(5), offsetFrames: flat12(248) },
+      { name: "Additional", multiplier: pct([267, 294, 320, 347, 374, 400, 427, 454, 480, 514, 554, 600]), stagger: flat12(5), offsetFrames: flat12(248) },
+    ],
+  },
+];
+
+export const LIFENG: CharacterBase = {
+  id: "lifeng",
+  name: "Lifeng",
+  rarity: 6,
+  class: "Guard",
+  element: "Physical",
+  scaling: { AGI: 0.005, STR: 0.002 },
+  mainAttr: "AGI",
+  secondaryAttr: "STR",
+  weaponType: "POLEARM",
+  commands: LIFENG_COMMANDS,
+  levels: {
+    STR: [14, 15, 17, 18, 19, 20, 22, 23, 24, 25, 26, 28, 29, 30, 31, 33, 34, 35, 36, 38, 39, 40, 41, 42, 44, 45, 46, 47, 49, 50, 51, 52, 53, 55, 56, 57, 58, 60, 61, 62, 63, 64, 66, 67, 68, 69, 71, 72, 73, 74, 75, 77, 78, 79, 80, 82, 83, 84, 85, 86, 88, 89, 90, 91, 93, 94, 95, 96, 97, 99, 100, 101, 102, 104, 105, 106, 107, 109, 110, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122, 123],
+    AGI: [20, 21, 22, 23, 25, 26, 27, 28, 30, 31, 32, 33, 35, 36, 37, 39, 40, 41, 42, 44, 45, 46, 47, 49, 50, 51, 52, 54, 55, 56, 57, 59, 60, 61, 62, 64, 65, 66, 68, 69, 70, 71, 73, 74, 75, 76, 78, 79, 80, 81, 83, 84, 85, 86, 88, 89, 90, 91, 93, 94, 95, 96, 98, 99, 100, 102, 103, 104, 105, 107, 108, 109, 110, 112, 113, 114, 115, 117, 118, 119, 120, 122, 123, 124, 125, 127, 128, 129, 131, 132],
+    INT: [13, 14, 15, 16, 17, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30, 31, 32, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47, 48, 50, 51, 52, 53, 54, 55, 56, 58, 59, 60, 61, 62, 63, 65, 66, 67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79, 81, 82, 83, 84, 85, 86, 87, 89, 90, 91, 92, 93, 94, 95, 97, 98, 99, 100, 101, 102, 104, 105, 106, 107, 108, 109, 110, 112, 113, 114, 115],
+    WIL: [12, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26, 28, 29, 30, 31, 32, 34, 35, 36, 37, 38, 39, 41, 42, 43, 44, 45, 46, 48, 49, 50, 51, 52, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 68, 69, 70, 71, 72, 73, 75, 76, 77, 78, 79, 81, 82, 83, 84, 85, 86, 88, 89, 90, 91, 92, 93, 95, 96, 97, 98, 99, 101, 102, 103, 104, 105, 106, 108, 109, 110, 111, 112, 113, 115, 116, 117],
+    ATK: [30, 33, 36, 39, 43, 46, 49, 52, 55, 58, 62, 65, 68, 71, 74, 77, 81, 84, 87, 90, 93, 96, 100, 103, 106, 109, 112, 115, 119, 122, 125, 128, 131, 134, 138, 141, 144, 147, 150, 153, 157, 160, 163, 166, 169, 172, 176, 179, 182, 185, 188, 191, 195, 198, 201, 204, 207, 210, 214, 217, 220, 223, 226, 229, 233, 236, 239, 242, 245, 248, 252, 255, 258, 261, 264, 267, 271, 274, 277, 280, 283, 286, 290, 293, 296, 299, 302, 305, 309, 312],
+    HP: [500, 556, 612, 668, 724, 781, 837, 893, 949, 1005, 1061, 1117, 1173, 1230, 1286, 1342, 1398, 1454, 1510, 1566, 1622, 1679, 1735, 1791, 1847, 1903, 1959, 2015, 2071, 2128, 2184, 2240, 2296, 2352, 2408, 2464, 2520, 2577, 2633, 2689, 2745, 2801, 2857, 2913, 2969, 3026, 3082, 3138, 3194, 3250, 3306, 3362, 3418, 3474, 3531, 3587, 3643, 3699, 3755, 3811, 3867, 3923, 3980, 4036, 4092, 4148, 4204, 4260, 4316, 4372, 4429, 4485, 4541, 4597, 4653, 4709, 4765, 4821, 4878, 4934, 4990, 5046, 5102, 5158, 5214, 5270, 5327, 5383, 5439, 5495],
+  },
+};

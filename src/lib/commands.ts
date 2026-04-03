@@ -17,8 +17,9 @@ export type CommandHitDefinition = {
   scalingStat?: "ATK" | "WIL"; // default ATK
   stagger?: ScalingTable; //default 0
   spReturn?: ScalingTable; // default 0
-  frameData: ScalingTable; // per-hit now
+  offsetFrames: ScalingTable; // hit timing from command start (60f = 1s)
   times?: number; //default 1
+  repeatIntervalFrames?: ScalingTable; // used when times > 1
   energyReturn?: ScalingTable; //default 0
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
@@ -37,8 +38,10 @@ export type CommandDefinition = {
   attackType: AttackType; 
   damageType: ElementType; 
   mode: "single" | "cycling";
+  durationFrames: ScalingTable;
   spCost: ScalingTable; // can also scale now
   energyCost?: ScalingTable; // for future use, if needed
+  energyGain?: ScalingTable;
   hits: CommandHitDefinition[];
 };
 
@@ -49,8 +52,9 @@ export type ResolvedCommandHit = {
   scalingStat: "ATK" | "WIL";
   stagger: ScalingTable;
   spReturn: ScalingTable;
-  frameData: ScalingTable;
+  offsetFrames: ScalingTable;
   times: number;
+  repeatIntervalFrames: ScalingTable;
   energyReturn: ScalingTable;
   attackType: AttackType;
   damageType: ElementType;
@@ -68,8 +72,10 @@ export type ResolvedCommandDefinition = {
   attackType: AttackType;
   damageType: ElementType;
   mode: "single" | "cycling";
+  durationFrames: ScalingTable;
   spCost: ScalingTable;
   energyCost: ScalingTable;
+  energyGain: ScalingTable;
   hits: ResolvedCommandHit[];
 };
 
@@ -83,8 +89,10 @@ export function resolveCommandDefinition(
     attackType: command.attackType,
     damageType: command.damageType,
     mode: command.mode,
+    durationFrames: command.durationFrames,
     spCost: command.spCost,
     energyCost: command.energyCost ?? flat12(0),
+    energyGain: command.energyGain ?? flat12(0),
     hits: command.hits.map((hit) => ({
       name: hit.name,
       multiplier: hit.multiplier,
@@ -92,8 +100,9 @@ export function resolveCommandDefinition(
       scalingStat: hit.scalingStat ?? "ATK",
       stagger: hit.stagger ?? flat12(0),
       spReturn: hit.spReturn ?? flat12(0),
-      frameData: hit.frameData,
+      offsetFrames: hit.offsetFrames,
       times: hit.times ?? 1,
+      repeatIntervalFrames: hit.repeatIntervalFrames ?? flat12(0),
       energyReturn: hit.energyReturn ?? flat12(0),
       attackType: hit.attackType ?? command.attackType,
       damageType: hit.damageType ?? command.damageType,
@@ -115,8 +124,9 @@ export type ResolvedCommandHitAtLevel = {
   scalingStat: "ATK" | "WIL";
   stagger: number;
   spReturn: number;
-  frameData: number;
+  offsetFrames: number;
   times: number;
+  repeatIntervalFrames: number;
   energyReturn: number;
   attackType: AttackType;
   damageType: ElementType;
@@ -134,8 +144,10 @@ export type ResolvedCommandAtLevel = {
   attackType: AttackType;
   damageType: ElementType;
   mode: "single" | "cycling";
+  durationFrames: number;
   spCost: number;
   energyCost: number;
+  energyGain: number;
   hits: ResolvedCommandHitAtLevel[];
 };
 
@@ -157,8 +169,10 @@ export function resolveCommandAtLevel(
     attackType: command.attackType,
     damageType: command.damageType,
     mode: command.mode,
+    durationFrames: resolveTable(command.durationFrames, level),
     spCost: command.spCost ? resolveTable(command.spCost, level) : 0,
     energyCost: command.energyCost ? resolveTable(command.energyCost, level) : 0,
+    energyGain: command.energyGain ? resolveTable(command.energyGain, level) : 0,
     hits: command.hits.map((hit) => ({
       name: hit.name,
       multiplier: resolveTable(hit.multiplier, level),
@@ -166,8 +180,9 @@ export function resolveCommandAtLevel(
       scalingStat: hit.scalingStat ?? "ATK",
       stagger: hit.stagger ? resolveTable(hit.stagger, level) : 0,
       spReturn: hit.spReturn ? resolveTable(hit.spReturn, level) : 0,
-      frameData: resolveTable(hit.frameData, level),
+      offsetFrames: resolveTable(hit.offsetFrames, level),
       times: hit.times?? 1,
+      repeatIntervalFrames: hit.repeatIntervalFrames ? resolveTable(hit.repeatIntervalFrames, level) : 0,
       energyReturn: hit.energyReturn ? resolveTable(hit.energyReturn, level) : 0,
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,

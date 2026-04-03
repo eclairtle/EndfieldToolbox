@@ -1,0 +1,81 @@
+import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const SNOWSHINE_COMMANDS: CommandDefinition[] = [
+  {
+    id: "snowshine_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "cycling",
+    durationFrames: flat12(248),
+    spCost: flat12(0),
+    hits: [
+      { multiplier: pct([55, 61, 66, 72, 77, 83, 88, 94, 99, 106, 114, 124]), offsetFrames: flat12(38) },
+      { multiplier: pct([59, 64, 70, 76, 82, 88, 94, 99, 105, 113, 121, 132]), offsetFrames: flat12(104) },
+      { multiplier: pct([100, 110, 120, 130, 140, 150, 160, 170, 180, 193, 208, 225]), stagger: flat12(23), offsetFrames: flat12(202) },
+    ],
+  },
+  { id: "snowshine_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "snowshine_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  {
+    id: "snowshine_battle_skill",
+    name: "Saturated Defense",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Cryo",
+    mode: "single",
+    durationFrames: flat12(270),
+    spCost: flat12(100),
+    energyGain: flat12(0),
+    hits: [{ multiplier: pct([200, 220, 240, 260, 280, 300, 320, 340, 360, 385, 415, 450]), stagger: flat12(20), energyReturn: flat12(30), offsetFrames: flat12(214) }],
+  },
+  {
+    id: "snowshine_combo_skill",
+    name: "Polar Rescue",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Healing",
+    mode: "single",
+    durationFrames: flat12(30),
+    spCost: flat12(0),
+    hits: [],
+  },
+  {
+    id: "snowshine_ultimate",
+    name: "Frigid Snowfield",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Cryo",
+    mode: "single",
+    durationFrames: flat12(142),
+    spCost: flat12(0),
+    energyCost: flat12(80),
+    hits: [
+      { name: "Explosion", multiplier: pct([200, 220, 240, 260, 280, 300, 320, 340, 360, 385, 415, 450]), stagger: flat12(15), offsetFrames: flat12(124) },
+      { name: "DoT x10", multiplier: pct([29, 32, 35, 37, 40, 43, 46, 49, 52, 55, 60, 65]), offsetFrames: flat12(154), times: 10, repeatIntervalFrames: flat12(30) },
+    ],
+  },
+];
+
+export const SNOWSHINE: CharacterBase = {
+  id: "snowshine",
+  name: "Snowshine",
+  rarity: 5,
+  class: "Defender",
+  element: "Cryo",
+  scaling: { STR: 0.005, WIL: 0.002 },
+  mainAttr: "STR",
+  secondaryAttr: "WIL",
+  weaponType: "GREATSWORD",
+  commands: SNOWSHINE_COMMANDS,
+  levels: {
+    STR: [18, 20, 21, 23, 24, 26, 27, 29, 30, 32, 33, 35, 36, 38, 40, 41, 43, 44, 46, 47, 49, 50, 52, 53, 55, 56, 58, 59, 61, 62, 64, 66, 67, 69, 70, 72, 73, 75, 76, 78, 79, 81, 82, 84, 85, 87, 89, 90, 92, 93, 95, 96, 98, 99, 101, 102, 104, 105, 107, 108, 110, 112, 113, 115, 116, 118, 119, 121, 122, 124, 125, 127, 128, 130, 131, 133, 134, 136, 138, 139, 141, 142, 144, 145, 147, 148, 150, 151, 153, 154],
+    AGI: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104],
+    INT: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 92, 93],
+    WIL: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108],
+    ATK: [30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96, 99, 102, 105, 108, 111, 114, 117, 120, 123, 126, 129, 132, 135, 138, 141, 144, 147, 150, 153, 156, 159, 162, 165, 168, 171, 174, 177, 180, 183, 186, 189, 192, 195, 198, 201, 204, 207, 210, 213, 216, 219, 222, 225, 228, 231, 234, 237, 240, 243, 246, 249, 252, 255, 258, 261, 264, 267, 270, 273, 276, 279, 282, 285, 288, 291, 294, 297],
+    HP: [500, 556, 612, 668, 724, 781, 837, 893, 949, 1005, 1061, 1117, 1173, 1230, 1286, 1342, 1398, 1454, 1510, 1566, 1622, 1679, 1735, 1791, 1847, 1903, 1959, 2015, 2071, 2128, 2184, 2240, 2296, 2352, 2408, 2464, 2520, 2577, 2633, 2689, 2745, 2801, 2857, 2913, 2969, 3026, 3082, 3138, 3194, 3250, 3306, 3362, 3418, 3474, 3531, 3587, 3643, 3699, 3755, 3811, 3867, 3923, 3980, 4036, 4092, 4148, 4204, 4260, 4316, 4372, 4429, 4485, 4541, 4597, 4653, 4709, 4765, 4821, 4878, 4934, 4990, 5046, 5102, 5158, 5214, 5270, 5327, 5383, 5439, 5495],
+  },
+};
