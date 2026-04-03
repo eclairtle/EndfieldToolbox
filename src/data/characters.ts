@@ -181,6 +181,11 @@ import { ANTAL } from "./chars/antal";
 import { ARDELIA } from "./chars/ardelia";
 import type { CharacterBuildSlot } from "@/stores/buildStore";
 import { WULFGARD } from "./chars/wulfgard";
+import { ARCLIGHT } from "./chars/arclight";
+import { EMBER } from "./chars/ember";
+import { LIFENG } from "./chars/lifeng";
+import { SNOWSHINE } from "./chars/snowshine";
+import { ENDMINISTRATOR } from "./chars/endministrator";
 
 
 /**
@@ -190,4 +195,5 @@ import { WULFGARD } from "./chars/wulfgard";
 export const CHARACTERS: CharacterBase[] = [
   GILBERTA, LAEVATAIN, YVONNE, 
   AKEKURI, ANTAL, ARDELIA, WULFGARD,
+  ARCLIGHT, EMBER, LIFENG, SNOWSHINE, ENDMINISTRATOR,
 ];

@@ -1,0 +1,80 @@
+import type { CharacterBase } from "@/data/characters";
+import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+import { buildLevelTable } from "./levelTable";
+
+const EMBER_COMMANDS: CommandDefinition[] = [
+  {
+    id: "ember_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "cycling",
+    durationFrames: flat12(266),
+    spCost: flat12(0),
+    hits: [
+      { multiplier: pct([38, 42, 46, 50, 54, 57, 61, 65, 69, 74, 79, 86]), offsetFrames: flat12(26) },
+      { multiplier: pct([54, 59, 64, 70, 75, 80, 86, 91, 96, 103, 111, 120]), offsetFrames: flat12(62) },
+      { multiplier: pct([66, 73, 80, 86, 93, 99, 106, 113, 119, 128, 138, 149]), offsetFrames: flat12(124) },
+      { multiplier: pct([82, 90, 98, 106, 114, 122, 131, 139, 147, 157, 169, 184]), stagger: flat12(25), offsetFrames: flat12(212) },
+    ],
+  },
+  { id: "ember_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "ember_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  {
+    id: "ember_battle_skill",
+    name: "Forward March",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Heat",
+    mode: "single",
+    durationFrames: flat12(102),
+    spCost: flat12(100),
+    energyGain: flat12(0),
+    hits: [{ multiplier: pct([173, 191, 208, 225, 243, 260, 277, 295, 312, 334, 360, 390]), stagger: flat12(10), offsetFrames: flat12(76) }],
+  },
+  {
+    id: "ember_combo_skill",
+    name: "Frontline Support",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    durationFrames: flat12(76),
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([102, 112, 122, 133, 143, 153, 163, 173, 184, 196, 212, 230]), stagger: flat12(10), offsetFrames: flat12(52) }],
+  },
+  {
+    id: "ember_ultimate",
+    name: "Re-Ignited Oath",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Heat",
+    mode: "single",
+    durationFrames: flat12(100),
+    spCost: flat12(0),
+    energyCost: flat12(100),
+    hits: [{ multiplier: pct([289, 318, 347, 376, 404, 433, 462, 491, 520, 556, 599, 650]), stagger: flat12(25), offsetFrames: flat12(100) }],
+  },
+];
+
+export const EMBER: CharacterBase = {
+  id: "ember",
+  name: "Ember",
+  rarity: 6,
+  class: "Defender",
+  element: "Heat",
+  scaling: { STR: 0.005, WIL: 0.002 },
+  mainAttr: "STR",
+  secondaryAttr: "WIL",
+  weaponType: "GREATSWORD",
+  commands: EMBER_COMMANDS,
+  levels: buildLevelTable({
+    STR: { lv1: 17, lv20: 40, lv40: 65, lv60: 90, lv80: 115, lv90: 128 },
+    AGI: { lv1: 11, lv20: 31, lv40: 52, lv60: 73, lv80: 94, lv90: 104 },
+    INT: { lv1: 13, lv20: 36, lv40: 60, lv60: 84, lv80: 108, lv90: 120 },
+    WIL: { lv1: 13, lv20: 36, lv40: 60, lv60: 84, lv80: 108, lv90: 120 },
+    ATK: { lv1: 30, lv20: 93, lv40: 159, lv60: 225, lv80: 291, lv90: 323 },
+    HP: { lv1: 500, lv20: 1566, lv40: 2689, lv60: 3811, lv80: 4934, lv90: 5495 },
+  }),
+};

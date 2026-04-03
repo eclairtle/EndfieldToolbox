@@ -57,53 +57,62 @@ export function simulateRotation(args: {
     const command = actor.commands.find((c) => c.id === step.commandId);
     if (!command) continue;
 
+    const commandStartTime = currentTime;
+
     for (let i = 0; i < command.hits.length; i++) {
       const hit = command.hits[i];
 
       if (!hit) continue;
 
-      currentTime += hit.frameData / 30; // treating 30 frames = 1 second
+      for (let repeatIndex = 0; repeatIndex < hit.times; repeatIndex++) {
+        const hitTime =
+          commandStartTime +
+          hit.offsetFrames / 60 +
+          (repeatIndex * hit.repeatIntervalFrames) / 60;
 
-      timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) => debuff.expiresAt > currentTime);
-      const effectiveEnemyMods: ModifierStats = { ...enemyMods };
-      for (const debuff of timedEnemyDebuffs) {
-        effectiveEnemyMods[debuff.stat] += debuff.value;
-      }
+        timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) => debuff.expiresAt > hitTime);
+        const effectiveEnemyMods: ModifierStats = { ...enemyMods };
+        for (const debuff of timedEnemyDebuffs) {
+          effectiveEnemyMods[debuff.stat] += debuff.value;
+        }
 
-      const damage = calculateResolvedHitDamage({
-        finalAtk: actor.finalAtk,
-        attackType: command.attackType,
-        damageType: hit.damageType,
-        hit,
-        attackerMods: actor.mods,
-        enemyMods: effectiveEnemyMods,
-        enemyStats,
-      });
-
-      totalDamage += damage;
-
-      timeline.push({
-        time: currentTime,
-        stepId: step.id,
-        slot: step.slot,
-        characterName: actor.characterName,
-        commandId: command.id,
-        commandName: command.name,
-        hitIndex: i,
-        hitName: hit.name,
-        damageType: hit.damageType,
-        multiplier: hit.multiplier,
-        damage,
-      });
-
-      for (const debuff of hit.targetDebuffs) {
-        timedEnemyDebuffs.push({
-          stat: debuff.stat,
-          value: debuff.value,
-          expiresAt: currentTime + debuff.durationSeconds,
+        const damage = calculateResolvedHitDamage({
+          finalAtk: actor.finalAtk,
+          attackType: command.attackType,
+          damageType: hit.damageType,
+          hit,
+          attackerMods: actor.mods,
+          enemyMods: effectiveEnemyMods,
+          enemyStats,
         });
+
+        totalDamage += damage;
+
+        timeline.push({
+          time: hitTime,
+          stepId: step.id,
+          slot: step.slot,
+          characterName: actor.characterName,
+          commandId: command.id,
+          commandName: command.name,
+          hitIndex: i,
+          hitName: hit.times > 1 ? `${hit.name ?? `Hit ${i + 1}`} #${repeatIndex + 1}` : hit.name,
+          damageType: hit.damageType,
+          multiplier: hit.multiplier,
+          damage,
+        });
+
+        for (const debuff of hit.targetDebuffs) {
+          timedEnemyDebuffs.push({
+            stat: debuff.stat,
+            value: debuff.value,
+            expiresAt: hitTime + debuff.durationSeconds,
+          });
+        }
       }
     }
+
+    currentTime = commandStartTime + command.durationFrames / 60;
   }
 
   return {
