@@ -6,6 +6,6 @@ export const DAPAN_DRAFT: CharacterDraft = {
   rarity: 5,
   element: "physical",
   weapon: "claym",
-  wikiUrl: "https://warfarin.wiki/en/operators/dapan",
+  wikiUrl: "https://warfarin.wiki/en/operators/da-pan",
   notes: "Populate full levels, command multipliers, and timing from wiki + gamedata.",
 };

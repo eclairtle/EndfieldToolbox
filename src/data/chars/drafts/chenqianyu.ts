@@ -6,6 +6,6 @@ export const CHENQIANYU_DRAFT: CharacterDraft = {
   rarity: 5,
   element: "physical",
   weapon: "sword",
-  wikiUrl: "https://warfarin.wiki/en/operators/chenqianyu",
+  wikiUrl: "https://warfarin.wiki/en/operators/chen-qianyu",
   notes: "Populate full levels, command multipliers, and timing from wiki + gamedata.",
 };

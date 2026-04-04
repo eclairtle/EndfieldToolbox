@@ -6,6 +6,6 @@ export const LASTRITE_DRAFT: CharacterDraft = {
   rarity: 6,
   element: "cold",
   weapon: "claym",
-  wikiUrl: "https://warfarin.wiki/en/operators/lastrite",
+  wikiUrl: "https://warfarin.wiki/en/operators/last-rite",
   notes: "Populate full levels, command multipliers, and timing from wiki + gamedata.",
 };

@@ -186,6 +186,14 @@ import { EMBER } from "./chars/ember";
 import { LIFENG } from "./chars/lifeng";
 import { SNOWSHINE } from "./chars/snowshine";
 import { ENDMINISTRATOR } from "./chars/endministrator";
+import { DAPAN } from "./chars/dapan";
+import { PERLICA } from "./chars/perlica";
+import { ESTELLA } from "./chars/estella";
+import { FLUORITE } from "./chars/fluorite";
+import { CATCHER } from "./chars/catcher";
+import { ALESH } from "./chars/alesh";
+import { LASTRITE } from "./chars/lastrite";
+import { CHENQIANYU } from "./chars/chenqianyu";
 
 
 /**
@@ -196,4 +204,7 @@ export const CHARACTERS: CharacterBase[] = [
   GILBERTA, LAEVATAIN, YVONNE, 
   AKEKURI, ANTAL, ARDELIA, WULFGARD,
   ARCLIGHT, EMBER, LIFENG, SNOWSHINE, ENDMINISTRATOR,
+  DAPAN, PERLICA, ESTELLA,
+  FLUORITE, CATCHER, ALESH,
+  LASTRITE, CHENQIANYU,
 ];
