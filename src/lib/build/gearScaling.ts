@@ -1,5 +1,5 @@
 import type { GearSubLevel } from "@/lib/build/gearInstances";
-import type { AttrKey, ModifierStatKey } from "./stats";
+import type { AttrKey, CharacterStatKey, ModifierStatKey } from "./stats";
 
 const LEVEL_MULTIPLIERS: Record<GearSubLevel, number> = {
   0: 1.0,
@@ -9,7 +9,7 @@ const LEVEL_MULTIPLIERS: Record<GearSubLevel, number> = {
 };
 
 export function scaledGearSubValue(
-  stat: AttrKey | ModifierStatKey,
+  stat: AttrKey | CharacterStatKey | ModifierStatKey,
   baseValue: number,
   level: GearSubLevel,
 ): number {
@@ -17,13 +17,17 @@ export function scaledGearSubValue(
 
   if (stat.endsWith("_PCT")) {
     // round to xx.x% display precision, i.e. 1 decimal percent = 0.001 in stored decimal form
-    return Math.round(scaled * 1000) / 1000;
+    return Math.floor(scaled * 1000) / 1000;
   }
 
   return Math.floor(scaled);
 }
 
-export function formatGearSubValue(stat: AttrKey | ModifierStatKey, value: number): string {
+export function effectiveGearSubLevel(level: GearSubLevel, upgradable: boolean): GearSubLevel {
+  return upgradable ? level : 0;
+}
+
+export function formatGearSubValue(stat: AttrKey | CharacterStatKey | ModifierStatKey, value: number): string {
   if (stat.endsWith("_PCT")) {
     return `+${(value * 100).toFixed(1)}%`;
   }

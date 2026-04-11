@@ -3,6 +3,7 @@ import {
   type CharacterBase,
   type CharacterBenchmark,
 } from "@/data/characters";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { pct, flat12, type CommandDefinition, type CommandHitDefinition } from "@/lib/commands";
 
 const LAEVATAIN_UBS_HIT_1: CommandHitDefinition = {
@@ -32,6 +33,79 @@ const LAEVATAIN_BS_CONTINUOUS_HIT: CommandHitDefinition = {
   repeatIntervalFrames: flat12(8),
 }
 
+function getScorchingHeartResistanceIgnore(ctx: {
+  isSelfUniqueTalentEnabled: (key: string) => boolean;
+}) {
+  if (ctx.isSelfUniqueTalentEnabled("laevatain_scorching_heart_3")) {
+    return 0.2;
+  }
+  if (ctx.isSelfUniqueTalentEnabled("laevatain_scorching_heart_2")) {
+    return 0.15;
+  }
+  return 0.1;
+}
+
+const LAEVATAIN_COMBAT_HOOKS: CharacterCombatHooks = {
+  onResolvedHit: (ctx) => {
+    if (!ctx.source.isControlledOperatorHit) {
+      return;
+    }
+
+    if (!ctx.flags.isFinalStrikeOfBasicSequence && !ctx.flags.isFinisherHit) {
+      return;
+    }
+
+    const enemyInfliction = ctx.state.getEnemyArtsInfliction();
+    if (!enemyInfliction || enemyInfliction.element !== "Heat" || enemyInfliction.stacks <= 0) {
+      return;
+    }
+
+    const currentStacks = ctx.state.getSelfMeltingFlameStacks();
+    const absorbLimit = Math.max(0, 4 - currentStacks);
+    if (absorbLimit <= 0) {
+      return;
+    }
+
+    const absorbedStacks = Math.min(absorbLimit, enemyInfliction.stacks);
+    if (absorbedStacks <= 0) {
+      return;
+    }
+
+    const remainingStacks = enemyInfliction.stacks - absorbedStacks;
+    ctx.state.setEnemyArtsInfliction(
+      remainingStacks > 0
+        ? {
+            ...enemyInfliction,
+            stacks: remainingStacks,
+          }
+        : null,
+    );
+
+    ctx.state.gainSelfMeltingFlameStacks(absorbedStacks, `Laevatain: Melting Flame +${absorbedStacks}`);
+  },
+  onEvent: (ctx) => {
+    if (ctx.event.type === "MELTING_FLAME_FULL" && ctx.event.slot === ctx.self.slot) {
+      ctx.state.applySelfBuff({
+        buffId: `laevatain_melting_flame_full:${ctx.self.slot}`,
+        label: "Scorching Heart",
+        durationSeconds: 20,
+        timeScale: "game",
+        effects: {
+          HEAT_RESIST_IGNORE_PCT: getScorchingHeartResistanceIgnore(ctx.state),
+        },
+      });
+      return;
+    }
+
+    if (ctx.event.type === "COMBUSTION_APPLIED" || ctx.event.type === "CORROSION_APPLIED") {
+      ctx.state.triggerSelfCombo({
+        sourceEventType: ctx.event.type,
+        label: "Laevatain Combo Triggered",
+      });
+    }
+  },
+};
+
 const LAEVATAIN_COMMANDS: CommandDefinition[] = [
   {
     id: "laevatain_basic_sequence",
@@ -39,35 +113,149 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
-    mode: "cycling",
+    basicAttackVariant: "sequence",
     durationFrames: flat12(197),
     spCost: flat12(0),
+    transforms: [
+      {
+        toCommandId: "laevatain_ultimate_basic_sequence",
+        requiresBuffId: "laevatain_twilight",
+      },
+    ],
+    expandsToCommandIds: [
+      "laevatain_basic_sequence_1",
+      "laevatain_basic_sequence_2",
+      "laevatain_basic_sequence_3",
+      "laevatain_basic_sequence_4",
+      "laevatain_basic_sequence_5",
+    ],
+    hits: [],
+  },
+  {
+    id: "laevatain_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(22.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
     hits: [
       {
         name: "Hit 1",
         multiplier: pct([16, 18, 19, 21, 22, 24, 26, 27, 29, 31, 33, 36]),
         offsetFrames: flat12(12),
       },
+    ],
+  },
+  {
+    id: "laevatain_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(34.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Hit 1",
+        multiplier: pct([24, 26, 29, 31, 34, 36, 38, 41, 43, 46, 50, 54]),
+        offsetFrames: flat12(12),
+      },
       {
         name: "Hit 2",
         multiplier: pct([24, 26, 29, 31, 34, 36, 38, 41, 43, 46, 50, 54]),
-        offsetFrames: flat12(34),
+        offsetFrames: flat12(25.8),
+      },
+    ],
+  },
+  {
+    id: "laevatain_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(25.8),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Hit 1",
+        multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]),
+        offsetFrames: flat12(18),
+      },
+    ],
+  },
+  {
+    id: "laevatain_basic_sequence_4",
+    name: "Basic Attack Sequence IV",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(45.6),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Hit 1",
+        multiplier: pct([39, 43, 47, 51, 55, 59, 62, 66, 70, 75, 81, 88]),
+        offsetFrames: flat12(12),
+      },
+      {
+        name: "Hit 2",
+        multiplier: pct([39, 43, 47, 51, 55, 59, 62, 66, 70, 75, 81, 88]),
+        offsetFrames: flat12(24),
       },
       {
         name: "Hit 3",
-        multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]),
-        offsetFrames: flat12(74),
-      },
-      {
-        name: "Hit 4",
         multiplier: pct([39, 43, 47, 51, 55, 59, 62, 66, 70, 75, 81, 88]),
-        offsetFrames: flat12(120),
+        offsetFrames: flat12(37.8),
+      },
+    ],
+  },
+  {
+    id: "laevatain_basic_sequence_5",
+    name: "Basic Attack Sequence V",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 5,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(70.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Hit 1",
+        multiplier: pct([53, 58, 64, 69, 74, 80, 85, 90, 95, 102, 110, 119]),
+        offsetFrames: flat12(46.2),
       },
       {
-        name: "Hit 5",
+        name: "Hit 2",
         multiplier: pct([53, 58, 64, 69, 74, 80, 85, 90, 95, 102, 110, 119]),
         stagger: flat12(18),
-        offsetFrames: flat12(174),
+        spGenerated: flat12(20),
+        requiresControlledOperator: true,
+        offsetFrames: flat12(52.2),
       },
     ],
   },
@@ -77,6 +265,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
+    basicAttackVariant: "final_strike",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -93,6 +282,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
+    basicAttackVariant: "dive_attack",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -107,7 +297,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
   // Battle Skill
   {
     id: "laevatain_battle_skill",
-    name: "Battle Skill",
+    name: "Smouldering Fire",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
@@ -115,6 +305,21 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     durationFrames: flat12(132),
     spCost: flat12(100),
     energyGain: flat12(0),
+    transforms: [
+      {
+        toCommandId: "laevatain_enhanced_ultimate_battle_skill",
+        requiresBuffId: "laevatain_twilight",
+        requiresMeltingFlameStacks: 4,
+      },
+      {
+        toCommandId: "laevatain_ultimate_battle_skill",
+        requiresBuffId: "laevatain_twilight",
+      },
+      {
+        toCommandId: "laevatain_enhanced_battle_skill",
+        requiresMeltingFlameStacks: 4,
+      },
+    ],
     hits: [
       LAEVATAIN_BS_INITIAL_HIT,
       LAEVATAIN_BS_CONTINUOUS_HIT,
@@ -124,10 +329,12 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
   // Enhanced Battle Skill
   {
     id: "laevatain_enhanced_battle_skill",
-    name: "Enhanced Battle Skill",
+    name: "Smouldering Fire",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
+    variant: "enhanced_battle_skill",
+    hiddenInLibrary: true,
     mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(100),
@@ -140,6 +347,10 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
         multiplier: pct([342, 376, 410, 445, 479, 513, 547, 581, 616, 658, 710, 770]),
         stagger: flat12(10),
         energyReturn: flat12(100),
+        effects: [
+          { type: "REMOVE_BUFF", target: "self", buffId: "melting_flame", stacks: 4 },
+          { type: "APPLY_REACTION", reaction: "Combustion", level: 1, durationSeconds: 5 },
+        ],
         offsetFrames: flat12(124),
       },
     ],
@@ -147,25 +358,68 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
 
   // Ultimate cast itself: 0-hit command for now
   {
+    id: "laevatain_combo_skill",
+    name: "Seethe",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Heat",
+    mode: "single",
+    durationFrames: flat12(80),
+    timeFreezeSeconds: flat12(37 / 60),
+    comboCooldownSeconds: [...flat12(10).slice(0, 11), 9],
+    comboCooldownTimeScale: "real",
+    spCost: flat12(0),
+    hits: [
+      {
+        multiplier: pct([240, 264, 288, 312, 336, 360, 384, 408, 432, 462, 498, 540]),
+        stagger: flat12(10),
+        energyReturn: flat12(25),
+        registerOffsetFrames: flat12(40),
+        offsetFrames: flat12(78),
+        effects: [{ type: "APPLY_BUFF", target: "self", buffId: "melting_flame", stacks: 1 }],
+      },
+    ],
+  },
+
+  {
     id: "laevatain_ultimate_cast",
-    name: "Ultimate",
+    name: "Twilight",
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Heat",
     mode: "single",
     durationFrames: flat12(142),
+    timeFreezeSeconds: flat12(2.07),
+    cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(300),
-    hits: [],
+    hits: [
+      {
+        multiplier: flat12(0),
+        offsetFrames: flat12(125),
+        effects: [
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "laevatain_twilight",
+            label: "Twilight",
+            durationSeconds: 15,
+            timeScale: "game",
+          },
+        ],
+      },
+    ],
   },
 
   // Ultimate Battle Skill
   {
     id: "laevatain_ultimate_battle_skill",
-    name: "Ultimate Battle Skill",
+    name: "Smouldering Fire",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
+    variant: "enhanced_battle_skill",
+    hiddenInLibrary: true,
     mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(100),
@@ -179,10 +433,12 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
   // Enhanced Ultimate Battle Skill
   {
     id: "laevatain_enhanced_ultimate_battle_skill",
-    name: "Enhanced Ultimate Battle Skill",
+    name: "Smouldering Fire",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
+    variant: "enhanced_battle_skill",
+    hiddenInLibrary: true,
     mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(100),
@@ -194,6 +450,10 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
         name: "Additional Hit",
         multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]),
         stagger: flat12(10),
+        effects: [
+          { type: "REMOVE_BUFF", target: "self", buffId: "melting_flame", stacks: 4 },
+          { type: "APPLY_REACTION", reaction: "Combustion", level: 1, durationSeconds: 5 },
+        ],
         offsetFrames: flat12(124),
       },
     ],
@@ -202,13 +462,22 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
   // Ultimate Basic Attack Sequence
   {
     id: "laevatain_ultimate_basic_sequence",
-    name: "Ultimate Basic Attack Sequence",
+    name: "Basic Attack Sequence",
     skill: "ultimate",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
+    variant: "enhanced_basic_attack",
+    basicAttackVariant: "sequence",
+    hiddenInLibrary: true,
     mode: "cycling",
     durationFrames: flat12(197),
     spCost: flat12(0),
+    expandsToCommandIds: [
+      "laevatain_ultimate_basic_sequence_1",
+      "laevatain_ultimate_basic_sequence_2",
+      "laevatain_ultimate_basic_sequence_3",
+      "laevatain_ultimate_basic_sequence_4",
+    ],
     hits: [
       {
         name: "Enhanced Hit 1",
@@ -224,11 +493,120 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
         name: "Enhanced Hit 3",
         multiplier: pct([115, 127, 139, 150, 162, 173, 185, 196, 208, 222, 240, 260]),
         offsetFrames: flat12(74),
+        effects: [
+          { type: "APPLY_ARTS_INFLICTION", element: "Heat", stacks: 1 }
+        ]
       },
       {
         name: "Enhanced Hit 4",
         multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
         offsetFrames: flat12(120),
+      },
+    ],
+  },
+  {
+    id: "laevatain_ultimate_basic_sequence_1",
+    name: "Ultimate Basic Attack Sequence I",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    variant: "enhanced_basic_attack",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(22.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Enhanced Hit 1",
+        multiplier: pct([65, 71, 78, 84, 91, 97, 104, 110, 117, 125, 134, 146]),
+        offsetFrames: flat12(12),
+      },
+    ],
+  },
+  {
+    id: "laevatain_ultimate_basic_sequence_2",
+    name: "Ultimate Basic Attack Sequence II",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    variant: "enhanced_basic_attack",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(34.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Enhanced Hit 1",
+        multiplier: pct([81, 89, 97, 105, 113, 122, 130, 138, 146, 156, 168, 182]),
+        offsetFrames: flat12(12),
+      },
+      {
+        name: "Enhanced Hit 2",
+        multiplier: pct([81, 89, 97, 105, 113, 122, 130, 138, 146, 156, 168, 182]),
+        offsetFrames: flat12(25.8),
+      },
+    ],
+  },
+  {
+    id: "laevatain_ultimate_basic_sequence_3",
+    name: "Ultimate Basic Attack Sequence III",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    variant: "enhanced_basic_attack",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(25.8),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Enhanced Hit 1",
+        multiplier: pct([115, 127, 139, 150, 162, 173, 185, 196, 208, 222, 240, 260]),
+        offsetFrames: flat12(18),
+        effects: [
+          { type: "APPLY_ARTS_INFLICTION", element: "Heat", stacks: 1 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "laevatain_ultimate_basic_sequence_4",
+    name: "Ultimate Basic Attack Sequence IV",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    variant: "enhanced_basic_attack",
+    basicAttackVariant: "sequence_segment",
+    hiddenInLibrary: true,
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(45.6),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Enhanced Hit 1",
+        multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
+        offsetFrames: flat12(12),
+      },
+      {
+        name: "Enhanced Hit 2",
+        multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
+        offsetFrames: flat12(24),
+      },
+      {
+        name: "Enhanced Hit 3",
+        multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
+        offsetFrames: flat12(37.8),
       },
     ],
   },
@@ -374,6 +752,30 @@ export const LAEVATAIN: CharacterBase = {
   },
   weaponType: "SWORD",
   commands: LAEVATAIN_COMMANDS,
+  combatHooks: LAEVATAIN_COMBAT_HOOKS,
+  uniqueTalentDefs: {
+    laevatain_scorching_heart_1: {
+      name: "Scorching Heart I",
+      defaultEnabled: true,
+      condition: {
+        minEliteStage: 0,
+      },
+    },
+    laevatain_scorching_heart_2: {
+      name: "Scorching Heart II",
+      condition: {
+        minEliteStage: 1,
+        requiresUniqueTalentsEnabled: ["laevatain_scorching_heart_1"],
+      },
+    },
+    laevatain_scorching_heart_3: {
+      name: "Scorching Heart III",
+      condition: {
+        minEliteStage: 2,
+        requiresUniqueTalentsEnabled: ["laevatain_scorching_heart_2"],
+      },
+    },
+  },
   benchmarks: LAEVATAIN_BENCHMARKS,
   promotions: LAEVATAIN_PROMOTIONS,
 };

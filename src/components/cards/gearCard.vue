@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { GearBase } from "@/data/gears";
+import { isGearUpgradable, type GearBase } from "@/data/gears";
 import type { GearInstance, GearSubLevel } from "@/lib/build/gearInstances";
-import { scaledGearSubValue, formatGearSubValue } from "@/lib/build/gearScaling";
+import { effectiveGearSubLevel, scaledGearSubValue, formatGearSubValue } from "@/lib/build/gearScaling";
 import { modifierLabels } from "@/lib/modifierDisplay";
-import type { AttrKey, ModifierStatKey } from "@/lib/build/stats";
+import type { AttrKey, CharacterStatKey, ModifierStatKey } from "@/lib/build/stats";
 
 const props = defineProps<{
   title: string;
@@ -25,7 +25,9 @@ const selectedGear = computed<GearBase | null>(() => {
   return props.options.find((g) => g.id === id) ?? null;
 });
 
-function subLabel(stat: AttrKey | ModifierStatKey): string {
+const selectedGearUpgradable = computed(() => (selectedGear.value ? isGearUpgradable(selectedGear.value) : false));
+
+function subLabel(stat: AttrKey | CharacterStatKey | ModifierStatKey): string {
   switch (stat) {
     case "STR":
       return "STR";
@@ -35,9 +37,13 @@ function subLabel(stat: AttrKey | ModifierStatKey): string {
       return "INT";
     case "WIL":
       return "WIL";
+    case "HP":
+      return "HP";
 
     case "MAIN_ATTR_PCT":
       return modifierLabels.MAIN_ATTR_PCT;
+    case "SECONDARY_ATTR_PCT":
+      return modifierLabels.SECONDARY_ATTR_PCT;
     case "CRIT_RATE_PCT":
       return modifierLabels.CRIT_RATE_PCT;
     case "ULT_GAIN_PCT":
@@ -48,6 +54,8 @@ function subLabel(stat: AttrKey | ModifierStatKey): string {
       return modifierLabels.PHYSICAL_DMG_PCT;
     case "ARTS_DMG_PCT":
       return modifierLabels.ARTS_DMG_PCT;
+    case "HEAT_NATURE_DMG_PCT":
+      return modifierLabels.HEAT_NATURE_DMG_PCT;
     case "HEAT_DMG_PCT":
       return modifierLabels.HEAT_DMG_PCT;
     case "CRYO_DMG_PCT":
@@ -64,6 +72,16 @@ function subLabel(stat: AttrKey | ModifierStatKey): string {
       return modifierLabels.COMBO_SKILL_DMG_PCT;
     case "ULTIMATE_DMG_PCT":
       return modifierLabels.ULTIMATE_DMG_PCT;
+    case "HEALING_PCT":
+      return modifierLabels.HEALING_PCT;
+    case "FINAL_DMG_REDUCTION_PCT":
+      return modifierLabels.FINAL_DMG_REDUCTION_PCT;
+    case "ARTS_INTENSITY":
+      return modifierLabels.ARTS_INTENSITY;
+    case "ALL_DMG_PCT":
+      return modifierLabels.ALL_DMG_PCT;
+    case "DMG_VS_STAGGERED_PCT":
+      return modifierLabels.DMG_VS_STAGGERED_PCT;
 
     default:
       return stat;
@@ -128,25 +146,41 @@ function onSubLevelChange(index: number, value: number) {
                   {{ subLabel(sub.stat) }}
                 </div>
                 <div class="text-xs text-[#666]">
+                  <template v-if="selectedGearUpgradable">
                   {{
                     formatGearSubValue(
                       sub.stat,
                       scaledGearSubValue(
                         sub.stat,
                         sub.value,
-                        gearInstance?.subLevels[i] ?? 0
+                        effectiveGearSubLevel(
+                          gearInstance?.subLevels[i] ?? 0,
+                          selectedGearUpgradable
+                        )
                       )
                     )
                   }}
+                  </template>
                 </div>
               </div>
 
               <div class="text-sm font-semibold tabular-nums">
-                Lv {{ gearInstance?.subLevels[i] ?? 0 }}
+                <template v-if="selectedGearUpgradable">
+                  Lv {{ gearInstance?.subLevels[i] ?? 0 }}
+                </template>
+                <template v-else>
+                  {{
+                    formatGearSubValue(
+                      sub.stat,
+                      scaledGearSubValue(sub.stat, sub.value, 0)
+                    )
+                  }}
+                </template>
               </div>
             </div>
 
             <input
+              v-if="selectedGearUpgradable"
               type="range"
               min="0"
               max="3"
@@ -156,7 +190,10 @@ function onSubLevelChange(index: number, value: number) {
               class="mt-2 w-full accent-[#ece81a]"
             />
 
-            <div class="mt-1 flex justify-between text-xs text-[#8a8a8a]">
+            <div
+              v-if="selectedGearUpgradable"
+              class="mt-1 flex justify-between text-xs text-[#8a8a8a]"
+            >
               <span>0</span>
               <span>3</span>
             </div>

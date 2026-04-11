@@ -1,6 +1,3 @@
-import type { ModifierStats } from "@/lib/build/stats";
-import type { BuffDefinition } from "@/lib/buffs";
-
 export type WeaponType =
   | "SWORD"
   | "GREATSWORD"
@@ -32,36 +29,94 @@ export type WeaponSkillDef = {
   implemented: boolean;
 };
 
-export type WeaponPassiveContext = {
-  skillLevels: number[]; // [skill1, skill2, skill3]
-};
+import type { ModifierStatKey, ModifierStats } from "@/lib/build/stats";
+import type { CharacterCombatSnapshot, RotationCombatEvent } from "@/lib/combat/rotation";
 
-export type WeaponPassiveDef = {
-  alwaysOn?: (ctx: WeaponPassiveContext) => Partial<ModifierStats>;
-  buffs?: (ctx: WeaponPassiveContext) => BuffDefinition[];
+export type WeaponEventListenerContext = {
+  wearer: CharacterCombatSnapshot;
+  event: RotationCombatEvent;
+  helpers: {
+    applySelfBuff(args: {
+      buffId: string;
+      label: string;
+      durationSeconds: number;
+      timeScale?: "real" | "game";
+      effects: Partial<ModifierStats>;
+      stackGroup?: string;
+      maxStacks?: number;
+      eventType?: "ACTOR_BUFF_APPLIED" | "WEAPON_BUFF_APPLIED";
+    }): void;
+    applyTeamBuff(args: {
+      buffId: string;
+      label: string;
+      durationSeconds: number;
+      timeScale?: "real" | "game";
+      effects: Partial<ModifierStats>;
+      stackGroup?: string;
+      maxStacks?: number;
+      eventType?: "ACTOR_BUFF_APPLIED" | "WEAPON_BUFF_APPLIED";
+    }): void;
+    applyEnemyDebuff(args: {
+      debuffId: string;
+      label: string;
+      stat: ModifierStatKey;
+      value: number;
+      durationSeconds: number;
+      timeScale?: "real" | "game";
+    }): void;
+    applyEnemyBuff(args: {
+      buffId: string;
+      label: string;
+      effects: Partial<ModifierStats>;
+      durationSeconds: number;
+      timeScale?: "real" | "game";
+    }): void;
+    markOnce(onceKey: string): boolean;
+    tryActivateCooldown(args: {
+      key: string;
+      durationSeconds: number;
+      timeScale?: "real" | "game";
+    }): boolean;
+    consumeThreshold(args: {
+      key: string;
+      amount: number;
+      threshold?: number;
+    }): number;
+  };
 };
 
 export type WeaponBase = {
   id: string;
   name: string;
   weaponType: WeaponType;
-  baseAtkLv1: number;
-  baseAtkLv90: number;
+  baseAtkTable: readonly number[];
+  tuningMaterials?: readonly [string, string];
   skills: [WeaponSkillDef, WeaponSkillDef, WeaponSkillDef];
-  passive?: WeaponPassiveDef;
+  getUniqueStaticModifiers?: (uniqueSkillLevel: number) => Partial<ModifierStats>;
+  getUniqueSkillDescription?: (uniqueSkillLevel: number) => string | null;
+  onCombatEvent?: (ctx: WeaponEventListenerContext) => void;
 };
 
 import * as handcannon from "./weap/handcannons";
 import * as sword from "./weap/swords";
 import * as artsunit from "./weap/artsunits";
+import * as polearm from "./weap/polearms";
 
 export const WEAPONS: WeaponBase[] = [
   sword.FORGEBORN_SCATHE,
   sword.THERMITE_CUTTER,
+  sword.KHRAVENGGER,
   handcannon.ARTSY_TYRANNICAL,
   handcannon.CLANNIBAL,
+  handcannon.BRIGANDS_CALLING,
+  polearm.JET,
   artsunit.DELIVERY_GUARANTEED,
   artsunit.STANZA_OF_MEMORIALS,
   artsunit.DETONATION_UNIT,
   artsunit.DREAMS_OF_THE_STARRY_BEACH,
+  artsunit.CHIVALRIC_VIRTUES,
 ];
+
+export function getWeaponById(id: string): WeaponBase | undefined {
+  return WEAPONS.find((weapon) => weapon.id === id);
+}

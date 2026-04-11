@@ -1,5 +1,68 @@
 import type { CharacterBase } from "@/data/characters";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const AKEKURI_STAYING_IN_THE_ZONE_KEY = "akekuri_staying_in_the_zone";
+const AKEKURI_P1_BUFF_ID = "akekuri_p1";
+const AKEKURI_P3_TEAM_ATK_BUFF_ID = "akekuri_p3_team_atk";
+const AKEKURI_ULTIMATE_LINK_DURATION_SECONDS = 155 / 60;
+
+const AKEKURI_COMBAT_HOOKS: CharacterCombatHooks = {
+  onEvent: (ctx) => {
+    if (ctx.event.type !== "SKILL_SP_RECOVERED") {
+      return;
+    }
+    if (ctx.event.slot !== ctx.self.slot && ctx.event.sourceSlot !== ctx.self.slot) {
+      return;
+    }
+
+    ctx.state.applySelfBuff({
+      buffId: AKEKURI_P1_BUFF_ID,
+      label: "Akekuri P1",
+      durationSeconds: 10,
+      timeScale: "game",
+      effects: {
+        ATK_PCT: 0.1,
+      },
+      stackGroup: AKEKURI_P1_BUFF_ID,
+      maxStacks: 5,
+    });
+  },
+  onResolvedHit: (ctx) => {
+    if (ctx.source.characterId !== "akekuri" || ctx.source.commandId !== "akekuri_ultimate" || ctx.source.hitIndex !== 0) {
+      return;
+    }
+    if (!ctx.state.isSelfUniqueTalentEnabled(AKEKURI_STAYING_IN_THE_ZONE_KEY)) {
+      return;
+    }
+    if (!ctx.state.markTriggerOnce(`${ctx.stepId}:akekuri_link`)) {
+      return;
+    }
+
+    const linkDurationSeconds =
+      AKEKURI_ULTIMATE_LINK_DURATION_SECONDS + (ctx.state.isSelfPotentialActive(5) ? 5 : 0);
+    ctx.state.gainTeamLinkStacks({
+      stacks: 1,
+      durationSeconds: linkDurationSeconds,
+      timeScale: "real",
+      label: "Link",
+    });
+
+    if (ctx.state.isSelfPotentialActive(3)) {
+      const teamBuffArgs = {
+        buffId: AKEKURI_P3_TEAM_ATK_BUFF_ID,
+        label: "Akekuri P3 ATK +10%",
+        durationSeconds: linkDurationSeconds,
+        timeScale: "real" as const,
+        effects: {
+          ATK_PCT: 0.1,
+        },
+      };
+      ctx.state.applySelfBuff(teamBuffArgs);
+      ctx.state.applyOtherTeammatesBuff(teamBuffArgs);
+    }
+  },
+};
 
 const AKEKURI_COMMANDS: CommandDefinition[] = [
   {
@@ -8,14 +71,86 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "cycling",
     durationFrames: flat12(192),
     spCost: flat12(0),
+    basicAttackVariant: "sequence",
+    expandsToCommandIds: [
+      "akekuri_basic_sequence_1",
+      "akekuri_basic_sequence_2",
+      "akekuri_basic_sequence_3",
+      "akekuri_basic_sequence_4",
+    ],
+    hits: [],
+  },
+  {
+    id: "akekuri_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(30),
+    spCost: flat12(0),
+    splitMultiplier: true,
     hits: [
       { name: "Hit 1", multiplier: pct([20, 22, 24, 26, 28, 30, 32, 34, 36, 39, 42, 45]), offsetFrames: flat12(18) },
-      { name: "Hit 2", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), offsetFrames: flat12(46) },
-      { name: "Hit 3", multiplier: pct([33, 36, 39, 42, 46, 49, 52, 55, 59, 63, 67, 73]), offsetFrames: flat12(62) },
-      { name: "Hit 4", multiplier: pct([50, 54, 59, 64, 69, 74, 79, 84, 89, 95, 103, 111]), stagger: flat12(17), offsetFrames: flat12(96) },
+    ],
+  },
+  {
+    id: "akekuri_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(46.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), offsetFrames: flat12(16.2) },
+      { name: "Hit 2", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), offsetFrames: flat12(31.8) },
+    ],
+  },
+  {
+    id: "akekuri_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(43.98),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([33, 36, 39, 42, 46, 49, 52, 55, 59, 63, 67, 73]), offsetFrames: flat12(19.8) },
+    ],
+  },
+  {
+    id: "akekuri_basic_sequence_4",
+    name: "Final Strike",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(72),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([50, 54, 59, 64, 69, 74, 79, 84, 89, 95, 103, 111]), offsetFrames: flat12(37.8) },
+      { name: "Hit 2", multiplier: pct([50, 54, 59, 64, 69, 74, 79, 84, 89, 95, 103, 111]), offsetFrames: flat12(40.2) },
+      { name: "Hit 3", multiplier: pct([50, 54, 59, 64, 69, 74, 79, 84, 89, 95, 103, 111]), stagger: flat12(17), spGenerated: flat12(19), requiresControlledOperator: true, offsetFrames: flat12(42) },
     ],
   },
   {
@@ -24,6 +159,7 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
+    basicAttackVariant: "final_strike",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -35,6 +171,7 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
+    basicAttackVariant: "dive_attack",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -50,7 +187,12 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     durationFrames: flat12(80),
     spCost: flat12(100),
     energyGain: flat12(0),
-    hits: [{ multiplier: pct([142, 156, 171, 185, 199, 213, 228, 242, 256, 274, 295, 320]), stagger: flat12(10), offsetFrames: flat12(40) }],
+    hits: [{
+      multiplier: pct([142, 156, 171, 185, 199, 213, 228, 242, 256, 274, 295, 320]),
+      stagger: flat12(10),
+      effects: [{ type: "APPLY_ARTS_INFLICTION", element: "Heat", stacks: 1 }],
+      offsetFrames: flat12(40),
+    }],
   },
   {
     id: "akekuri_combo_skill",
@@ -60,8 +202,11 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     damageType: "Physical",
     mode: "single",
     durationFrames: flat12(76),
+    timeFreezeSeconds: flat12(41 / 60),
+    comboCooldownSeconds: [...flat12(10).slice(0, 11), 9],
+    comboCooldownTimeScale: "real",
     spCost: flat12(0),
-    hits: [{ name: "Dash Sequence x2", multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), stagger: flat12(5), offsetFrames: flat12(44), times: 2, repeatIntervalFrames: flat12(18) }],
+    hits: [{ name: "Dash Sequence x2", multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), stagger: flat12(5), spGenerated: flat12(7.5), offsetFrames: flat12(44), times: 2, repeatIntervalFrames: flat12(18) }],
   },
   {
     id: "akekuri_ultimate",
@@ -71,9 +216,17 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     damageType: "Physical",
     mode: "single",
     durationFrames: flat12(258),
+    timeFreezeSeconds: flat12(1.683),
+    cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(120),
-    hits: [],
+    hits: [{multiplier: flat12(0), offsetFrames: flat12(102), 
+      spGenerated: [58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80]},
+      {multiplier: flat12(0), offsetFrames: flat12(162), 
+      spGenerated: [58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80]},
+      {multiplier: flat12(0), offsetFrames: flat12(257), 
+      spGenerated: [58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80]}
+    ],
   },
 ];
 
@@ -95,6 +248,41 @@ export const AKEKURI: CharacterBase = {
 
   weaponType: "SWORD",
   commands: AKEKURI_COMMANDS,
+  combatHooks: AKEKURI_COMBAT_HOOKS,
+  uniqueTalentDefs: {
+    [AKEKURI_STAYING_IN_THE_ZONE_KEY]: {
+      name: "Staying In the Zone",
+      condition: {
+        minEliteStage: 3,
+      },
+    },
+  },
+  potentialEffects: {
+    2: {
+      apply: () => ({
+        attrsDelta: {
+          AGI: 10,
+          INT: 10,
+        },
+      }),
+    },
+  },
+  mutateResolvedCommands: (commands, ctx) => {
+    if ((ctx.buildState.potentialLevel ?? 0) < 4) {
+      return commands;
+    }
+
+    return commands.map((command) => {
+      if (command.id !== "akekuri_ultimate") {
+        return command;
+      }
+
+      return {
+        ...command,
+        energyCost: Math.max(0, command.energyCost * 0.9),
+      };
+    });
+  },
 
   levels: {
   STR: [

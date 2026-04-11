@@ -1,16 +1,24 @@
 import type { CharacterBase } from "@/data/characters";
-import type { WeaponSkillDef } from "@/data/weapons";
+import type { WeaponBase, WeaponSkillDef } from "@/data/weapons";
+import { getWeaponUniqueSkillDescription } from "@/lib/combat/weaponEffects";
 import { skillX } from "@/lib/build/weaponSkills";
 
 export function getWeaponSkillLiveBonus(
+  weapon: WeaponBase,
   skill: WeaponSkillDef,
-  rank: number,
   level: number,
   char: CharacterBase,
 ): string {
+  if (skill.id === "UNIQUE") {
+    return (
+      getWeaponUniqueSkillDescription(weapon.id, level)
+      ?? `Lv ${level} effect preview is not available yet.`
+    );
+  }
+
   const x = skillX(level);
   if (x <= 0) return "Inactive";
-  const rankMultiplier = 1 - 0.2 * (3 - rank); // e.g. rank 3 = 1, rank 2 = 0.8, rank 1 = 0.6
+  const rankMultiplier = 1 - 0.2 * (3 - skill.rank);
 
   switch (skill.id) {
     case "STR_UP":
@@ -24,15 +32,15 @@ export function getWeaponSkillLiveBonus(
     case "MAIN_ATTR_UP":
       return `+${Math.floor((4 + 13.5 * x) * rankMultiplier)} ${char.mainAttr}`;
     case "ATK_UP":
-      return `+${(Math.floor((10 + 40 * x) * rankMultiplier)/10).toFixed(1)}% ATK`;
+      return `+${(Math.floor((10 + 40 * x) * rankMultiplier) / 10).toFixed(1)}% ATK`;
     case "CRIT_UP":
-      return `+${(Math.floor((5 + 20 * x) * rankMultiplier)/10).toFixed(1)}% Crit Rate`;
+      return `+${(Math.floor((5 + 20 * x) * rankMultiplier) / 10).toFixed(1)}% Crit Rate`;
     case "ARTS_DMG_UP":
-      return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier)/10).toFixed(1)}% Arts DMG`;
+      return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% Arts DMG`;
     case "ARTS_INTENSITY_UP":
       return `+${Math.floor((2 + 8 * x) * rankMultiplier)} Arts Intensity`;
     case "HEALING_UP":
-      return `+${(Math.floor((12.5 + 47.6 * x) * rankMultiplier)/10).toFixed(1)}% Treatment Efficiency`;
+      return `+${(Math.floor((12.5 + 47.6 * x) * rankMultiplier) / 10).toFixed(1)}% Treatment Efficiency`;
     case "ULT_GAIN_UP":
     case "CRYO_DMG_UP":
       return "Not applied yet";

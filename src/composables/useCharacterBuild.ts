@@ -30,6 +30,7 @@ import {
 } from "@/lib/commands";
 import type { BuffInstance } from "@/lib/buffs";
 import type { CharacterTalentToggles, CharacterTalentKey } from "@/lib/build/characterTalents";
+import { getWeaponUniqueStaticModifiers } from "@/lib/combat/weaponEffects";
 
 function firstOrThrow<T>(arr: T[], name: string): T {
   const value = arr[0];
@@ -161,31 +162,19 @@ export function useCharacterBuild() {
   }
 
   const weaponPassiveResolution = computed(() => {
-    const passive = selectedWeapon.value.passive;
-    if (!passive) {
-      return {
-        modsDelta: {},
-        buffDefinitions: [],
-      };
-    }
-
-    const ctx = {
-      skillLevels: weaponSkillLevels.value,
-    };
-
     return {
-      modsDelta: passive.alwaysOn?.(ctx) ?? {},
-      buffDefinitions: passive.buffs?.(ctx) ?? [],
+      modsDelta: getWeaponUniqueStaticModifiers({
+        weaponId: selectedWeapon.value.id,
+        uniqueSkillLevel: weaponSkillLevels.value[2] ?? 1,
+      }),
+      buffDefinitions: [],
     };
   });
 
   watch(
     weaponPassiveResolution,
-    (res) => {
-      activeBuffs.value = res.buffDefinitions.map((b) => ({
-        id: b.id,
-        active: true,
-      }));
+    () => {
+      activeBuffs.value = [];
     },
     { immediate: true }
   );
@@ -214,7 +203,16 @@ export function useCharacterBuild() {
   );
 
   const resolvedCommands = computed(() =>
-    resolveCommandsAtLevel(resolvedCommandsDefinition.value, characterSkillLevels.value)
+    resolveCommandsAtLevel(resolvedCommandsDefinition.value, characterSkillLevels.value, {
+      ascensionStage: characterAscension.value,
+      uniqueTalentToggles: {},
+      uniqueTalentConditions: Object.fromEntries(
+        Object.entries(selectedChar.value.uniqueTalentDefs ?? {}).map(([key, talent]) => [key, talent.condition]),
+      ),
+      uniqueTalentDefaults: Object.fromEntries(
+        Object.entries(selectedChar.value.uniqueTalentDefs ?? {}).map(([key, talent]) => [key, talent.defaultEnabled === true]),
+      ),
+    })
   );
 
   const out = computed(() =>
@@ -226,6 +224,7 @@ export function useCharacterBuild() {
       weaponSkillLevels: weaponSkillLevels.value,
 
       characterAscensionStage: characterAscension.value,
+      characterPotential: characterPotential.value,
       characterTalentToggles: characterTalentToggles.value,
       weaponAscensionStage: weaponAscension.value,
       weaponPotential: weaponPotential.value,

@@ -1,7 +1,6 @@
 // src/lib/stats.ts
-import { characterAtLevel, type CharacterBase} from "@/data/characters";
+import { applyCharacterRuntimeEffects, characterAtLevel, type CharacterBase} from "@/data/characters";
 import type { WeaponBase } from "@/data/weapons";
-import { lerpLevel, mult } from "@/lib/math";
 import { applyWeaponSkills } from "@/lib/build/weaponSkills";
 import type { GearBase } from "@/data/gears";
 import { applyGears } from "@/lib/build/gearsApply";
@@ -39,16 +38,20 @@ export const MODIFIER_STAT_KEYS = [
   "CRIT_RATE_PCT",
   "CRIT_DMG_PCT",
   "ULT_GAIN_PCT",
+  "ULTIMATE_COST_REDUCTION_PCT",
   "MAIN_ATTR_PCT",
   "SECONDARY_ATTR_PCT",
 
   "ATK_PCT",
+  "ALL_DMG_PCT",
   "HP_PCT",
   "FLAT_ATK",
+  "FLAT_HP",
   "ARTS_INTENSITY",
 
   "PHYSICAL_DMG_PCT",
   "ARTS_DMG_PCT",
+  "HEAT_NATURE_DMG_PCT",
   "HEAT_DMG_PCT",
   "CRYO_DMG_PCT",
   "ELECTRIC_DMG_PCT",
@@ -59,21 +62,37 @@ export const MODIFIER_STAT_KEYS = [
   "COMBO_SKILL_DMG_PCT",
   "ULTIMATE_DMG_PCT",
   "DMG_TAKEN_PCT",
+  "ARTS_DMG_TAKEN_PCT",
+  "PHYSICAL_DMG_TAKEN_PCT",
+  "HEAT_DMG_TAKEN_PCT",
+  "CRYO_DMG_TAKEN_PCT",
+  "ELECTRIC_DMG_TAKEN_PCT",
+  "NATURE_DMG_TAKEN_PCT",
+  "AETHER_DMG_TAKEN_PCT",
   "PHYSICAL_RESIST_PCT",
   "HEAT_RESIST_PCT",
   "CRYO_RESIST_PCT",
   "ELECTRIC_RESIST_PCT",
   "NATURE_RESIST_PCT",
   "AETHER_RESIST_PCT",
+  "PHYSICAL_RESIST_IGNORE_PCT",
+  "HEAT_RESIST_IGNORE_PCT",
+  "CRYO_RESIST_IGNORE_PCT",
+  "ELECTRIC_RESIST_IGNORE_PCT",
+  "NATURE_RESIST_IGNORE_PCT",
+  "AETHER_RESIST_IGNORE_PCT",
 
   "HEALING_PCT",
   "HEALING_RECEIVED_PCT",
+  "FINAL_DMG_REDUCTION_PCT",
   "PHYSICAL_SUS_PCT",
   "ARTS_SUS_PCT",
   "HEAT_SUS_PCT",
   "CRYO_SUS_PCT",
   "ELECTRIC_SUS_PCT",
   "NATURE_SUS_PCT",
+  "AETHER_SUS_PCT",
+  "DMG_VS_STAGGERED_PCT",
 ] as const;
 
 export type ModifierStatKey = (typeof MODIFIER_STAT_KEYS)[number];
@@ -101,16 +120,20 @@ export function makeBaseModifierStats(): ModifierStats {
     CRIT_RATE_PCT: 0.05,              // 5%
     CRIT_DMG_PCT: 0.50,               // 50%
     ULT_GAIN_PCT: 1.0,                // 100%
+    ULTIMATE_COST_REDUCTION_PCT: 0,
 
     MAIN_ATTR_PCT: 0,
     SECONDARY_ATTR_PCT: 0,
     ATK_PCT: 0,
+    ALL_DMG_PCT: 0,
     HP_PCT: 0,
     FLAT_ATK: 0,
+    FLAT_HP: 0,
     ARTS_INTENSITY: 0,
 
     PHYSICAL_DMG_PCT: 0,
     ARTS_DMG_PCT: 0,
+    HEAT_NATURE_DMG_PCT: 0,
     HEAT_DMG_PCT: 0,
     CRYO_DMG_PCT: 0,
     ELECTRIC_DMG_PCT: 0,
@@ -122,21 +145,37 @@ export function makeBaseModifierStats(): ModifierStats {
     COMBO_SKILL_DMG_PCT: 0,
     ULTIMATE_DMG_PCT: 0,
     DMG_TAKEN_PCT: 0,
+    ARTS_DMG_TAKEN_PCT: 0,
+    PHYSICAL_DMG_TAKEN_PCT: 0,
+    HEAT_DMG_TAKEN_PCT: 0,
+    CRYO_DMG_TAKEN_PCT: 0,
+    ELECTRIC_DMG_TAKEN_PCT: 0,
+    NATURE_DMG_TAKEN_PCT: 0,
+    AETHER_DMG_TAKEN_PCT: 0,
     PHYSICAL_RESIST_PCT: 0,
     HEAT_RESIST_PCT: 0,
     CRYO_RESIST_PCT: 0,
     ELECTRIC_RESIST_PCT: 0,
     NATURE_RESIST_PCT: 0,
     AETHER_RESIST_PCT: 0,
+    PHYSICAL_RESIST_IGNORE_PCT: 0,
+    HEAT_RESIST_IGNORE_PCT: 0,
+    CRYO_RESIST_IGNORE_PCT: 0,
+    ELECTRIC_RESIST_IGNORE_PCT: 0,
+    NATURE_RESIST_IGNORE_PCT: 0,
+    AETHER_RESIST_IGNORE_PCT: 0,
 
     HEALING_PCT: 0,
     HEALING_RECEIVED_PCT: 0,
+    FINAL_DMG_REDUCTION_PCT: 0,
     PHYSICAL_SUS_PCT: 0,
     ARTS_SUS_PCT: 0,
     HEAT_SUS_PCT: 0,
     CRYO_SUS_PCT: 0,
     ELECTRIC_SUS_PCT: 0,
     NATURE_SUS_PCT: 0,
+    AETHER_SUS_PCT: 0,
+    DMG_VS_STAGGERED_PCT: 0,
 
   };
 }
@@ -186,6 +225,11 @@ function baseStatsAtLevel(char: CharacterBase, level: number) {
   return characterAtLevel(char.levels, level);
 }
 
+function weaponAtkAtLevel(weapon: WeaponBase, level: number) {
+  const index = Math.max(0, Math.min(89, level - 1));
+  return weapon.baseAtkTable[index] ?? weapon.baseAtkTable[weapon.baseAtkTable.length - 1] ?? 0;
+}
+
 function attributeBonus(char: CharacterBase, attrs: Attrs): number {
   let b = 0;
   for (const k of Object.keys(char.scaling) as (keyof Attrs)[]) {
@@ -204,6 +248,7 @@ export function computeFinalStats(args: {
   gearInstances: (GearInstance | null)[];
 
   characterAscensionStage: AscensionStage;
+  characterPotential: PotentialLevel;
   characterTalentToggles: CharacterTalentToggles;
 
   weaponAscensionStage: AscensionStage;
@@ -269,6 +314,26 @@ export function computeFinalStats(args: {
     toggles: args.characterTalentToggles,
   });
 
+  const characterRuntimeEffects = applyCharacterRuntimeEffects({
+    char,
+    attrs,
+    mods,
+    buildState: {
+      ascensionStage: args.characterAscensionStage,
+      potentialLevel: args.characterPotential,
+      uniqueTalentToggles: {},
+      uniqueTalentConditions: Object.fromEntries(
+        Object.entries(char.uniqueTalentDefs ?? {}).map(([key, talent]) => [key, talent.condition]),
+      ),
+      uniqueTalentDefaults: Object.fromEntries(
+        Object.entries(char.uniqueTalentDefs ?? {}).map(([key, talent]) => [key, talent.defaultEnabled === true]),
+      ),
+    },
+  });
+  attrs = characterRuntimeEffects.attrs;
+  mods = characterRuntimeEffects.mods;
+  Object.assign(extraStats, characterRuntimeEffects.extra);
+
   // 4) apply manual bonus
   mods.ATK_PCT += atkPct;
   mods.HP_PCT += hpPct;
@@ -289,7 +354,7 @@ export function computeFinalStats(args: {
   mods.HEALING_RECEIVED_PCT += attrs.WIL * 0.001;
 
   // 6) weapon base ATK
-  const weaponATK = lerpLevel(weapon.baseAtkLv1, weapon.baseAtkLv90, weaponLevel);
+  const weaponATK = weaponAtkAtLevel(weapon, weaponLevel);
 
   // 7) attribute bonus (after weapon-added attrs)
   const attrBonus = attributeBonus(char, attrs);
@@ -300,7 +365,7 @@ export function computeFinalStats(args: {
   const finalATK = Math.floor((rawATK + modATK + mods.FLAT_ATK) * (1 + attrBonus));
 
   // final HP
-  const finalHP = Math.round((baseHP + attrs.STR * 5) * (1 + mods.HP_PCT));
+  const finalHP = Math.round((baseHP + attrs.STR * 5 + mods.FLAT_HP) * (1 + mods.HP_PCT));
 
   const finalDEF = gearDEF;
 

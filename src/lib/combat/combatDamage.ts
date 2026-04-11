@@ -51,7 +51,7 @@ export function getTotalDamageBonus(
   damageType: ElementType,
   mods: ModifierStats,
 ): number {
-  return getAttackTypeBonus(attackType, mods) + getDamageTypeBonus(damageType, mods);
+  return mods.ALL_DMG_PCT + getAttackTypeBonus(attackType, mods) + getDamageTypeBonus(damageType, mods);
 }
 
 export function getAverageCritMultiplier(mods: ModifierStats): number {
@@ -79,10 +79,31 @@ function getEnemyResistance(damageType: ElementType, enemyMods: ModifierStats): 
   }
 }
 
+function getResistanceIgnore(damageType: ElementType, attackerMods: ModifierStats): number {
+  switch (damageType) {
+    case "Physical":
+      return attackerMods.PHYSICAL_RESIST_IGNORE_PCT;
+    case "Heat":
+      return attackerMods.HEAT_RESIST_IGNORE_PCT;
+    case "Cryo":
+      return attackerMods.CRYO_RESIST_IGNORE_PCT;
+    case "Electric":
+      return attackerMods.ELECTRIC_RESIST_IGNORE_PCT;
+    case "Nature":
+      return attackerMods.NATURE_RESIST_IGNORE_PCT;
+    case "Aether":
+      return attackerMods.AETHER_RESIST_IGNORE_PCT;
+    default:
+      return 0;
+  }
+}
+
 function getEnemySusceptibility(damageType: ElementType, enemyMods: ModifierStats): number {
   switch (damageType) {
     case "Physical":
       return enemyMods.PHYSICAL_SUS_PCT;
+    case "Aether":
+      return enemyMods.ARTS_SUS_PCT + enemyMods.AETHER_SUS_PCT;
     case "Heat":
       return enemyMods.ARTS_SUS_PCT + enemyMods.HEAT_SUS_PCT;
     case "Cryo":
@@ -93,6 +114,25 @@ function getEnemySusceptibility(damageType: ElementType, enemyMods: ModifierStat
       return enemyMods.ARTS_SUS_PCT + enemyMods.NATURE_SUS_PCT;
     default:
       return 0;
+  }
+}
+
+function getEnemyDamageTakenBonus(damageType: ElementType, enemyMods: ModifierStats): number {
+  switch (damageType) {
+    case "Physical":
+      return enemyMods.DMG_TAKEN_PCT + enemyMods.PHYSICAL_DMG_TAKEN_PCT;
+    case "Aether":
+      return enemyMods.DMG_TAKEN_PCT + enemyMods.ARTS_DMG_TAKEN_PCT + enemyMods.AETHER_DMG_TAKEN_PCT;
+    case "Heat":
+      return enemyMods.DMG_TAKEN_PCT + enemyMods.ARTS_DMG_TAKEN_PCT + enemyMods.HEAT_DMG_TAKEN_PCT;
+    case "Cryo":
+      return enemyMods.DMG_TAKEN_PCT + enemyMods.ARTS_DMG_TAKEN_PCT + enemyMods.CRYO_DMG_TAKEN_PCT;
+    case "Electric":
+      return enemyMods.DMG_TAKEN_PCT + enemyMods.ARTS_DMG_TAKEN_PCT + enemyMods.ELECTRIC_DMG_TAKEN_PCT;
+    case "Nature":
+      return enemyMods.DMG_TAKEN_PCT + enemyMods.ARTS_DMG_TAKEN_PCT + enemyMods.NATURE_DMG_TAKEN_PCT;
+    default:
+      return enemyMods.DMG_TAKEN_PCT;
   }
 }
 
@@ -116,7 +156,7 @@ export function calculateResolvedHitDamage(args: {
   attackerMods: ModifierStats;
   enemyMods: ModifierStats;
   enemyStats: EnemyResolvedStats;
-}): number {
+}): { noCritDamage: number; critDamage: number; averageDamage: number } {
   const {
     finalAtk,
     attackType,
@@ -127,25 +167,104 @@ export function calculateResolvedHitDamage(args: {
   } = args;
 
   const dmgBonus =
+    attackerMods.ALL_DMG_PCT +
     getAttackTypeBonus(attackType, attackerMods) +
     getDamageTypeBonus(damageType, attackerMods);
 
-  const critMultiplier = getAverageCritMultiplier(attackerMods);
+  const critRate = attackerMods.CRIT_RATE_PCT;
+  const critDamageBonus = attackerMods.CRIT_DMG_PCT;
 
-  const damageTakenMultiplier = 1 + enemyMods.DMG_TAKEN_PCT;
-  const resistMultiplier =
-    1 - getEnemyResistance(damageType, enemyMods) + getEnemySusceptibility(damageType, enemyMods);
+  const damageTakenMultiplier = 1 + getEnemyDamageTakenBonus(damageType, enemyMods);
+  const effectiveResistance = getEnemyResistance(damageType, enemyMods) - getResistanceIgnore(damageType, attackerMods);
+  const resistMultiplier = 1 - effectiveResistance;
+  const susceptibilityMultiplier = 1 + getEnemySusceptibility(damageType, enemyMods);
+  const defenseMultiplier = (() => {
+    if (damageType === "Healing") {
+      return 1;
+    }
 
-  // simple first-pass formula: ignore DEF for now
-  const base =
+    const defense = args.enemyStats.def;
+    if (defense > 0) {
+      return 1 - defense / (defense + 100);
+    }
+    if (defense < 0) {
+      return 1 + (1 - Math.pow(0.99, -defense));
+    }
+    return 1;
+  })();
+
+  const preCritBase =
     finalAtk *
     hit.multiplier *
     (1 + dmgBonus) *
-    critMultiplier *
     damageTakenMultiplier *
-    resistMultiplier;
+    resistMultiplier *
+    susceptibilityMultiplier *
+    defenseMultiplier;
 
-  return Math.max(0, base * hit.times);
+  const noCritDamage = Math.max(0, preCritBase * hit.times);
+  const critDamage = Math.max(0, preCritBase * (1 + critDamageBonus) * hit.times);
+  const averageDamage = Math.max(0, noCritDamage * (1 - critRate) + critDamage * critRate);
+
+  return {
+    noCritDamage,
+    critDamage,
+    averageDamage,
+  };
+}
+
+export function calculateReactionDamage(args: {
+  finalAtk: number;
+  damageType: Extract<ElementType, "Heat" | "Cryo" | "Electric" | "Nature">;
+  baseMultiplier: number;
+  attackerMods: ModifierStats;
+  enemyMods: ModifierStats;
+  enemyStats: EnemyResolvedStats;
+  applierLevel: number;
+  isPhysicalReaction?: boolean;
+}): { noCritDamage: number; critDamage: number; averageDamage: number } {
+  const critRate = args.attackerMods.CRIT_RATE_PCT;
+  const critDamageBonus = args.attackerMods.CRIT_DMG_PCT;
+  const artsIntensity = Math.max(0, args.attackerMods.ARTS_INTENSITY);
+
+  const damageTakenMultiplier = 1 + getEnemyDamageTakenBonus(args.damageType, args.enemyMods);
+  const effectiveResistance = getEnemyResistance(args.damageType, args.enemyMods) - getResistanceIgnore(args.damageType, args.attackerMods);
+  const resistMultiplier = 1 - effectiveResistance;
+  const susceptibilityMultiplier = 1 + getEnemySusceptibility(args.damageType, args.enemyMods);
+  const defenseMultiplier = (() => {
+    const defense = args.enemyStats.def;
+    if (defense > 0) {
+      return 1 - defense / (defense + 100);
+    }
+    if (defense < 0) {
+      return 1 + (1 - Math.pow(0.99, -defense));
+    }
+    return 1;
+  })();
+  const levelMultiplier = args.isPhysicalReaction
+    ? 1 + (Math.max(1, args.applierLevel) - 1) / 196
+    : 1 + (Math.max(1, args.applierLevel) - 1) / 392;
+  const artsIntensityMultiplier = 1 + (2 * artsIntensity) / (artsIntensity + 300);
+
+  const preCritBase =
+    args.finalAtk *
+    args.baseMultiplier *
+    damageTakenMultiplier *
+    resistMultiplier *
+    susceptibilityMultiplier *
+    defenseMultiplier *
+    levelMultiplier *
+    artsIntensityMultiplier;
+
+  const noCritDamage = Math.max(0, preCritBase);
+  const critDamage = Math.max(0, preCritBase * (1 + critDamageBonus));
+  const averageDamage = Math.max(0, noCritDamage * (1 - critRate) + critDamage * critRate);
+
+  return {
+    noCritDamage,
+    critDamage,
+    averageDamage,
+  };
 }
 
 export function calculateCommandDamage(args: {

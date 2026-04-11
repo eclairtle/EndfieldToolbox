@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { GearBase } from "@/data/gears";
+import type { ActiveGearSetInfo } from "@/lib/combat/gearSetEffects";
 import type { FinalStats } from "@/lib/build/stats";
 import { displayModifierEntries } from "@/lib/modifierDisplay";
 
@@ -8,12 +8,7 @@ const props = defineProps<{
   characterName: string;
   weaponName: string;
   out: FinalStats;
-  gears: {
-    armor: GearBase | null;
-    gloves: GearBase | null;
-    kit1: GearBase | null;
-    kit2: GearBase | null;
-  };
+  activeGearSet: ActiveGearSetInfo | null;
   benchmarks: {
     id: string;
     name: string;
@@ -162,33 +157,24 @@ const visibleModifiers = computed(() => displayModifierEntries(props.out.mods));
           </div>
         </div>
 
-        <!-- Build Info -->
+        <!-- Active Set -->
         <div class="rounded-xl border border-[#dddddd] bg-[#f7f7f7] p-4 text-sm">
           <div class="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a7a7a]">
-            Current Build
+            Active Set Effect
           </div>
 
-          <div class="space-y-1 text-[#555]">
-            <div>
-              Weapon:
-              <span class="font-medium text-[#1b1b1b]">{{ weaponName }}</span>
-            </div>
-            <div>
-              Armor:
-              <span class="font-medium text-[#1b1b1b]">{{ gears.armor?.name ?? "—" }}</span>
-            </div>
-            <div>
-              Gloves:
-              <span class="font-medium text-[#1b1b1b]">{{ gears.gloves?.name ?? "—" }}</span>
-            </div>
-            <div>
-              Kit 1:
-              <span class="font-medium text-[#1b1b1b]">{{ gears.kit1?.name ?? "—" }}</span>
-            </div>
-            <div>
-              Kit 2:
-              <span class="font-medium text-[#1b1b1b]">{{ gears.kit2?.name ?? "—" }}</span>
-            </div>
+          <div
+            v-if="activeGearSet"
+            class="space-y-2 text-[#555]"
+          >
+            <div class="font-medium text-[#1b1b1b]">{{ activeGearSet.name }}</div>
+            <div class="whitespace-pre-line text-[#555]">{{ activeGearSet.description }}</div>
+          </div>
+          <div
+            v-else
+            class="text-[#777]"
+          >
+            No 3-piece set effect active.
           </div>
         </div>
       </div>

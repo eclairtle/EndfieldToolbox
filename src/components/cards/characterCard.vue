@@ -8,6 +8,7 @@ import {
   type AscensionStage,
   type PotentialLevel,
 } from "@/lib/build/progression";
+import { isBuildConditionMet } from "@/lib/build/buildConditions";
 import {
   CHARACTER_TALENT_KEYS,
   type CharacterTalentKey,
@@ -18,7 +19,7 @@ import type { CharacterSkillLevels, CharacterSkillKey } from "@/lib/build/charac
 const props = defineProps<{
   characters: CharacterBase[];
   selectedCharId: string;
-  selectedCharacter: CharacterBase;
+  selectedCharacter: CharacterBase | null;
   level: number;
   ascensionStage: AscensionStage;
   potential: PotentialLevel;
@@ -43,6 +44,29 @@ const skillRows: { key: CharacterSkillKey; label: string }[] = [
   { key: "comboSkill", label: "Combo Skill" },
   { key: "ultimate", label: "Ultimate" },
 ];
+
+function isUniqueTalentAvailable(key: string): boolean {
+  const talent = props.selectedCharacter?.uniqueTalentDefs?.[key];
+  if (!talent) {
+    return false;
+  }
+
+  return isBuildConditionMet(talent.condition, {
+    ascensionStage: props.ascensionStage,
+    uniqueTalentToggles: props.uniqueTalentToggles,
+    uniqueTalentConditions: Object.fromEntries(
+      Object.entries(props.selectedCharacter?.uniqueTalentDefs ?? {}).map(([innerKey, innerTalent]) => [innerKey, innerTalent.condition]),
+    ),
+    uniqueTalentDefaults: Object.fromEntries(
+      Object.entries(props.selectedCharacter?.uniqueTalentDefs ?? {}).map(([innerKey, innerTalent]) => [innerKey, innerTalent.defaultEnabled === true]),
+    ),
+  });
+}
+
+function isUniqueTalentShown(key: string): boolean {
+  const talent = props.selectedCharacter?.uniqueTalentDefs?.[key];
+  return !!talent && talent.defaultEnabled !== true;
+}
 </script>
 
 <template>
@@ -60,11 +84,14 @@ const skillRows: { key: CharacterSkillKey; label: string }[] = [
           @change="emit('update:selectedCharId', ($event.target as HTMLSelectElement).value)"
           class="h-11 rounded-xl border border-[#d4d4d4] bg-[#f8f8f8] px-3 outline-none focus:border-[#bdbdbd] focus:bg-white"
         >
+          <option value="">None</option>
           <option v-for="c in characters" :key="c.id" :value="c.id">
             {{ c.name }}
           </option>
         </select>
       </label>
+
+      <template v-if="selectedCharacter">
 
       <div class="grid gap-2">
         <div class="flex items-center justify-between">
@@ -168,7 +195,7 @@ const skillRows: { key: CharacterSkillKey; label: string }[] = [
       </div>
 
       <div
-        v-if="Object.keys(selectedCharacter.uniqueTalentDefs ?? {}).length > 0"
+        v-if="Object.entries(selectedCharacter.uniqueTalentDefs ?? {}).some(([key]) => isUniqueTalentShown(key))"
         class="grid gap-2"
       >
         <div class="text-sm font-medium text-[#555]">Unique Talents</div>
@@ -177,11 +204,15 @@ const skillRows: { key: CharacterSkillKey; label: string }[] = [
           <button
             v-for="(talent, key) in selectedCharacter.uniqueTalentDefs"
             :key="key"
+            v-show="isUniqueTalentShown(key)"
             type="button"
+            :disabled="!isUniqueTalentAvailable(key)"
             @click="emit('toggle:unique-talent', key)"
             class="rounded-xl border px-3 py-3 text-left text-sm transition"
             :class="
-              uniqueTalentToggles[key]
+              !isUniqueTalentAvailable(key)
+                ? 'cursor-not-allowed border-[#d8d8d8] bg-[#efefef] text-[#9a9a9a]'
+                : uniqueTalentToggles[key]
                 ? 'border-[#c8d13c] bg-[#dfe86a] text-[#1b1b1b]'
                 : 'border-[#d4d4d4] bg-[#f8f8f8] text-[#333]'
             "
@@ -225,6 +256,7 @@ const skillRows: { key: CharacterSkillKey; label: string }[] = [
           </div>
         </div>
       </div>
+      </template>
     </div>
   </section>
 </template>

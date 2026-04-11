@@ -1,5 +1,24 @@
 import { benchmarkHealing, type CharacterBase, type CharacterBenchmark } from "@/data/characters";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+
+const ARDELIA_COMBAT_HOOKS: CharacterCombatHooks = {
+  onResolvedHit: (ctx) => {
+    if (!ctx.state.isSelfUniqueTalentEnabled("ardelia_mountainpeak_surfer")) {
+      return;
+    }
+
+    if (ctx.source.characterId !== "ardelia" || ctx.source.commandId !== "ardelia_battle_skill") {
+      return;
+    }
+
+    if (!ctx.state.hasEnemyStatus("corrosion")) {
+      return;
+    }
+
+    ctx.state.repeatCurrentHitOnce("mountainpeak_surfer_repeat");
+  },
+};
 
 const ARDELIA_COMMANDS: CommandDefinition[] = [
   {
@@ -18,6 +37,10 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
         flatAmount: flat12(45),
         scalingStat: "WIL",
         offsetFrames: flat12(0),
+        condition: {
+          requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_1"],
+          requiresUniqueTalentsDisabled: ["ardelia_friendly_presence_2", "ardelia_friendly_presence_3"],
+        },
       },
       {
         name: "E1",
@@ -25,6 +48,10 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
         flatAmount: flat12(63),
         scalingStat: "WIL",
         offsetFrames: flat12(0),
+        condition: {
+          requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_2"],
+          requiresUniqueTalentsDisabled: ["ardelia_friendly_presence_3"],
+        },
       },
       {
         name: "E2",
@@ -32,6 +59,9 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
         flatAmount: flat12(90),
         scalingStat: "WIL",
         offsetFrames: flat12(0),
+        condition: {
+          requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_3"],
+        },
       },
     ],
   },
@@ -41,14 +71,86 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
-    mode: "cycling",
     durationFrames: flat12(288),
     spCost: flat12(0),
+    basicAttackVariant: "sequence",
+    expandsToCommandIds: [
+      "ardelia_basic_sequence_1",
+      "ardelia_basic_sequence_2",
+      "ardelia_basic_sequence_3",
+      "ardelia_basic_sequence_4",
+    ],
+    hits: [],
+  },
+  {
+    id: "ardelia_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(24),
+    spCost: flat12(0),
+    splitMultiplier: true,
     hits: [
       { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), offsetFrames: flat12(12) },
-      { name: "Hit 2", multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), offsetFrames: flat12(40) },
-      { name: "Hit 3", multiplier: pct([53, 58, 63, 68, 74, 79, 84, 89, 95, 101, 109, 118]), offsetFrames: flat12(88) },
-      { name: "Hit 4", multiplier: pct([55, 61, 66, 72, 77, 83, 88, 94, 99, 106, 114, 124]), stagger: flat12(18), offsetFrames: flat12(288) },
+    ],
+  },
+  {
+    id: "ardelia_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(42),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), offsetFrames: flat12(16.02) },
+      { name: "Hit 2", multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), offsetFrames: flat12(19.8) },
+    ],
+  },
+  {
+    id: "ardelia_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(91.8),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([53, 58, 63, 68, 74, 79, 84, 89, 95, 101, 109, 118]), offsetFrames: flat12(22.02) },
+      { name: "Hit 2", multiplier: pct([53, 58, 63, 68, 74, 79, 84, 89, 95, 101, 109, 118]), offsetFrames: flat12(25.8) },
+      { name: "Hit 3", multiplier: pct([53, 58, 63, 68, 74, 79, 84, 89, 95, 101, 109, 118]), offsetFrames: flat12(78) },
+    ],
+  },
+  {
+    id: "ardelia_basic_sequence_4",
+    name: "Final Strike",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(130.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([55, 61, 66, 72, 77, 83, 88, 94, 99, 106, 114, 124]), stagger: flat12(18), spGenerated: flat12(18), requiresControlledOperator: true, offsetFrames: flat12(130.02) },
     ],
   },
   {
@@ -57,6 +159,7 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
+    basicAttackVariant: "final_strike",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -68,6 +171,7 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
+    basicAttackVariant: "dive_attack",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -87,17 +191,21 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
       multiplier: pct([142, 156, 171, 185, 199, 213, 228, 242, 256, 274, 295, 320]),
       stagger: flat12(10),
       offsetFrames: flat12(64),
-      targetDebuffs: [
+      effects: [
         {
-          stat: "PHYSICAL_SUS_PCT",
-          value: pct([12, 12, 12, 13, 13, 13, 14, 14, 16, 17, 18, 20]),
+          type: "APPLY_BUFF",
+          target: "enemy",
+          buffId: "ardelia_dolly_rush_susceptibility",
+          label: "Dolly Rush Susceptibility",
           durationSeconds: 30,
+          timeScale: "game",
+          requiresEnemyStatusId: "corrosion",
+          effectScalings: {
+            PHYSICAL_SUS_PCT: pct([12, 12, 12, 13, 13, 13, 14, 14, 16, 17, 18, 20]),
+            ARTS_SUS_PCT: pct([12, 12, 12, 13, 13, 13, 14, 14, 16, 17, 18, 20]),
+          },
         },
-        {
-          stat: "ARTS_SUS_PCT",
-          value: pct([12, 12, 12, 13, 13, 13, 14, 14, 16, 17, 18, 20]),
-          durationSeconds: 30,
-        },
+        { type: "REMOVE_BUFF", target: "enemy", buffId: "corrosion" },
       ],
     }],
   },
@@ -108,11 +216,21 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     attackType: "COMBO_SKILL",
     damageType: "Nature",
     mode: "single",
-    durationFrames: flat12(144),
+    durationFrames: flat12(42),
+    timeFreezeSeconds: flat12(37 / 60),
+    comboCooldownSeconds: flat12(18),
+    comboCooldownTimeScale: "real",
     spCost: flat12(0),
     hits: [
       { name: "Volcanic Cloud", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), offsetFrames: flat12(40) },
-      { name: "Explosion", multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]), stagger: flat12(10), offsetFrames: flat12(144) },
+      {
+        name: "Explosion",
+        multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]),
+        stagger: flat12(10),
+        effects: [{ type: "APPLY_REACTION", reaction: "Corrosion", level: 1, durationSeconds: 7 }],
+        registerOffsetFrames: flat12(40),
+        offsetFrames: flat12(144),
+      },
     ],
   },
   {
@@ -123,6 +241,8 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     damageType: "Nature",
     mode: "single",
     durationFrames: flat12(418),
+    timeFreezeSeconds: flat12(105 / 60),
+    cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(90),
     hits: [{ multiplier: pct([73, 81, 88, 95, 103, 110, 117, 125, 132, 141, 152, 165]), offsetFrames: flat12(108) }],
@@ -136,8 +256,7 @@ const ARDELIA_BENCHMARKS: CharacterBenchmark[] = [
     commandId: "ardelia_friendly_presence",
     label: "Talent Healing",
     computeBaseAmount: (ctx, command) => {
-      const hitIndex = Math.min(Math.max(ctx.slot?.characterAscension ?? 0, 0), 2);
-      const hit = command.hits[hitIndex];
+      const hit = command.hits[0];
       if (!hit) return 0;
 
       return hit.flatAmount + ctx.finalStats.statsCard.WIL * hit.multiplier;
@@ -151,8 +270,15 @@ const ARDELIA_BENCHMARKS: CharacterBenchmark[] = [
     name: "Battle Skill Susceptibility",
     compute: (ctx) => {
       const command = ctx.resolvedCommands.find((c) => c.id === "ardelia_battle_skill");
+      const susceptibilityEffect = command?.hits[0]?.effects.find((effect) =>
+        effect.type === "APPLY_BUFF"
+        && effect.target === "enemy"
+        && effect.buffId === "ardelia_dolly_rush_susceptibility",
+      );
       const susceptibility =
-        command?.hits[0]?.targetDebuffs.find((debuff) => debuff.stat === "PHYSICAL_SUS_PCT")?.value ?? 0;
+        susceptibilityEffect?.type === "APPLY_BUFF"
+          ? (susceptibilityEffect.effects?.PHYSICAL_SUS_PCT ?? 0)
+          : 0;
 
       return {
         label: "Battle Skill Susceptibility",
@@ -183,10 +309,35 @@ export const ARDELIA: CharacterBase = {
   commands: ARDELIA_COMMANDS,
   benchmarks: ARDELIA_BENCHMARKS,
   uniqueTalentDefs: {
-    friendly_prescence_1: {
+    ardelia_friendly_presence_1: {
       name: "Friendly Presence I",
+      defaultEnabled: true,
+      condition: {
+        minEliteStage: 0,
+      },
+    },
+    ardelia_friendly_presence_2: {
+      name: "Friendly Presence II",
+      condition: {
+        minEliteStage: 1,
+        requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_1"],
+      },
+    },
+    ardelia_friendly_presence_3: {
+      name: "Friendly Presence III",
+      condition: {
+        minEliteStage: 2,
+        requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_2"],
+      },
+    },
+    ardelia_mountainpeak_surfer: {
+      name: "Mountainpeak Surfer",
+      condition: {
+        minEliteStage: 2,
+      },
     },
   },
+  combatHooks: ARDELIA_COMBAT_HOOKS,
 
   // Ardelis
   levels: {

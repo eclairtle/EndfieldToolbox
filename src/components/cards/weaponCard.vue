@@ -22,7 +22,7 @@ const props = defineProps<{
   weaponAscensionStage: AscensionStage;
   weaponPotential: PotentialLevel;
   weaponSkillLevels: number[];
-  character: CharacterBase;
+  character: CharacterBase | null;
 }>();
 
 const emit = defineEmits<{
@@ -66,6 +66,7 @@ function updateSkill(index: number, value: number) {
           @change="emit('update:selectedWeaponId', ($event.target as HTMLSelectElement).value)"
           class="h-11 rounded-xl border border-[#d4d4d4] bg-[#f8f8f8] px-3 outline-none focus:border-[#bdbdbd] focus:bg-white"
         >
+          <option value="">None</option>
           <option v-for="w in weapons" :key="w.id" :value="w.id">
             {{ w.name }}
           </option>
@@ -160,17 +161,17 @@ function updateSkill(index: number, value: number) {
                 Skill {{ i + 1 }} · {{ skill.name }}
               </div>
 
-              <div class="mt-1 text-xs font-medium text-[#333]">
-                {{ getWeaponSkillLiveBonus(skill, skill.rank, weaponSkillLevels[i] ?? skillRanges[i]!.min, character) }}
-              </div>
-
-              <div class="mt-1 text-xs text-[#777]">
-                Range: {{ skillRanges[i]?.min }} / {{ skillRanges[i]!.max }}
+              <div class="mt-1 whitespace-pre-line text-xs font-medium text-[#333]">
+                {{
+                  character
+                    ? getWeaponSkillLiveBonus(selectedWeapon!, skill, weaponSkillLevels[i] ?? skillRanges[i]!.min, character)
+                    : "Select a character to preview skill bonus"
+                }}
               </div>
             </div>
 
             <span class="rounded-md bg-white px-2 py-1 text-sm font-semibold tabular-nums">
-              Lv {{ weaponSkillLevels[i] ?? skillRanges[i]!.min }}
+              Lv {{ weaponSkillLevels[i] ?? skillRanges[i]!.min }}/{{ skillRanges[i]!.max }}
             </span>
           </div>
 

@@ -1,5 +1,100 @@
 import type { CharacterBase } from "@/data/characters";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { pct, flat12, type CommandDefinition } from "@/lib/commands";
+
+const WULFGARD_SCORCHING_FANGS_BUFF_ID = "wulfgard_scorching_fangs";
+
+const WULFGARD_COMBAT_HOOKS: CharacterCombatHooks = {
+  onEvent: (ctx) => {
+    if (
+      ctx.event.type === "COMBUSTION_APPLIED"
+      && (ctx.event.slot === ctx.self.slot || ctx.event.sourceSlot === ctx.self.slot)
+    ) {
+      const hasScorchingFangsI = ctx.state.isSelfUniqueTalentEnabled("wulfgard_scorching_fangs_1");
+      const hasScorchingFangsII = ctx.state.isSelfUniqueTalentEnabled("wulfgard_scorching_fangs_2");
+      const scorchingFangsBaseHeatDmgPct = hasScorchingFangsII ? 0.3 : hasScorchingFangsI ? 0.2 : 0;
+
+      if (
+        scorchingFangsBaseHeatDmgPct > 0
+        && ctx.state.markTriggerOnce(`${ctx.event.stepId ?? `${ctx.event.time}`}:wulfgard_scorching_fangs_gain`)
+      ) {
+        ctx.state.applySelfBuff({
+          buffId: WULFGARD_SCORCHING_FANGS_BUFF_ID,
+          label: "Scorching Fangs",
+          durationSeconds: 10,
+          timeScale: "game",
+          effects: {
+            HEAT_DMG_PCT: scorchingFangsBaseHeatDmgPct,
+          },
+        });
+      }
+      return;
+    }
+
+    if (
+      ctx.event.type === "ULTIMATE_CAST"
+      && (ctx.event.slot === ctx.self.slot || ctx.event.sourceSlot === ctx.self.slot)
+      && ctx.state.isSelfPotentialActive(5)
+      && ctx.state.markTriggerOnce(`${ctx.event.stepId ?? `${ctx.event.time}`}:wulfgard_potential_5`)
+    ) {
+      ctx.state.resetSelfComboCooldown();
+    }
+  },
+  onResolvedHit: (ctx) => {
+    if (ctx.source.characterId !== "wulfgard") {
+      return;
+    }
+
+    const hasScorchingFangsI = ctx.state.isSelfUniqueTalentEnabled("wulfgard_scorching_fangs_1");
+    const hasScorchingFangsII = ctx.state.isSelfUniqueTalentEnabled("wulfgard_scorching_fangs_2");
+    const scorchingFangsBaseHeatDmgPct = hasScorchingFangsII ? 0.3 : hasScorchingFangsI ? 0.2 : 0;
+
+    const triggeredThermiteAdditionalEffects = ctx.source.commandId === "wulfgard_battle_skill_reaction";
+
+    if (
+      triggeredThermiteAdditionalEffects
+      && ctx.state.markTriggerOnce(`${ctx.stepId}:wulfgard_code_of_restraint_sp`)
+    ) {
+      const hasCodeOfRestraintI = ctx.state.isSelfUniqueTalentEnabled("wulfgard_code_of_restraint_1");
+      const hasCodeOfRestraintII = ctx.state.isSelfUniqueTalentEnabled("wulfgard_code_of_restraint_2");
+      const baseSp = hasCodeOfRestraintII ? 10 : hasCodeOfRestraintI ? 5 : 0;
+      const potentialBonusSp = ctx.state.isSelfPotentialActive(2) ? 10 : 0;
+      const totalSp = baseSp + potentialBonusSp;
+
+      if (totalSp > 0) {
+        ctx.state.grantReturnedSp(totalSp, "Code of Restraint");
+      }
+    }
+
+    if (
+      triggeredThermiteAdditionalEffects
+      && ctx.state.isSelfPotentialActive(3)
+      && scorchingFangsBaseHeatDmgPct > 0
+      && ctx.state.hasSelfBuff(WULFGARD_SCORCHING_FANGS_BUFF_ID)
+      && ctx.state.markTriggerOnce(`${ctx.stepId}:wulfgard_pack_share`)
+    ) {
+      ctx.state.applySelfBuff({
+        buffId: WULFGARD_SCORCHING_FANGS_BUFF_ID,
+        label: "Scorching Fangs",
+        durationSeconds: 10,
+        timeScale: "game",
+        effects: {
+          HEAT_DMG_PCT: scorchingFangsBaseHeatDmgPct,
+        },
+      });
+
+      ctx.state.applyOtherTeammatesBuff({
+        buffId: "wulfgard_scorching_fangs_shared",
+        label: "Scorching Fangs",
+        durationSeconds: 10,
+        timeScale: "game",
+        effects: {
+          HEAT_DMG_PCT: scorchingFangsBaseHeatDmgPct * 0.5,
+        },
+      });
+    }
+  },
+};
 
 const WULFGARD_COMMANDS: CommandDefinition[] = [
   {
@@ -8,30 +103,126 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
-    mode: "cycling",
     durationFrames: flat12(270),
     spCost: flat12(0),
+    basicAttackVariant: "sequence",
+    expandsToCommandIds: [
+      "wulfgard_basic_sequence_1",
+      "wulfgard_basic_sequence_2",
+      "wulfgard_basic_sequence_3",
+      "wulfgard_basic_sequence_4",
+    ],
+    hits: [],
+    },
+    {
+    id: "wulfgard_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(49.8),
+    spCost: flat12(0),
+    splitMultiplier: true,
     hits: [
         {
         name: "Hit 1",
         multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]),
-        offsetFrames: flat12(14),
+        offsetFrames: flat12(13.8),
+        },
+        {
+        name: "Hit 2",
+        multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]),
+        offsetFrames: flat12(28.02),
+        },
+    ],
+    },
+    {
+    id: "wulfgard_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(48),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+        {
+        name: "Hit 1",
+        multiplier: pct([35, 39, 42, 46, 49, 53, 56, 60, 63, 67, 73, 79]),
+        offsetFrames: flat12(19.8),
         },
         {
         name: "Hit 2",
         multiplier: pct([35, 39, 42, 46, 49, 53, 56, 60, 63, 67, 73, 79]),
-        offsetFrames: flat12(30),
+        offsetFrames: flat12(31.8),
+        },
+    ],
+    },
+    {
+    id: "wulfgard_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(66),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+        {
+        name: "Hit 1",
+        multiplier: pct([56, 61, 67, 72, 78, 83, 89, 94, 100, 107, 115, 125]),
+        offsetFrames: flat12(24),
+        },
+        {
+        name: "Hit 2",
+        multiplier: pct([56, 61, 67, 72, 78, 83, 89, 94, 100, 107, 115, 125]),
+        offsetFrames: flat12(36),
         },
         {
         name: "Hit 3",
         multiplier: pct([56, 61, 67, 72, 78, 83, 89, 94, 100, 107, 115, 125]),
-        offsetFrames: flat12(30),
+        offsetFrames: flat12(48),
+        },
+    ],
+    },
+    {
+    id: "wulfgard_basic_sequence_4",
+    name: "Final Strike",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Heat",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(106.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+        {
+        name: "Hit 1",
+        multiplier: pct([68, 74, 81, 88, 95, 101, 108, 115, 122, 130, 140, 152]),
+        offsetFrames: flat12(46.02),
         },
         {
-        name: "Hit 4",
+        name: "Hit 2",
         multiplier: pct([68, 74, 81, 88, 95, 101, 108, 115, 122, 130, 140, 152]),
         stagger: flat12(18),
-        offsetFrames: flat12(30),
+        spGenerated: flat12(18),
+        requiresControlledOperator: true,
+        offsetFrames: flat12(46.02),
         },
     ],
     },
@@ -41,6 +232,7 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
+    basicAttackVariant: "final_strike",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -57,6 +249,7 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
+    basicAttackVariant: "dive_attack",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -64,6 +257,118 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
         {
         multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
         offsetFrames: flat12(30),
+        },
+    ],
+    },
+    {
+    id: "wulfgard_battle_skill",
+    name: "Thermite Tracer",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Heat",
+    mode: "single",
+    durationFrames: flat12(64.2),
+    spCost: flat12(100),
+    splitMultiplier: true,
+    hits: [
+        {
+        name: "Hit 1",
+        multiplier: pct([102, 112, 122, 133, 143, 153, 163, 174, 184, 196, 212, 230]),
+        offsetFrames: flat12(12),
+        },
+        {
+        name: "Hit 2",
+        multiplier: pct([102, 112, 122, 133, 143, 153, 163, 174, 184, 196, 212, 230]),
+        offsetFrames: flat12(31.8),
+        },
+        {
+        name: "Hit 3",
+        multiplier: pct([102, 112, 122, 133, 143, 153, 163, 174, 184, 196, 212, 230]),
+        stagger: flat12(5),
+        effects: [{ type: "APPLY_ARTS_INFLICTION", element: "Heat", stacks: 1 }],
+        offsetFrames: flat12(46.02),
+        },
+    ],
+    },
+    {
+    id: "wulfgard_battle_skill_reaction",
+    name: "Thermite Tracer",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Heat",
+    variant: "enhanced_battle_skill",
+    mode: "single",
+    durationFrames: flat12(124.2),
+    spCost: flat12(100),
+    splitMultiplier: true,
+    hits: [
+        {
+        name: "Hit 1",
+        multiplier: pct([378, 415, 453, 491, 529, 566, 604, 642, 680, 727, 784, 850]),
+        offsetFrames: flat12(12),
+        },
+        {
+        name: "Hit 2",
+        multiplier: pct([378, 415, 453, 491, 529, 566, 604, 642, 680, 727, 784, 850]),
+        offsetFrames: flat12(31.8),
+        },
+        {
+        name: "Hit 3",
+        multiplier: pct([378, 415, 453, 491, 529, 566, 604, 642, 680, 727, 784, 850]),
+        stagger: flat12(5),
+        offsetFrames: flat12(46.02),
+        },
+        {
+        name: "Hit 4",
+        multiplier: pct([378, 415, 453, 491, 529, 566, 604, 642, 680, 727, 784, 850]),
+        stagger: flat12(5),
+        spReturned: flat12(10),
+        effects: [{ type: "REMOVE_BUFF", target: "enemy", buffId: "combustion" }],
+        offsetFrames: flat12(124.2),
+        },
+    ],
+    },
+    {
+    id: "wulfgard_combo_skill",
+    name: "Frag Grenade·Beta",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Heat",
+    mode: "single",
+    durationFrames: flat12(60),
+    timeFreezeSeconds: flat12(51 / 60),
+    comboCooldownSeconds: [...flat12(20).slice(0, 11), 19],
+    comboCooldownTimeScale: "real",
+    spCost: flat12(0),
+    hits: [
+        {
+        multiplier: pct([60, 66, 72, 78, 84, 90, 96, 102, 108, 116, 125, 135]),
+        stagger: flat12(10),
+        effects: [{ type: "APPLY_ARTS_INFLICTION", element: "Heat", stacks: 1 }],
+        offsetFrames: flat12(54),
+        },
+    ],
+    },
+    {
+    id: "wulfgard_ultimate",
+    name: "Wolven Fury",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Heat",
+    mode: "single",
+    durationFrames: flat12(150),
+    timeFreezeSeconds: flat12(65 / 60),
+    cutscene: true,
+    spCost: flat12(0),
+    energyCost: flat12(90),
+    hits: [
+        {
+        name: "Rapid Barrage x5",
+        multiplier: pct([32, 35, 38, 42, 45, 48, 51, 54, 58, 62, 66, 72]),
+        stagger: flat12(15),
+        offsetFrames: flat12(68),
+        times: 5,
+        repeatIntervalFrames: flat12(18),
         },
     ],
     },
@@ -155,5 +460,60 @@ export const WULFGARD: CharacterBase = {
         4990, 5046, 5102, 5158, 5214, 5270, 5327, 5383, 5439, 5495
     ]
     },
-    commands: WULFGARD_COMMANDS
+    commands: WULFGARD_COMMANDS,
+    combatHooks: WULFGARD_COMBAT_HOOKS,
+    uniqueTalentDefs: {
+      wulfgard_scorching_fangs_1: {
+        name: "Scorching Fangs I",
+        condition: {
+          minEliteStage: 1,
+        },
+      },
+      wulfgard_scorching_fangs_2: {
+        name: "Scorching Fangs II",
+        condition: {
+          minEliteStage: 2,
+          requiresUniqueTalentsEnabled: ["wulfgard_scorching_fangs_1"],
+        },
+      },
+      wulfgard_code_of_restraint_1: {
+        name: "Code of Restraint I",
+        condition: {
+          minEliteStage: 2,
+        },
+      },
+      wulfgard_code_of_restraint_2: {
+        name: "Code of Restraint II",
+        condition: {
+          minEliteStage: 3,
+          requiresUniqueTalentsEnabled: ["wulfgard_code_of_restraint_1"],
+        },
+      },
+    },
+    potentialEffects: {
+      1: {
+        apply: () => ({
+          attrsDelta: {
+            STR: 15,
+            AGI: 15,
+          },
+        }),
+      },
+    },
+    mutateResolvedCommands: (commands, ctx) => {
+      if ((ctx.buildState.potentialLevel ?? 0) < 4) {
+        return commands;
+      }
+
+      return commands.map((command) => {
+        if (command.id !== "wulfgard_ultimate") {
+          return command;
+        }
+
+        return {
+          ...command,
+          energyCost: Math.max(0, command.energyCost * 0.85),
+        };
+      });
+    },
 };

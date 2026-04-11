@@ -1,5 +1,6 @@
 import type {
   AttrKey,
+  Attrs,
   AttributeScaling,
   CharacterStats,
   FinalStats,
@@ -8,6 +9,9 @@ import type {
 } from "@/lib/build/stats";
 import type { CommandDefinition, ResolvedCommandAtLevel } from "@/lib/commands";
 import { calculateCommandDamage, calculateHealingAmount } from "@/lib/combat/combatDamage";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
+import { isBuildConditionMet, isUniqueTalentEnabled, type BuildCondition, type BuildConditionState } from "@/lib/build/buildConditions";
+import type { PotentialLevel } from "@/lib/build/progression";
 import type { WeaponType } from "./weapons";
 
 export type ElementType =
@@ -71,13 +75,16 @@ export function benchmarkCommandDamage(args: {
 }
 
 export type CharacterRuntimeContext = {
-  slot: CharacterBuildSlot;
-  finalStats: FinalStats;
+  slot?: CharacterBuildSlot;
+  char: CharacterBase;
+  attrs: Attrs;
   mods: ModifierStats;
+  buildState: BuildConditionState;
 };
 
 export type CharacterTalentEffect = {
   apply?: (ctx: CharacterRuntimeContext) => {
+    attrsDelta?: Partial<Attrs>;
     modsDelta?: Partial<ModifierStats>;
     extra?: Record<string, number>;
   };
@@ -85,14 +92,21 @@ export type CharacterTalentEffect = {
 
 export type CharacterUniqueTalent = {
   name: string;
+  condition?: BuildCondition;
+  defaultEnabled?: boolean;
   effect?: CharacterTalentEffect;
 };
 
 export type CharacterPotentialEffect = {
   apply?: (ctx: CharacterRuntimeContext) => {
+    attrsDelta?: Partial<Attrs>;
     modsDelta?: Partial<ModifierStats>;
     extra?: Record<string, number>;
   };
+};
+
+export type CharacterCommandMutationContext = {
+  buildState: BuildConditionState;
 };
 
 export type PromotionCostItem = {
@@ -120,11 +134,66 @@ export type CharacterBase = {
   commands?: CommandDefinition[];
   benchmarks?: CharacterBenchmark[];
   promotions?: PromotionStageCost[];
+  combatHooks?: CharacterCombatHooks;
 
   uniqueTalents?: Record<string, CharacterTalentEffect>;
   uniqueTalentDefs?: Record<string, CharacterUniqueTalent>;
   potentialEffects?: Record<number, CharacterPotentialEffect>;
+  mutateResolvedCommands?: (
+    commands: ResolvedCommandAtLevel[],
+    ctx: CharacterCommandMutationContext,
+  ) => ResolvedCommandAtLevel[];
 };
+
+export function applyCharacterRuntimeEffects(args: {
+  char: CharacterBase;
+  slot?: CharacterBuildSlot;
+  attrs: Attrs;
+  mods: ModifierStats;
+  buildState: BuildConditionState;
+}) {
+  let attrs = { ...args.attrs };
+  let mods = { ...args.mods };
+  const extra: Record<string, number> = {};
+
+  const applyDelta = (result: ReturnType<NonNullable<CharacterTalentEffect["apply"]>> | ReturnType<NonNullable<CharacterPotentialEffect["apply"]>> | undefined) => {
+    if (!result) {
+      return;
+    }
+
+    for (const key of Object.keys(result.attrsDelta ?? {}) as AttrKey[]) {
+      attrs[key] += result.attrsDelta?.[key] ?? 0;
+    }
+
+    for (const key of Object.keys(result.modsDelta ?? {}) as (keyof ModifierStats)[]) {
+      mods[key] += result.modsDelta?.[key] ?? 0;
+    }
+
+    Object.assign(extra, result.extra ?? {});
+  };
+
+  const runtimeContext: CharacterRuntimeContext = {
+    slot: args.slot,
+    char: args.char,
+    attrs,
+    mods,
+    buildState: args.buildState,
+  };
+
+  for (const [key, effect] of Object.entries(args.char.uniqueTalents ?? {})) {
+    if (!isUniqueTalentEnabled(key, args.buildState)) {
+      continue;
+    }
+    applyDelta(effect.apply?.(runtimeContext));
+  }
+
+  const potentialLevel = args.buildState.potentialLevel ?? 0;
+  for (let level = 1; level <= potentialLevel; level += 1) {
+    applyDelta(args.char.potentialEffects?.[level]?.apply?.(runtimeContext));
+  }
+
+  return { attrs, mods, extra };
+}
 
 export function benchmarkHealing(args: {
   id: string;
