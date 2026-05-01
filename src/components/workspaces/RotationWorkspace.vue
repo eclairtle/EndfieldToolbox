@@ -50,6 +50,7 @@ import { getCharacterDisplayName } from "@/i18n/domain/displayNames";
 import { getCharacterSkillDisplayName } from "@/i18n/domain/skillNames";
 import RotationSelectedCommandPanel from "@/components/workspaces/rotation/RotationSelectedCommandPanel.vue";
 import RotationHitDetailsModal from "@/components/workspaces/rotation/RotationHitDetailsModal.vue";
+import { toAssetUrl } from "@/lib/assets/imagePaths";
 
 const props = defineProps<{
   buildId?: string;
@@ -3294,7 +3295,7 @@ function getCharacterAvatarPath(characterId: string | undefined): string | null 
   }
 
   const upper = characterId.toUpperCase();
-  return `/avatars/${upper}/${upper}.webp`;
+  return toAssetUrl(`/avatars/${upper}/${upper}.webp`);
 }
 
 function getCharacterById(characterId: string | undefined) {
@@ -3317,7 +3318,7 @@ function getSimpleSkillIconPath(
     : skillType === "COMBO_SKILL"
       ? character.skillIconPaths.comboSkill
       : character.skillIconPaths.ultimate;
-  return iconPath ?? getCharacterAvatarPath(characterId);
+  return iconPath ? toAssetUrl(iconPath) : getCharacterAvatarPath(characterId);
 }
 
 function getSimpleSkillButtonStyle(
