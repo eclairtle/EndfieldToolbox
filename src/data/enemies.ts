@@ -1,7 +1,13 @@
 import type { ElementType } from "@/data/characters";
 import type { ModifierStats } from "@/lib/build/stats";
-import * as Bonekrushers from "./enemies/bonekrushers";
-import type { AppliedStatus } from "@/lib/status";
+import * as Landbreakers from "./enemies/landbreakers";
+
+export type EnemyAppliedStatus = {
+  id: string;
+  stacks?: number;
+  remainingSeconds?: number;
+  [key: string]: unknown;
+};
 
 export type EnemyResistances = 
 { Physical: number; 
@@ -25,6 +31,7 @@ export type EnemyBase = {
 
   weight: number;
   staggerGauge: number;
+  staggerNodes?: number[];
   staggerRecoverySeconds: number;
 
   finisherMultiplier: number;
@@ -37,9 +44,9 @@ export type EnemyInstance = {
 
   hp: number;
   modifiers: ModifierStats;
-  statuses: AppliedStatus[];
+  statuses: EnemyAppliedStatus[];
 };
 
 export const ENEMIES: EnemyBase[] = [
-  Bonekrushers.RHODAGN,
+  ...Landbreakers.LANDBREAKERS,
 ];

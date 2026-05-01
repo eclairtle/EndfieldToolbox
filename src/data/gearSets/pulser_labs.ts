@@ -96,8 +96,11 @@ export const PULSER_LABS: GearBase[] = [
       {
         "stat": "INT",
         "value": 43
+      },
+      {
+        "stat": "CRYO_ELECTRIC_DMG_PCT",
+        "value": 0.192
       }
     ],
   }
 ];
-

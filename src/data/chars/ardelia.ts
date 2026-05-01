@@ -2,34 +2,116 @@ import { benchmarkHealing, type CharacterBase, type CharacterBenchmark } from "@
 import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
+const ARDELIA_DOLLY_SHADOW_BUFF_ID = "ardelia_dolly_shadow";
+
+function hasFriendlyPresenceTalentEnabled(ctx: {
+  isSelfUniqueTalentEnabled: (key: string) => boolean;
+}) {
+  return (
+    ctx.isSelfUniqueTalentEnabled("ardelia_friendly_presence_1")
+    || ctx.isSelfUniqueTalentEnabled("ardelia_friendly_presence_2")
+    || ctx.isSelfUniqueTalentEnabled("ardelia_friendly_presence_3")
+  );
+}
+
 const ARDELIA_COMBAT_HOOKS: CharacterCombatHooks = {
   onResolvedHit: (ctx) => {
+    if (ctx.source.characterId !== "ardelia") {
+      return;
+    }
+
+    if (
+      ctx.source.commandId === "ardelia_battle_skill"
+      && hasFriendlyPresenceTalentEnabled(ctx.state)
+      && ctx.state.markTriggerOnce(`${ctx.stepId}:ardelia_dolly_shadow_battle_skill`)
+    ) {
+      ctx.state.applySelfBuff({
+        buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        label: "Dolly's Shadow",
+        durationSeconds: 10,
+        timeScale: "game",
+        stackGroup: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        maxStacks: 10,
+      });
+      ctx.state.applySelfBuff({
+        buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        label: "Dolly's Shadow",
+        durationSeconds: 10,
+        timeScale: "game",
+        stackGroup: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        maxStacks: 10,
+      });
+      ctx.state.applySelfBuff({
+        buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        label: "Dolly's Shadow",
+        durationSeconds: 10,
+        timeScale: "game",
+        stackGroup: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        maxStacks: 10,
+      });
+    }
+
+    if (
+      ctx.source.commandId === "ardelia_ultimate"
+      && hasFriendlyPresenceTalentEnabled(ctx.state)
+      && ctx.state.markTriggerOnce(`${ctx.stepId}:ardelia_dolly_shadow_ultimate`)
+    ) {
+      ctx.state.applySelfBuff({
+        buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        label: "Dolly's Shadow",
+        durationSeconds: 10,
+        timeScale: "game",
+        stackGroup: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+        maxStacks: 10,
+      });
+    }
+
     if (!ctx.state.isSelfUniqueTalentEnabled("ardelia_mountainpeak_surfer")) {
       return;
     }
 
-    if (ctx.source.characterId !== "ardelia" || ctx.source.commandId !== "ardelia_battle_skill") {
+    if (ctx.source.commandId !== "ardelia_battle_skill") {
       return;
     }
 
-    if (!ctx.state.hasEnemyStatus("corrosion")) {
+    if (!ctx.state.hasStatus({ statusId: "corrosion", target: "enemy" })) {
       return;
     }
 
     ctx.state.repeatCurrentHitOnce("mountainpeak_surfer_repeat");
+  },
+  onEvent: (ctx) => {
+    if (ctx.event.type !== "BASIC_ATTACK_FINAL_STRIKE_HIT") {
+      return;
+    }
+
+    if (ctx.state.hasStatus({ statusId: "vulnerability", target: "enemy" })) {
+      return;
+    }
+
+    if (ctx.state.getEnemyArtsInfliction() != null) {
+      return;
+    }
+
+    ctx.state.triggerSelfCombo({
+      label: "Ardelia Combo Triggered",
+      sourceEventType: "BASIC_ATTACK_FINAL_STRIKE_HIT",
+    });
   },
 };
 
 const ARDELIA_COMMANDS: CommandDefinition[] = [
   {
     id: "ardelia_friendly_presence",
-    name: "Friendly Presence",
+    name: "Shadows of Mr. Dolly",
     skill: "battleSkill",
-    attackType: "BATTLE_SKILL",
+    attackType: "TALENT",
     damageType: "Healing",
     mode: "single",
-    durationFrames: flat12(60),
+    durationFrames: flat12(30),
     spCost: flat12(0),
+    showNameInHitTimeline: true,
+    overlapMode: "transient",
     hits: [
       {
         name: "E0",
@@ -37,6 +119,12 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
         flatAmount: flat12(45),
         scalingStat: "WIL",
         offsetFrames: flat12(0),
+        requiresControlledOperator: true,
+        executeCondition: {
+          requiresSelfBuffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+          requiresStacksAtLeast: 1,
+        },
+        postEffects: [{ type: "REMOVE_BUFF", target: "self", buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID, stacks: 1 }],
         condition: {
           requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_1"],
           requiresUniqueTalentsDisabled: ["ardelia_friendly_presence_2", "ardelia_friendly_presence_3"],
@@ -48,6 +136,12 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
         flatAmount: flat12(63),
         scalingStat: "WIL",
         offsetFrames: flat12(0),
+        requiresControlledOperator: true,
+        executeCondition: {
+          requiresSelfBuffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+          requiresStacksAtLeast: 1,
+        },
+        postEffects: [{ type: "REMOVE_BUFF", target: "self", buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID, stacks: 1 }],
         condition: {
           requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_2"],
           requiresUniqueTalentsDisabled: ["ardelia_friendly_presence_3"],
@@ -59,6 +153,12 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
         flatAmount: flat12(90),
         scalingStat: "WIL",
         offsetFrames: flat12(0),
+        requiresControlledOperator: true,
+        executeCondition: {
+          requiresSelfBuffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+          requiresStacksAtLeast: 1,
+        },
+        postEffects: [{ type: "REMOVE_BUFF", target: "self", buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID, stacks: 1 }],
         condition: {
           requiresUniqueTalentsEnabled: ["ardelia_friendly_presence_3"],
         },
@@ -143,7 +243,7 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
     hiddenInLibrary: true,
-    basicAttackVariant: "sequence_segment",
+    basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 4,
     sequenceSegmentTotal: 4,
     durationFrames: flat12(130.02),
@@ -159,7 +259,7 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
-    basicAttackVariant: "final_strike",
+    basicAttackVariant: "finisher",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -222,7 +322,7 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     comboCooldownTimeScale: "real",
     spCost: flat12(0),
     hits: [
-      { name: "Volcanic Cloud", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), offsetFrames: flat12(40) },
+      { name: "Volcanic Cloud", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), registerOffsetFrames: flat12(40), offsetFrames: flat12(49) },
       {
         name: "Explosion",
         multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]),
@@ -292,6 +392,11 @@ const ARDELIA_BENCHMARKS: CharacterBenchmark[] = [
 export const ARDELIA: CharacterBase = {
   id: "ardelia",
   name: "Ardelia",
+  skillIconPaths: {
+    battleSkill: "/avatars/ARDELIA/icon_skill_ardelia_01.webp",
+    comboSkill: "/avatars/ARDELIA/icon_combo_skill_ardelia_01.webp",
+    ultimate: "/avatars/ARDELIA/icon_ultimate_skill_ardelia_01.webp",
+  },
   rarity: 6,
 
   class: "Supporter",
@@ -308,6 +413,98 @@ export const ARDELIA: CharacterBase = {
   weaponType: "ARTS_UNIT",
   commands: ARDELIA_COMMANDS,
   benchmarks: ARDELIA_BENCHMARKS,
+  mutateResolvedCommands: (commands, ctx) => {
+    const potentialLevel = ctx.buildState.potentialLevel ?? 0;
+    if (potentialLevel <= 0) {
+      return commands;
+    }
+
+    return commands.map((command) => {
+      if (command.id === "ardelia_battle_skill" && potentialLevel >= 1) {
+        return {
+          ...command,
+          hits: command.hits.map((hit) => {
+            const hasTargetBuff = hit.effects.some(
+              (effect) =>
+                effect.type === "APPLY_BUFF"
+                && effect.target === "enemy"
+                && effect.buffId === "ardelia_dolly_rush_susceptibility",
+            );
+
+            if (!hasTargetBuff) {
+              return hit;
+            }
+
+            return {
+              ...hit,
+              effects: hit.effects.map((effect) => {
+                if (
+                  effect.type !== "APPLY_BUFF"
+                  || effect.target !== "enemy"
+                  || effect.buffId !== "ardelia_dolly_rush_susceptibility"
+                ) {
+                  return effect;
+                }
+
+                return {
+                  ...effect,
+                  effects: {
+                    ...(effect.effects ?? {}),
+                    PHYSICAL_SUS_PCT: (effect.effects?.PHYSICAL_SUS_PCT ?? 0) + 0.08,
+                    ARTS_SUS_PCT: (effect.effects?.ARTS_SUS_PCT ?? 0) + 0.08,
+                  },
+                };
+              }),
+            };
+          }),
+        };
+      }
+
+      if (command.id === "ardelia_ultimate") {
+        if (potentialLevel >= 4) {
+          return {
+            ...command,
+            energyCost: Math.max(0, command.energyCost * 0.85),
+            durationFrames: potentialLevel >= 3 ? command.durationFrames + 60 : command.durationFrames,
+          };
+        }
+
+        if (potentialLevel >= 3) {
+          return {
+            ...command,
+            durationFrames: command.durationFrames + 60,
+          };
+        }
+      }
+
+      if (command.id === "ardelia_combo_skill" && potentialLevel >= 5) {
+        return {
+          ...command,
+          comboCooldownSeconds: Math.max(0, command.comboCooldownSeconds - 2),
+          hits: command.hits.map((hit) => {
+            const scaled = {
+              ...hit,
+              multiplier: hit.multiplier * 1.2,
+            };
+            return {
+              ...scaled,
+              effects: scaled.effects.map((effect) => {
+                if (effect.type !== "APPLY_REACTION" || effect.reaction !== "Corrosion") {
+                  return effect;
+                }
+                return {
+                  ...effect,
+                  durationSeconds: (effect.durationSeconds ?? 0) + 4,
+                };
+              }),
+            };
+          }),
+        };
+      }
+
+      return command;
+    });
+  },
   uniqueTalentDefs: {
     ardelia_friendly_presence_1: {
       name: "Friendly Presence I",

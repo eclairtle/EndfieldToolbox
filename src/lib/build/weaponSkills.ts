@@ -71,6 +71,12 @@ export function applyWeaponSkills(args: {
       case "HEALING_UP":
         mods.HEALING_PCT += Math.floor((12.5 + 47.6 * x) * rankMultiplier) / 1000;
         break;
+      case "ULT_GAIN_UP":
+        mods.ULT_GAIN_PCT += Math.floor((12.5 + 47.6 * x) * rankMultiplier) / 1000;
+        break;
+      case "HP_UP":
+        mods.HP_PCT += Math.floor((20 + 80 * x) * rankMultiplier) / 1000;
+        break;
       default:
         break;
     }

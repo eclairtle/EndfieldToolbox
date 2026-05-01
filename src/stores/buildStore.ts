@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 
 import { CHARACTERS, type CharacterBase } from "@/data/characters";
 import { WEAPONS, type WeaponBase } from "@/data/weapons";
@@ -67,6 +67,11 @@ export type CharacterBuildSlot = {
   weaponBuilds: Record<string, WeaponBuildSnapshot>;
 };
 
+export type BuildStoreStateSnapshot = {
+  slots: CharacterBuildSlot[];
+  activeSlotIndex: number;
+};
+
 type CharacterBuildSnapshot = {
   characterAscension: AscensionStage;
   characterPotential: PotentialLevel;
@@ -90,11 +95,46 @@ type WeaponBuildSnapshot = {
 
 function makeDefaultTalentToggles(): CharacterTalentToggles {
   return {
-    TALENT_1: false,
-    TALENT_2: false,
-    TALENT_3: false,
-    TALENT_4: false,
+    TALENT_1: true,
+    TALENT_2: true,
+    TALENT_3: true,
+    TALENT_4: true,
   };
+}
+
+function makeLevel9CharacterSkillLevels(): CharacterSkillLevels {
+  return {
+    basic: 9,
+    battleSkill: 9,
+    comboSkill: 9,
+    ultimate: 9,
+  };
+}
+
+function getDefaultPotentialByRarity(rarity: number | undefined): PotentialLevel {
+  return rarity === 6 ? 0 : 5;
+}
+
+function makeAllUniqueTalentTogglesEnabled(character: CharacterBase): Record<string, boolean> {
+  return Object.fromEntries(
+    Object.keys(character.uniqueTalentDefs ?? {}).map((key) => [key, true]),
+  );
+}
+
+function remapLevelWithRangeChange(
+  value: number,
+  prevMin: number,
+  prevMax: number,
+  nextMin: number,
+  nextMax: number,
+) {
+  if (value <= prevMin) {
+    return nextMin;
+  }
+  if (value >= prevMax) {
+    return nextMax;
+  }
+  return Math.max(nextMin, Math.min(nextMax, value));
 }
 
 function makeDefaultSlot(index: number): CharacterBuildSlot {
@@ -128,7 +168,16 @@ function makeDefaultSlot(index: number): CharacterBuildSlot {
   };
 }
 
-const STORAGE_KEY = "combat-simulator-build-store-v1";
+export function createDefaultBuildStoreStateSnapshot(): BuildStoreStateSnapshot {
+  return {
+    slots: [makeDefaultSlot(0), makeDefaultSlot(1), makeDefaultSlot(2), makeDefaultSlot(3)],
+    activeSlotIndex: 0,
+  };
+}
+
+function cloneSnapshotSlots(slotsValue: CharacterBuildSlot[]): CharacterBuildSlot[] {
+  return JSON.parse(JSON.stringify(slotsValue)) as CharacterBuildSlot[];
+}
 
 export const useBuildStore = defineStore("buildStore", () => {
   const slots = ref<CharacterBuildSlot[]>([
@@ -139,57 +188,6 @@ export const useBuildStore = defineStore("buildStore", () => {
   ]);
 
   const activeSlotIndex = ref(0);
-
-  function loadFromStorage() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-
-    try {
-      const parsed = JSON.parse(raw) as {
-        slots?: CharacterBuildSlot[];
-        activeSlotIndex?: number;
-      };
-
-      if (parsed.slots && parsed.slots.length === 4) {
-        slots.value = parsed.slots;
-        for (const slot of slots.value) {
-          slot.uniqueTalentToggles = slot.uniqueTalentToggles ?? {};
-          slot.characterBuilds = slot.characterBuilds ?? {};
-          slot.weaponBuilds = slot.weaponBuilds ?? {};
-        }
-      }
-
-      if (
-        typeof parsed.activeSlotIndex === "number" &&
-        parsed.activeSlotIndex >= 0 &&
-        parsed.activeSlotIndex < 4
-      ) {
-        activeSlotIndex.value = parsed.activeSlotIndex;
-      }
-    } catch (err) {
-      console.warn("Failed to load build store from localStorage", err);
-    }
-  }
-
-  function saveToStorage() {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        slots: slots.value,
-        activeSlotIndex: activeSlotIndex.value,
-      }),
-    );
-  }
-
-  loadFromStorage();
-
-  watch(
-    [slots, activeSlotIndex],
-    () => {
-      saveToStorage();
-    },
-    { deep: true },
-  );
 
   const activeSlot = computed(() => slots.value[activeSlotIndex.value]);
 
@@ -293,13 +291,28 @@ export const useBuildStore = defineStore("buildStore", () => {
     ];
   }
 
-  function makeWeaponBuildKey(characterId: string, weaponId: string) {
-    return `${characterId}::${weaponId}`;
+  function setWeaponSkillLevelsToMax(slot: CharacterBuildSlot) {
+    const s1 = getWeaponSkill1Range(slot.weaponAscension);
+    const s2 = getWeaponSkill2Range(slot.weaponAscension);
+    const s3 = getWeaponSkill3Range(slot.weaponPotential);
+    slot.weaponSkillLevels = [s1.max, s2.max, s3.max];
   }
 
-  function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
-    if (!slot.selectedCharId) return;
-    slot.characterBuilds[slot.selectedCharId] = {
+function makeWeaponBuildKey(characterId: string, weaponId: string) {
+  return `${characterId}::${weaponId}`;
+}
+
+function cloneGearInstance(instance: GearInstance | null): GearInstance | null {
+  if (!instance) return null;
+  return {
+    gearId: instance.gearId,
+    subLevels: [...instance.subLevels] as GearSubLevel[],
+  };
+}
+
+function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
+  if (!slot.selectedCharId) return;
+  slot.characterBuilds[slot.selectedCharId] = {
       characterAscension: slot.characterAscension,
       characterPotential: slot.characterPotential,
       level: slot.level,
@@ -307,10 +320,10 @@ export const useBuildStore = defineStore("buildStore", () => {
       uniqueTalentToggles: { ...slot.uniqueTalentToggles },
       characterSkillLevels: { ...slot.characterSkillLevels },
       selectedWeaponId: slot.selectedWeaponId,
-      armor: slot.armor ? structuredClone(slot.armor) : null,
-      gloves: slot.gloves ? structuredClone(slot.gloves) : null,
-      kit1: slot.kit1 ? structuredClone(slot.kit1) : null,
-      kit2: slot.kit2 ? structuredClone(slot.kit2) : null,
+      armor: cloneGearInstance(slot.armor),
+      gloves: cloneGearInstance(slot.gloves),
+      kit1: cloneGearInstance(slot.kit1),
+      kit2: cloneGearInstance(slot.kit2),
     };
   }
 
@@ -354,10 +367,10 @@ export const useBuildStore = defineStore("buildStore", () => {
         ...cachedCharacterBuild.characterTalentToggles,
       };
       activeSlot.value!.characterSkillLevels = { ...cachedCharacterBuild.characterSkillLevels };
-      activeSlot.value!.armor = cachedCharacterBuild.armor ? structuredClone(cachedCharacterBuild.armor) : null;
-      activeSlot.value!.gloves = cachedCharacterBuild.gloves ? structuredClone(cachedCharacterBuild.gloves) : null;
-      activeSlot.value!.kit1 = cachedCharacterBuild.kit1 ? structuredClone(cachedCharacterBuild.kit1) : null;
-      activeSlot.value!.kit2 = cachedCharacterBuild.kit2 ? structuredClone(cachedCharacterBuild.kit2) : null;
+      activeSlot.value!.armor = cloneGearInstance(cachedCharacterBuild.armor);
+      activeSlot.value!.gloves = cloneGearInstance(cachedCharacterBuild.gloves);
+      activeSlot.value!.kit1 = cloneGearInstance(cachedCharacterBuild.kit1);
+      activeSlot.value!.kit2 = cloneGearInstance(cachedCharacterBuild.kit2);
 
       const allowedTalentKeys = new Set(Object.keys(nextCharacter.uniqueTalentDefs ?? {}));
       const nextUniqueToggles: Record<string, boolean> = {};
@@ -367,12 +380,13 @@ export const useBuildStore = defineStore("buildStore", () => {
       activeSlot.value!.uniqueTalentToggles = nextUniqueToggles;
       activeSlot.value!.selectedWeaponId = cachedCharacterBuild.selectedWeaponId;
     } else {
+      const defaultCharacterPotential = getDefaultPotentialByRarity(nextCharacter.rarity);
       activeSlot.value!.characterAscension = 4;
-      activeSlot.value!.characterPotential = 0;
-      activeSlot.value!.level = 1;
+      activeSlot.value!.characterPotential = defaultCharacterPotential;
+      activeSlot.value!.level = 90;
       activeSlot.value!.characterTalentToggles = makeDefaultTalentToggles();
-      activeSlot.value!.characterSkillLevels = makeDefaultCharacterSkillLevels();
-      activeSlot.value!.uniqueTalentToggles = {};
+      activeSlot.value!.characterSkillLevels = makeLevel9CharacterSkillLevels();
+      activeSlot.value!.uniqueTalentToggles = makeAllUniqueTalentTogglesEnabled(nextCharacter);
       activeSlot.value!.armor = null;
       activeSlot.value!.gloves = null;
       activeSlot.value!.kit1 = null;
@@ -383,16 +397,26 @@ export const useBuildStore = defineStore("buildStore", () => {
     if (!allowedWeapons.some((w) => w.id === activeSlot.value!.selectedWeaponId)) {
       activeSlot.value!.selectedWeaponId = "";
     }
+    if (activeSlot.value!.selectedCharId && !activeSlot.value!.selectedWeaponId && allowedWeapons.length > 0) {
+      activeSlot.value!.selectedWeaponId = allowedWeapons[0]!.id;
+    }
     loadWeaponBuild();
   }
 
   function setCharacterLevel(level: number) {
-    activeSlot.value!.level = level;
+    activeSlot.value!.level = clampCharacterLevelToAscension(level, activeSlot.value!.characterAscension);
   }
 
   function setCharacterAscension(stage: AscensionStage) {
+    const previousStage = activeSlot.value!.characterAscension;
     activeSlot.value!.characterAscension = stage;
-    activeSlot.value!.level = clampCharacterLevelToAscension(activeSlot.value!.level, stage);
+    activeSlot.value!.level = remapLevelWithRangeChange(
+      activeSlot.value!.level,
+      previousStage === 0 ? 1 : previousStage * 20,
+      previousStage === 4 ? 90 : previousStage * 20 + 20,
+      stage === 0 ? 1 : stage * 20,
+      stage === 4 ? 90 : stage * 20 + 20,
+    );
   }
 
   function setCharacterPotential(potential: PotentialLevel) {
@@ -440,8 +464,8 @@ export const useBuildStore = defineStore("buildStore", () => {
     if (!activeSlot.value!.selectedCharId || !activeSlot.value!.selectedWeaponId) {
       activeSlot.value!.weaponAscension = 4;
       activeSlot.value!.weaponPotential = 0;
-      activeSlot.value!.weaponLevel = 1;
-      activeSlot.value!.weaponSkillLevels = [1, 1, 1];
+      activeSlot.value!.weaponLevel = 90;
+      setWeaponSkillLevelsToMax(activeSlot.value!);
       return;
     }
 
@@ -460,28 +484,64 @@ export const useBuildStore = defineStore("buildStore", () => {
       return;
     }
 
+    const selectedWeaponDef = getWeaponById(activeSlot.value!.selectedWeaponId);
+    const defaultWeaponPotential = getDefaultPotentialByRarity(selectedWeaponDef?.rarity);
     activeSlot.value!.weaponAscension = 4;
-    activeSlot.value!.weaponPotential = 0;
-    activeSlot.value!.weaponLevel = 1;
-    activeSlot.value!.weaponSkillLevels = [1, 1, 1];
-    normalizeWeaponSkillLevels(activeSlot.value!);
+    activeSlot.value!.weaponPotential = defaultWeaponPotential;
+    activeSlot.value!.weaponLevel = 90;
+    setWeaponSkillLevelsToMax(activeSlot.value!);
   }
 
   function setWeaponLevel(level: number) {
-    activeSlot.value!.weaponLevel = level;
+    activeSlot.value!.weaponLevel = clampCharacterLevelToAscension(level, activeSlot.value!.weaponAscension);
   }
 
   function setWeaponAscension(stage: AscensionStage) {
+    const previousStage = activeSlot.value!.weaponAscension;
+    const prevS1 = getWeaponSkill1Range(previousStage);
+    const prevS2 = getWeaponSkill2Range(previousStage);
+    const nextS1 = getWeaponSkill1Range(stage);
+    const nextS2 = getWeaponSkill2Range(stage);
+
     activeSlot.value!.weaponAscension = stage;
-    activeSlot.value!.weaponLevel = clampCharacterLevelToAscension(
+    activeSlot.value!.weaponLevel = remapLevelWithRangeChange(
       activeSlot.value!.weaponLevel,
-      stage,
+      previousStage === 0 ? 1 : previousStage * 20,
+      previousStage === 4 ? 90 : previousStage * 20 + 20,
+      stage === 0 ? 1 : stage * 20,
+      stage === 4 ? 90 : stage * 20 + 20,
+    );
+
+    activeSlot.value!.weaponSkillLevels[0] = remapLevelWithRangeChange(
+      activeSlot.value!.weaponSkillLevels[0] ?? prevS1.min,
+      prevS1.min,
+      prevS1.max,
+      nextS1.min,
+      nextS1.max,
+    );
+    activeSlot.value!.weaponSkillLevels[1] = remapLevelWithRangeChange(
+      activeSlot.value!.weaponSkillLevels[1] ?? prevS2.min,
+      prevS2.min,
+      prevS2.max,
+      nextS2.min,
+      nextS2.max,
     );
     normalizeWeaponSkillLevels(activeSlot.value!);
   }
 
   function setWeaponPotential(potential: PotentialLevel) {
+    const previousPotential = activeSlot.value!.weaponPotential;
+    const prevS3 = getWeaponSkill3Range(previousPotential);
+    const nextS3 = getWeaponSkill3Range(potential);
+
     activeSlot.value!.weaponPotential = potential;
+    activeSlot.value!.weaponSkillLevels[2] = remapLevelWithRangeChange(
+      activeSlot.value!.weaponSkillLevels[2] ?? prevS3.min,
+      prevS3.min,
+      prevS3.max,
+      nextS3.min,
+      nextS3.max,
+    );
     normalizeWeaponSkillLevels(activeSlot.value!);
   }
 
@@ -515,6 +575,38 @@ export const useBuildStore = defineStore("buildStore", () => {
     const target = activeSlot.value![slotName];
     if (!target) return;
     target.subLevels[index] = value;
+  }
+
+  function resetGuestUser() {
+    const next = createDefaultBuildStoreStateSnapshot();
+    slots.value = next.slots;
+    activeSlotIndex.value = next.activeSlotIndex;
+  }
+
+  function exportStateSnapshot(): BuildStoreStateSnapshot {
+    return {
+      slots: cloneSnapshotSlots(slots.value),
+      activeSlotIndex: activeSlotIndex.value,
+    };
+  }
+
+  function hydrateStateSnapshot(snapshot: BuildStoreStateSnapshot) {
+    if (!snapshot || !Array.isArray(snapshot.slots) || snapshot.slots.length !== 4) {
+      return;
+    }
+
+    const normalizedSlots = cloneSnapshotSlots(snapshot.slots);
+    for (const slot of normalizedSlots) {
+      slot.uniqueTalentToggles = slot.uniqueTalentToggles ?? {};
+      slot.characterBuilds = slot.characterBuilds ?? {};
+      slot.weaponBuilds = slot.weaponBuilds ?? {};
+    }
+
+    slots.value = normalizedSlots;
+    activeSlotIndex.value =
+      typeof snapshot.activeSlotIndex === "number" && snapshot.activeSlotIndex >= 0 && snapshot.activeSlotIndex < 4
+        ? snapshot.activeSlotIndex
+        : 0;
   }
 
   const out = computed(() => {
@@ -612,5 +704,8 @@ export const useBuildStore = defineStore("buildStore", () => {
 
     setGear,
     updateGearSubLevel,
+    exportStateSnapshot,
+    hydrateStateSnapshot,
+    resetGuestUser,
   };
 });

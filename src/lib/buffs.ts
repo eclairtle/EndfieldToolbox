@@ -1,5 +1,4 @@
 import type { ModifierStatKey, ModifierStats } from "@/lib/build/stats"; 
-import type { CombatContext } from "./combat";
 import type { ElementType } from "@/data/characters";
 // or wherever your ModifierStats type currently lives
 
@@ -70,4 +69,3 @@ export function applyActiveBuffsToMods(
 
   return out;
 }
-

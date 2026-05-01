@@ -19,8 +19,8 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
       { multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), stagger: flat12(18), energyReturn: flat12(17), offsetFrames: flat12(120) },
     ],
   },
-  { id: "endministrator_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "endministrator_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "endministrator_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "endministrator_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "endministrator_battle_skill",
     name: "Constructive Sequence",
@@ -67,6 +67,11 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
 export const ENDMINISTRATOR: CharacterBase = {
   id: "endministrator",
   name: "Endministrator",
+  skillIconPaths: {
+    battleSkill: "/avatars/ENDMINISTRATOR/icon_skill_endmin_01.webp",
+    comboSkill: "/avatars/ENDMINISTRATOR/icon_combo_skill_endmin_01.webp",
+    ultimate: "/avatars/ENDMINISTRATOR/icon_ultimate_skill_endmin_01.webp",
+  },
   rarity: 6,
   class: "Guard",
   element: "Physical",

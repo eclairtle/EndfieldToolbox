@@ -17,8 +17,8 @@ const SNOWSHINE_COMMANDS: CommandDefinition[] = [
       { multiplier: pct([100, 110, 120, 130, 140, 150, 160, 170, 180, 193, 208, 225]), stagger: flat12(23), offsetFrames: flat12(202) },
     ],
   },
-  { id: "snowshine_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "snowshine_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "snowshine_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "snowshine_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "snowshine_battle_skill",
     name: "Saturated Defense",
@@ -62,6 +62,11 @@ const SNOWSHINE_COMMANDS: CommandDefinition[] = [
 export const SNOWSHINE: CharacterBase = {
   id: "snowshine",
   name: "Snowshine",
+  skillIconPaths: {
+    battleSkill: "/avatars/SNOWSHINE/icon_skill_aurora_01.webp",
+    comboSkill: "/avatars/SNOWSHINE/icon_combo_skill_aurora_01.webp",
+    ultimate: "/avatars/SNOWSHINE/icon_ultimate_skill_aurora_01.webp",
+  },
   rarity: 5,
   class: "Defender",
   element: "Cryo",

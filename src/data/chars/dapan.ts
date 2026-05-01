@@ -18,8 +18,8 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
       { name: "Hit 4", multiplier: pct([60, 66, 72, 78, 84, 90, 96, 103, 109, 116, 125, 136]), offsetFrames: flat12(190) },
     ],
   },
-  { id: "dapan_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "dapan_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "dapan_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "dapan_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "dapan_battle_skill",
     name: "Battle Skill",
@@ -65,6 +65,11 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
 export const DAPAN: CharacterBase = {
   id: "dapan",
   name: "Da Pan",
+  skillIconPaths: {
+    battleSkill: "/avatars/DAPAN/icon_skill_dapan_01.webp",
+    comboSkill: "/avatars/DAPAN/icon_combo_skill_dapan_01.webp",
+    ultimate: "/avatars/DAPAN/icon_ultimate_skill_dapan_01.webp",
+  },
   rarity: 5,
   class: "Striker",
   element: "Physical",

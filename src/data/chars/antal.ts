@@ -25,6 +25,7 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
     mode: "single",
+    basicAttackVariant: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -36,6 +37,7 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
     mode: "single",
+    basicAttackVariant: "dive_attack",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
@@ -80,6 +82,11 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
 export const ANTAL: CharacterBase = {
   id: "antal",
   name: "Antal",
+  skillIconPaths: {
+    battleSkill: "/avatars/ANTAL/icon_skill_antal_01.webp",
+    comboSkill: "/avatars/ANTAL/icon_combo_skill_antal_01.webp",
+    ultimate: "/avatars/ANTAL/icon_ultimate_skill_antal_01.webp",
+  },
   rarity: 4,
 
   class: "Supporter",

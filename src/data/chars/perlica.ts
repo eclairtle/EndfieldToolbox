@@ -1,5 +1,9 @@
 import type { CharacterBase } from "@/data/characters";
-import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+import { flat12, pct, type CommandDefinition, type ExecuteHitDefinition } from "@/lib/commands";
+
+const PERLICA_TALENT_1_1 = "perlica_talent_staggered_damage_1";
+const PERLICA_TALENT_1_2 = "perlica_talent_staggered_damage_2";
+const PERLICA_TALENT_2_1 = "perlica_talent_combo_chain_1";
 
 const PERLICA_COMMANDS: CommandDefinition[] = [
   {
@@ -8,18 +12,83 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
-    mode: "cycling",
+    basicAttackVariant: "sequence",
     durationFrames: flat12(212),
+    spCost: flat12(0),
+    expandsToCommandIds: [
+      "perlica_basic_sequence_1",
+      "perlica_basic_sequence_2",
+      "perlica_basic_sequence_3",
+      "perlica_basic_sequence_4",
+    ],
+    hits: [],
+  },
+  {
+    id: "perlica_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Electric",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(50),
     spCost: flat12(0),
     hits: [
       { name: "Hit 1", multiplier: pct([25, 28, 31, 33, 36, 38, 41, 43, 46, 49, 53, 57]), offsetFrames: flat12(16) },
-      { name: "Hit 2", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), offsetFrames: flat12(50) },
-      { name: "Hit 3", multiplier: pct([37, 41, 45, 48, 52, 56, 59, 63, 67, 71, 77, 84]), offsetFrames: flat12(101) },
-      { name: "Hit 4", multiplier: pct([57, 62, 68, 73, 79, 85, 90, 96, 102, 109, 117, 127]), offsetFrames: flat12(178) },
     ],
   },
-  { id: "perlica_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "perlica_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  {
+    id: "perlica_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Electric",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(51),
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), offsetFrames: flat12(16) },
+    ],
+  },
+  {
+    id: "perlica_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Electric",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(77),
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([37, 41, 45, 48, 52, 56, 59, 63, 67, 71, 77, 84]), offsetFrames: flat12(17) },
+    ],
+  },
+  {
+    id: "perlica_basic_sequence_4",
+    name: "Basic Attack Sequence IV",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Electric",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(34),
+    spCost: flat12(0),
+    hits: [
+      { name: "Hit 1", multiplier: pct([57, 62, 68, 73, 79, 85, 90, 96, 102, 109, 117, 127]), offsetFrames: flat12(17) },
+    ],
+  },
+  { id: "perlica_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "perlica_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "perlica_battle_skill",
     name: "Battle Skill",
@@ -29,8 +98,14 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
     mode: "single",
     durationFrames: flat12(56),
     spCost: flat12(100),
-    energyGain: flat12(0),
-    hits: [{ multiplier: pct([178, 196, 213, 231, 249, 267, 285, 302, 320, 342, 369, 400]), stagger: flat12(10), offsetFrames: flat12(26) }],
+    hits: [{
+      multiplier: pct([178, 196, 213, 231, 249, 267, 285, 302, 320, 342, 369, 400]),
+      stagger: flat12(10),
+      offsetFrames: flat12(26),
+      effects: [
+        { type: "APPLY_ARTS_INFLICTION", element: "Electric", stacks: 1 },
+      ],
+    }],
   },
   {
     id: "perlica_combo_skill",
@@ -40,9 +115,24 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
     damageType: "Electric",
     mode: "single",
     durationFrames: flat12(50),
+    timeFreezeSeconds: flat12(0.77),
     spCost: flat12(0),
+    comboCooldownSeconds: flat12(20),
+    energyGain: flat12(10),
     hits: [
-      { multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), stagger: flat12(10), offsetFrames: flat12(48) },
+      {
+        multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
+        stagger: flat12(10),
+        offsetFrames: flat12(48),
+        effects: [
+          {
+            type: "APPLY_REACTION",
+            reaction: "Electrification",
+            level: 1,
+            durationSeconds: 5,
+          },
+        ],
+      },
     ],
   },
   {
@@ -61,9 +151,16 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
   },
 ];
 
+const PERLICA_EXECUTE_HITS: ExecuteHitDefinition[] = [];
+
 export const PERLICA: CharacterBase = {
   id: "perlica",
   name: "Perlica",
+  skillIconPaths: {
+    battleSkill: "/avatars/PERLICA/icon_skill_pelica_01.webp",
+    comboSkill: "/avatars/PERLICA/icon_combo_skill_pelica_01.webp",
+    ultimate: "/avatars/PERLICA/icon_ultimate_skill_pelica_01.webp",
+  },
   rarity: 5,
   class: "Caster",
   element: "Electric",
@@ -72,6 +169,133 @@ export const PERLICA: CharacterBase = {
   secondaryAttr: "WIL",
   weaponType: "ARTS_UNIT",
   commands: PERLICA_COMMANDS,
+  executeHits: PERLICA_EXECUTE_HITS,
+  uniqueTalentDefs: {
+    [PERLICA_TALENT_1_1]: {
+      name: "Overload I",
+      condition: {
+        minEliteStage: 1,
+      },
+    },
+    [PERLICA_TALENT_1_2]: {
+      name: "Overload II",
+      condition: {
+        minEliteStage: 2,
+        requiresUniqueTalentsEnabled: [PERLICA_TALENT_1_1],
+      },
+    },
+    [PERLICA_TALENT_2_1]: {
+      name: "Instant Protocol I",
+      condition: {
+        minEliteStage: 2,
+      },
+    },
+  },
+  conditionalModifiers: [
+    {
+      id: "perlica_talent_staggered_damage_1",
+      label: "Overload I",
+      condition: {
+        requiresUniqueTalentsEnabled: [PERLICA_TALENT_1_1],
+        requiresUniqueTalentsDisabled: [PERLICA_TALENT_1_2],
+        enemyStatusIdsAny: ["enemy_staggered"],
+      },
+      effects: {
+        DMG_VS_STAGGERED_PCT: 0.2,
+      },
+    },
+    {
+      id: "perlica_talent_staggered_damage_2",
+      label: "Overload II",
+      condition: {
+        requiresUniqueTalentsEnabled: [PERLICA_TALENT_1_2],
+        enemyStatusIdsAny: ["enemy_staggered"],
+      },
+      effects: {
+        DMG_VS_STAGGERED_PCT: 0.3,
+      },
+    },
+  ],
+  potentialEffects: {
+    5: {
+      apply: () => ({
+        // Potential 5 is modeled as an Ultimate command modifier below.
+        modsDelta: {},
+      }),
+    },
+  },
+  mutateResolvedCommands: (commands, ctx) => {
+    const potentialLevel = ctx.buildState.potentialLevel ?? 0;
+    return commands.map((command) => {
+      if (command.id === "perlica_ultimate") {
+        const energyCost = potentialLevel >= 2 ? command.energyCost * 0.85 : command.energyCost;
+        const critRateBonus = potentialLevel >= 5 ? 0.3 : 0;
+        return {
+          ...command,
+          energyCost,
+          commandModifiers: {
+            ...(command.commandModifiers ?? {}),
+            CRIT_RATE_PCT: (command.commandModifiers?.CRIT_RATE_PCT ?? 0) + critRateBonus,
+          },
+        };
+      }
+      if (command.id !== "perlica_combo_skill") {
+        return command;
+      }
+
+      const electrificationDurationMultiplier = potentialLevel >= 1 ? 1.75 : 1;
+      const mapReaction = (effects: NonNullable<(typeof command.hits)[number]["effects"]>) =>
+        effects.map((effect) => {
+          if (effect.type !== "APPLY_REACTION" || effect.reaction !== "Electrification") {
+            return effect;
+          }
+          return {
+            ...effect,
+            durationSeconds: (effect.durationSeconds ?? 0) * electrificationDurationMultiplier,
+            level: potentialLevel >= 4 ? (effect.level ?? 1) + 1 : effect.level,
+          };
+        });
+
+      return {
+        ...command,
+        hits: command.hits.map((hit) => ({
+          ...hit,
+          effects: mapReaction(hit.effects),
+        })),
+      };
+    });
+  },
+  combatHooks: {
+    onEvent: (ctx) => {
+      if (ctx.event.type === "BASIC_ATTACK_FINAL_STRIKE_HIT") {
+        ctx.state.triggerSelfCombo({
+          label: "Perlica Combo Triggered",
+          sourceEventType: "BASIC_ATTACK_FINAL_STRIKE_HIT",
+        });
+      }
+
+      if (!ctx.state.isSelfPotentialActive(3)) {
+        return;
+      }
+      if (
+        ctx.event.type !== "ARTS_REACTION_APPLIED"
+        || ctx.event.slot !== ctx.self.slot
+        || !ctx.event.label.startsWith("Electrification Applied")
+      ) {
+        return;
+      }
+      ctx.state.applySelfBuff({
+        buffId: "perlica_potential_3_attack",
+        label: "Perlica Potential 3",
+        durationSeconds: 5,
+        effects: {
+          ATK_PCT: 0.2,
+        },
+        stackGroup: "perlica_potential_3_attack",
+        maxStacks: 2,
+      });
+    },
+  },
   levels: {
     STR: [9, 10, 11, 12, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 90, 91],
     AGI: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 92, 93],

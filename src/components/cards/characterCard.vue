@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import type { CharacterBase } from "@/data/characters";
 import {
   ASCENSION_LEVEL_CAPS,
@@ -15,17 +16,27 @@ import {
   type CharacterTalentToggles,
 } from "@/lib/build/characterTalents";
 import type { CharacterSkillLevels, CharacterSkillKey } from "@/lib/build/characterSkills";
+import { getCharacterImagePath } from "@/lib/assets/imagePaths";
+import { useLocale } from "@/i18n/useLocale";
+import { getCharacterDisplayNameByCharacter } from "@/i18n/domain/displayNames";
+import {
+  getCharacterUniqueTalentDisplayName,
+} from "@/i18n/domain/skillNames";
 
 const props = defineProps<{
   characters: CharacterBase[];
   selectedCharId: string;
   selectedCharacter: CharacterBase | null;
+  characterLocked?: boolean;
   level: number;
   ascensionStage: AscensionStage;
   potential: PotentialLevel;
   talentToggles: CharacterTalentToggles;
   uniqueTalentToggles: Record<string, boolean>;
   skillLevels: CharacterSkillLevels;
+  buildCostTitle?: string;
+  buildCostLines?: { name: string; amount: number }[];
+  buildCostNote?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -39,11 +50,48 @@ const emit = defineEmits<{
 }>();
 
 const skillRows: { key: CharacterSkillKey; label: string }[] = [
-  { key: "basic", label: "Basic Attack" },
-  { key: "battleSkill", label: "Battle Skill" },
-  { key: "comboSkill", label: "Combo Skill" },
-  { key: "ultimate", label: "Ultimate" },
+  { key: "basic", label: "builder.basicAttack" },
+  { key: "battleSkill", label: "builder.battleSkill" },
+  { key: "comboSkill", label: "builder.comboSkill" },
+  { key: "ultimate", label: "builder.ultimate" },
 ];
+const { t } = useLocale();
+
+const characterImagePath = computed(() => getCharacterImagePath(props.selectedCharacter));
+const isPickerOpen = ref(false);
+const rarityFilter = ref<number | "all">("all");
+const elementFilter = ref<string>("all");
+const weaponTypeFilter = ref<string>("all");
+
+const rarityOptions = computed(() =>
+  [...new Set(props.characters.map((character) => character.rarity))].sort((a, b) => b - a),
+);
+const elementOptions = computed(() =>
+  [...new Set(props.characters.map((character) => character.element))].sort(),
+);
+const weaponTypeOptions = computed(() =>
+  [...new Set(props.characters.map((character) => character.weaponType))].sort(),
+);
+const filteredCharacters = computed(() =>
+  props.characters.filter((character) => {
+    if (rarityFilter.value !== "all" && character.rarity !== rarityFilter.value) {
+      return false;
+    }
+    if (elementFilter.value !== "all" && character.element !== elementFilter.value) {
+      return false;
+    }
+    if (weaponTypeFilter.value !== "all" && character.weaponType !== weaponTypeFilter.value) {
+      return false;
+    }
+    return true;
+  }),
+);
+const formatSkillLevel = (value: number) => {
+  if (value === 10) return "M1";
+  if (value === 11) return "M2";
+  if (value === 12) return "M3";
+  return `${t("ui.levelShort")} ${value}`;
+};
 
 function isUniqueTalentAvailable(key: string): boolean {
   const talent = props.selectedCharacter?.uniqueTalentDefs?.[key];
@@ -65,7 +113,26 @@ function isUniqueTalentAvailable(key: string): boolean {
 
 function isUniqueTalentShown(key: string): boolean {
   const talent = props.selectedCharacter?.uniqueTalentDefs?.[key];
-  return !!talent && talent.defaultEnabled !== true;
+  if (!talent) {
+    return false;
+  }
+  return talent.defaultEnabled !== true;
+}
+
+function openPicker() {
+  if (props.characterLocked) {
+    return;
+  }
+  isPickerOpen.value = true;
+}
+
+function closePicker() {
+  isPickerOpen.value = false;
+}
+
+function pickCharacter(id: string) {
+  emit("update:selectedCharId", id);
+  closePicker();
 }
 </script>
 
@@ -73,31 +140,41 @@ function isUniqueTalentShown(key: string): boolean {
   <section class="rounded-2xl border border-[#d6d6d6] bg-white p-5 shadow-sm">
     <div class="mb-4 flex items-center gap-3">
       <div class="h-6 w-1 bg-[#ece81a]"></div>
-      <h2 class="text-lg font-semibold">Character</h2>
+      <h2 class="text-lg font-semibold">{{ t("builder.character") }}</h2>
     </div>
 
     <div class="grid gap-5">
-      <label class="grid gap-2">
-        <span class="text-sm font-medium text-[#555]">Selected Character</span>
-        <select
-          :value="selectedCharId"
-          @change="emit('update:selectedCharId', ($event.target as HTMLSelectElement).value)"
-          class="h-11 rounded-xl border border-[#d4d4d4] bg-[#f8f8f8] px-3 outline-none focus:border-[#bdbdbd] focus:bg-white"
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          :disabled="characterLocked"
+          class="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-[#d4d4d4] bg-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-60"
+          @click="openPicker"
         >
-          <option value="">None</option>
-          <option v-for="c in characters" :key="c.id" :value="c.id">
-            {{ c.name }}
-          </option>
-        </select>
-      </label>
+          <img
+            :src="characterImagePath"
+            alt="Character portrait"
+            class="h-full w-full object-cover"
+            @error="(($event.target as HTMLImageElement).src = '/icons/no_selection.svg')"
+          />
+        </button>
+        <button
+          type="button"
+          :disabled="characterLocked"
+          class="min-h-11 flex-1 rounded-xl border border-[#d4d4d4] bg-[#f8f8f8] px-3 py-2 text-left text-sm text-[#444] disabled:cursor-not-allowed disabled:opacity-60"
+          @click="openPicker"
+        >
+          {{ getCharacterDisplayNameByCharacter(selectedCharacter) || t("builder.selectedNone") }}
+        </button>
+      </div>
 
       <template v-if="selectedCharacter">
 
       <div class="grid gap-2">
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-[#555]">Ascension Stage</span>
+          <span class="text-sm font-medium text-[#555]">{{ t("builder.eliteStage") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold">
-            {{ ascensionStage }}
+            {{ t("builder.eliteStage") }} {{ ascensionStage }}
           </span>
         </div>
 
@@ -119,7 +196,7 @@ function isUniqueTalentShown(key: string): boolean {
 
       <div class="grid gap-2">
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-[#555]">Level</span>
+          <span class="text-sm font-medium text-[#555]">{{ t("builder.level") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold tabular-nums">
             {{ level }}
           </span>
@@ -143,7 +220,7 @@ function isUniqueTalentShown(key: string): boolean {
 
       <div class="grid gap-2">
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-[#555]">Potential</span>
+          <span class="text-sm font-medium text-[#555]">{{ t("builder.potential") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold">
             P{{ potential }}
           </span>
@@ -166,7 +243,7 @@ function isUniqueTalentShown(key: string): boolean {
       </div>
 
       <div class="grid gap-2">
-        <div class="text-sm font-medium text-[#555]">Talents</div>
+        <div class="text-sm font-medium text-[#555]">{{ t("builder.talents") }}</div>
 
         <div class="grid grid-cols-2 gap-2">
           <button
@@ -185,20 +262,20 @@ function isUniqueTalentShown(key: string): boolean {
             "
           >
             <div class="font-semibold">
-              {{ selectedCharacter.mainAttr }} UP {{ index + 1 }}
+              {{ t("builder.statTalentUp", { attr: t(`stats.${selectedCharacter.mainAttr}` as never), index: index + 1 }) }}
             </div>
             <div class="mt-1 text-xs">
-              +{{ getCharacterTalentBonus(index) }} {{ selectedCharacter.mainAttr }}
+              +{{ getCharacterTalentBonus(index) }} {{ t(`stats.${selectedCharacter.mainAttr}` as never) }}
             </div>
           </button>
         </div>
       </div>
 
       <div
-        v-if="Object.entries(selectedCharacter.uniqueTalentDefs ?? {}).some(([key]) => isUniqueTalentShown(key))"
+        v-if="Object.keys(selectedCharacter.uniqueTalentDefs ?? {}).length > 0"
         class="grid gap-2"
       >
-        <div class="text-sm font-medium text-[#555]">Unique Talents</div>
+        <div class="text-sm font-medium text-[#555]">{{ t("builder.uniqueTalents") }}</div>
 
         <div class="grid gap-2">
           <button
@@ -217,13 +294,13 @@ function isUniqueTalentShown(key: string): boolean {
                 : 'border-[#d4d4d4] bg-[#f8f8f8] text-[#333]'
             "
           >
-            <div class="font-semibold">{{ talent.name }}</div>
+            <div class="font-semibold">{{ getCharacterUniqueTalentDisplayName({ character: selectedCharacter, talentKey: key, fallbackName: talent.name }) }}</div>
           </button>
         </div>
       </div>
 
       <div class="grid gap-3">
-        <div class="text-sm font-medium text-[#555]">Skill Levels</div>
+        <div class="text-sm font-medium text-[#555]">{{ t("builder.skillLevels") }}</div>
 
         <div
           v-for="row in skillRows"
@@ -231,9 +308,9 @@ function isUniqueTalentShown(key: string): boolean {
           class="rounded-xl border border-[#dedede] bg-[#f7f7f7] p-4"
         >
           <div class="flex items-center justify-between">
-            <span class="text-sm font-medium">{{ row.label }}</span>
+            <span class="text-sm font-medium">{{ t(row.label) }}</span>
             <span class="rounded-md bg-white px-2 py-1 text-sm font-semibold tabular-nums">
-              Lv {{ skillLevels[row.key] }}
+              {{ formatSkillLevel(skillLevels[row.key]) }}
             </span>
           </div>
 
@@ -252,11 +329,149 @@ function isUniqueTalentShown(key: string): boolean {
 
           <div class="mt-1 flex justify-between text-xs text-[#8a8a8a]">
             <span>1</span>
-            <span>12</span>
+            <span>M3</span>
           </div>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-[#dddddd] bg-[#f7f7f7] p-4 text-sm">
+        <div class="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a7a7a]">
+          {{ buildCostTitle ?? t("builder.buildCost") }}
+        </div>
+        <div
+          v-if="buildCostLines && buildCostLines.length > 0"
+          class="space-y-1.5"
+        >
+          <div
+            v-for="line in buildCostLines"
+            :key="line.name"
+            class="flex items-center justify-between gap-3"
+          >
+            <span class="text-[#666]">{{ line.name }}</span>
+            <span class="font-semibold tabular-nums">{{ line.amount.toLocaleString() }}</span>
+          </div>
+        </div>
+        <div
+          v-else
+          class="text-[#777]"
+        >
+          {{ buildCostNote ?? t("ui.noAdditionalCost") }}
         </div>
       </div>
       </template>
     </div>
   </section>
+
+  <div
+    v-if="isPickerOpen"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    @click="closePicker"
+  >
+    <div
+      class="max-h-[85vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-[#d9d9d9] bg-white shadow-lg"
+      @click.stop
+    >
+      <div class="border-b border-[#ececec] px-5 py-4">
+        <div class="flex items-center justify-between gap-4">
+          <h3 class="text-base font-semibold">{{ t("builder.selectCharacter") }}</h3>
+          <button
+            type="button"
+            class="rounded border border-[#d1d1d1] px-3 py-1 text-sm text-[#555] hover:bg-[#f3f3f3]"
+            @click="closePicker"
+          >
+            {{ t("ui.close") }}
+          </button>
+        </div>
+
+        <div class="mt-3 grid gap-3 sm:grid-cols-3">
+          <label class="grid gap-1 text-xs text-[#666]">
+            <span>{{ t("builder.rarity") }}</span>
+            <select
+              v-model="rarityFilter"
+              class="h-9 rounded-lg border border-[#d4d4d4] bg-[#fafafa] px-2 text-sm"
+            >
+              <option value="all">{{ t("ui.all") }}</option>
+              <option
+                v-for="rarity in rarityOptions"
+                :key="`rarity-${rarity}`"
+                :value="rarity"
+              >
+                {{ rarity }}★
+              </option>
+            </select>
+          </label>
+
+          <label class="grid gap-1 text-xs text-[#666]">
+            <span>{{ t("builder.element") }}</span>
+            <select
+              v-model="elementFilter"
+              class="h-9 rounded-lg border border-[#d4d4d4] bg-[#fafafa] px-2 text-sm"
+            >
+              <option value="all">{{ t("ui.all") }}</option>
+              <option
+                v-for="element in elementOptions"
+                :key="`element-${element}`"
+                :value="element"
+              >
+                {{ element }}
+              </option>
+            </select>
+          </label>
+
+          <label class="grid gap-1 text-xs text-[#666]">
+            <span>{{ t("builder.weaponType") }}</span>
+            <select
+              v-model="weaponTypeFilter"
+              class="h-9 rounded-lg border border-[#d4d4d4] bg-[#fafafa] px-2 text-sm"
+            >
+              <option value="all">{{ t("ui.all") }}</option>
+              <option
+                v-for="weaponType in weaponTypeOptions"
+                :key="`weaponType-${weaponType}`"
+                :value="weaponType"
+              >
+                {{ weaponType }}
+              </option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="max-h-[60vh] overflow-y-auto p-5">
+        <div class="mb-3">
+          <button
+            type="button"
+            class="rounded border border-[#d1d1d1] bg-white px-3 py-1.5 text-sm text-[#555] hover:bg-[#f3f3f3]"
+            @click="pickCharacter('')"
+          >
+            {{ t("ui.clearSelection") }}
+          </button>
+        </div>
+
+        <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <button
+            v-for="character in filteredCharacters"
+            :key="character.id"
+            type="button"
+            class="overflow-hidden rounded-xl border border-[#dcdcdc] bg-[#fafafa] text-left transition hover:border-[#c9c9c9] hover:bg-white"
+            :class="character.id === selectedCharId ? 'ring-2 ring-[#d7d334]' : ''"
+            @click="pickCharacter(character.id)"
+          >
+            <img
+              :src="getCharacterImagePath(character)"
+              :alt="character.name"
+              class="aspect-[9/10] w-full bg-[#f0f0f0] object-cover"
+              @error="(($event.target as HTMLImageElement).src = '/icons/no_selection.svg')"
+            />
+            <div class="p-2">
+              <div class="truncate text-sm font-semibold text-[#222]">{{ getCharacterDisplayNameByCharacter(character) }}</div>
+              <div class="mt-0.5 truncate text-[11px] text-[#666]">
+                {{ character.rarity }}★ · {{ character.element }} · {{ character.weaponType }}
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>

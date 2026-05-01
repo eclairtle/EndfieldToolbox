@@ -7,8 +7,10 @@ function percent(value: number) {
 }
 
 export const JET: WeaponBase = {
-    id: "jet",
-    name: "JET",
+  id: "jet",
+  name: "JET",
+  rarity: 6,
+  imagePath: "/weapons/lance/wpn_lance_0011.webp",
     weaponType: "POLEARM",
     baseAtkTable: ATK_TABLE_51_500,
     tuningMaterials: ["Quadrant Fitting Fluid ×16", "Wulingstone ×8"],

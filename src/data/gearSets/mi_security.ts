@@ -125,6 +125,10 @@ export const MI_SECURITY: GearBase[] = [
       {
         "stat": "WIL",
         "value": 21
+      },
+      {
+        "stat": "CRYO_ELECTRIC_DMG_PCT",
+        "value": 0.23
       }
     ],
   },
@@ -166,7 +170,7 @@ export const MI_SECURITY: GearBase[] = [
       },
       {
         "stat": "CRIT_RATE_PCT",
-        "value": 0.103
+        "value": 0.104
       }
     ],
   },
@@ -184,6 +188,10 @@ export const MI_SECURITY: GearBase[] = [
       {
         "stat": "INT",
         "value": 21
+      },
+      {
+        "stat": "HEAT_NATURE_DMG_PCT",
+        "value": 0.23
       }
     ],
   },
@@ -225,7 +233,7 @@ export const MI_SECURITY: GearBase[] = [
       },
       {
         "stat": "CRIT_RATE_PCT",
-        "value": 0.103
+        "value": 0.104
       }
     ],
   },
@@ -314,4 +322,3 @@ export const MI_SECURITY: GearBase[] = [
     ],
   }
 ];
-

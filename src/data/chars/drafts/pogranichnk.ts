@@ -6,6 +6,6 @@ export const POGRANICHNK_DRAFT: CharacterDraft = {
   rarity: 6,
   element: "physical",
   weapon: "sword",
-  wikiUrl: "https://warfarin.wiki/en/operators/pogranichnk",
+  wikiUrl: "https://warfarin.wiki/en/operators/pogranichnik",
   notes: "Populate full levels, command multipliers, and timing from wiki + gamedata.",
 };

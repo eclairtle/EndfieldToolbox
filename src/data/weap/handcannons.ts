@@ -27,6 +27,8 @@ function getElementalArtsTakenStat(
 export const ARTSY_TYRANNICAL: WeaponBase = {
   id: "artsy_tyrannical",
   name: "Artzy Tyrannical",
+  rarity: 6,
+  imagePath: "/weapons/pistol/wpn_pistol_0010.webp",
   weaponType: "HANDCANNON",
   baseAtkTable: ATK_TABLE_51_505,
   tuningMaterials: ["Tachyon Screening Lattice ×16", "Wulingstone ×8"],
@@ -51,16 +53,16 @@ export const ARTSY_TYRANNICAL: WeaponBase = {
   },
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
-    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "BATTLE_OR_COMBO_HIT") {
+    if (
+      sourceSlot !== ctx.wearer.slot
+      || ctx.event.type !== "CRIT_THRESHOLD_REACHED"
+      || (ctx.event.commandAttackType !== "BATTLE_SKILL" && ctx.event.commandAttackType !== "COMBO_SKILL")
+    ) {
       return;
     }
 
     const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
-    const triggerCount = ctx.helpers.consumeThreshold({
-      key: `artsy_tyrannical:${ctx.wearer.slot}`,
-      amount: ctx.event.expectedCritCount ?? 0,
-    });
-    if (triggerCount <= 0) {
+    if ((ctx.event.amount ?? 0) <= 0) {
       return;
     }
 
@@ -91,6 +93,8 @@ export const ARTSY_TYRANNICAL: WeaponBase = {
 export const CLANNIBAL: WeaponBase = {
   id: "clannibal",
   name: "Clannibal",
+  rarity: 6,
+  imagePath: "/weapons/pistol/wpn_pistol_0009.webp",
   weaponType: "HANDCANNON",
   baseAtkTable: ATK_TABLE_50_490,
   tuningMaterials: ["Quadrant Fitting Fluid ×16", "Wulingstone ×8"],
@@ -150,6 +154,8 @@ export const CLANNIBAL: WeaponBase = {
 export const BRIGANDS_CALLING: WeaponBase = {
   id: "brigands_calling",
   name: "Brigand's Calling",
+  rarity: 6,
+  imagePath: "/weapons/pistol/wpn_pistol_0011.webp",
   weaponType: "HANDCANNON",
   baseAtkTable: ATK_TABLE_51_505,
   tuningMaterials: ["Quadrant Fitting Fluid ×16", "Igneosite ×8"],

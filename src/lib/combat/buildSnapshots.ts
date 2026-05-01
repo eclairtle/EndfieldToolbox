@@ -3,7 +3,13 @@ import { CHARACTERS } from "@/data/characters";
 import { WEAPONS } from "@/data/weapons";
 import { GEARS } from "@/data/gears";
 import { computeFinalStats } from "@/lib/build/stats";
-import { applyCommandModifierStats, resolveCommandsAtLevel, type ResolvedCommandAtLevel } from "@/lib/commands";
+import {
+  applyCommandModifierStats,
+  resolveCommandsAtLevel,
+  resolveExecuteHitsAtLevel,
+  type ResolvedCommandAtLevel,
+  type ResolvedExecuteHitAtLevel,
+} from "@/lib/commands";
 import type { CharacterCombatSnapshot, PartySlot } from "@/lib/combat/rotation";
 import { getActiveGearSetInfo } from "@/lib/combat/gearSetEffects";
 import { combineModifierPartials, getWeaponUniqueStaticModifiers } from "@/lib/combat/weaponEffects";
@@ -41,6 +47,11 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       cutscene: false,
       comboCooldownSeconds: 0,
       comboCooldownTimeScale: "real",
+      comboCooldownStartsAt: "start",
+      comboWindowDelaySeconds: 0,
+      comboWindowDurationSeconds: 10,
+      perfectTimingDelaySeconds: 0,
+      perfectTimingDurationSeconds: 0,
       spGeneratedOnEnd: 0,
       spReturnedOnEnd: 0,
       hiddenInLibrary: true,
@@ -50,7 +61,12 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       sequenceSegmentTotal: undefined,
       splitMultiplier: false,
       genericActionType: "switch",
+      overlapMode: "normal",
+      noFinisherTransform: false,
       requiresControlledOperator: false,
+      showNameInHitTimeline: false,
+      commandModifiers: {},
+      initialEffects: [],
       transforms: [],
       hits: [],
     },
@@ -69,6 +85,11 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       cutscene: false,
       comboCooldownSeconds: 0,
       comboCooldownTimeScale: "real",
+      comboCooldownStartsAt: "start",
+      comboWindowDelaySeconds: 0,
+      comboWindowDurationSeconds: 10,
+      perfectTimingDelaySeconds: 0,
+      perfectTimingDurationSeconds: 0,
       spGeneratedOnEnd: 0,
       spReturnedOnEnd: 0,
       hiddenInLibrary: true,
@@ -78,7 +99,12 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       sequenceSegmentTotal: undefined,
       splitMultiplier: false,
       genericActionType: "dodge",
+      overlapMode: "normal",
+      noFinisherTransform: false,
       requiresControlledOperator: true,
+      showNameInHitTimeline: false,
+      commandModifiers: {},
+      initialEffects: [],
       transforms: [],
       hits: [],
     },
@@ -97,6 +123,11 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       cutscene: false,
       comboCooldownSeconds: 0,
       comboCooldownTimeScale: "real",
+      comboCooldownStartsAt: "start",
+      comboWindowDelaySeconds: 0,
+      comboWindowDurationSeconds: 10,
+      perfectTimingDelaySeconds: 0,
+      perfectTimingDurationSeconds: 0,
       spGeneratedOnEnd: 0,
       spReturnedOnEnd: 0,
       hiddenInLibrary: true,
@@ -106,11 +137,51 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       sequenceSegmentTotal: undefined,
       splitMultiplier: false,
       genericActionType: "jump",
+      overlapMode: "normal",
+      noFinisherTransform: false,
       requiresControlledOperator: true,
+      showNameInHitTimeline: false,
+      commandModifiers: {},
+      initialEffects: [],
       transforms: [],
       hits: [],
     },
   ];
+}
+
+function createGenericExecuteHits(): Record<string, ResolvedExecuteHitAtLevel> {
+  return {
+    set_swordmancer_extra_hit: {
+      id: "set_swordmancer_extra_hit",
+      skill: "basic",
+      commandId: "__set_swordmancer",
+      commandName: "Swordmancer",
+      hit: {
+        name: "Swordmancer Trigger",
+        multiplier: 2.5,
+        flatAmount: 0,
+        scalingStat: "ATK",
+        stagger: 10,
+        spGenerated: 0,
+        spReturned: 0,
+        requiresControlledOperator: false,
+        offsetFrames: 0,
+        registerOffsetFrames: 0,
+        times: 1,
+        repeatIntervalFrames: 0,
+        repeatRegisterOffsetWithInterval: true,
+        energyReturn: 0,
+        attackType: "GENERIC",
+        damageType: "Physical",
+        noCrit: false,
+        bonusMultiplierPerEnemyArtsInflictionStack: 0,
+        consumeEnemyArtsInflictionStacksForBonus: false,
+        maxEnemyArtsInflictionStacksForBonus: 4,
+        effects: [],
+        postEffects: [],
+      },
+    },
+  };
 }
 
 export function buildCombatSnapshot(slot: CharacterBuildSlot, index: number): CharacterCombatSnapshot | null {
@@ -172,11 +243,20 @@ export function buildCombatSnapshot(slot: CharacterBuildSlot, index: number): Ch
     commands = char.mutateResolvedCommands(commands, { buildState });
   }
   commands = applyCommandModifierStats(commands, finalStats.mods);
+  let executeHits = resolveExecuteHitsAtLevel(char.executeHits ?? [], slot.characterSkillLevels, buildState);
+  if (char.mutateResolvedExecuteHits) {
+    executeHits = char.mutateResolvedExecuteHits(executeHits, { buildState });
+  }
+  executeHits = {
+    ...createGenericExecuteHits(),
+    ...executeHits,
+  };
 
   return {
     slot: toPartySlot(index),
     characterId: char.id,
     characterName: char.name,
+    characterClass: char.class,
     level: slot.level,
     weaponId: weapon.id,
     weaponSkillLevels: [...slot.weaponSkillLevels],
@@ -189,11 +269,26 @@ export function buildCombatSnapshot(slot: CharacterBuildSlot, index: number): Ch
     uniqueTalentDefaults: Object.fromEntries(
       Object.entries(char.uniqueTalentDefs ?? {}).map(([key, talent]) => [key, talent.defaultEnabled === true]),
     ),
+    conditionalModifiers: [...(char.conditionalModifiers ?? [])],
     finalAtk: finalStats.finalATK,
+    maxHp: finalStats.finalHP,
+    baseHp: finalStats.baseHP,
+    finalDef: finalStats.statsCard.DEF,
+    baseAtk: finalStats.baseATK,
+    weaponAtk: finalStats.weaponATK,
+    attributeBonus: finalStats.attributeBonus,
+    attrs: {
+      STR: finalStats.statsCard.STR,
+      AGI: finalStats.statsCard.AGI,
+      INT: finalStats.statsCard.INT,
+      WIL: finalStats.statsCard.WIL,
+    },
     mods: finalStats.mods,
     activeGearSet: activeGearSet ?? undefined,
     commands: [...commands, ...createGenericCommands()],
+    executeHits,
     combatHooks: char.combatHooks,
+    restrictEnergyGainToOwnBattleOrComboCommands: char.restrictEnergyGainToOwnBattleOrComboCommands === true,
   };
 }
 

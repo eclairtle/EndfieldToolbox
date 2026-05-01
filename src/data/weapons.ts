@@ -16,6 +16,7 @@ export type WeaponSkillId =
   | "ATK_UP"
   | "CRIT_UP"
   | "ULT_GAIN_UP"
+  | "HP_UP"
   | "ARTS_DMG_UP"
   | "CRYO_DMG_UP"
   | "HEALING_UP"
@@ -44,6 +45,7 @@ export type WeaponEventListenerContext = {
       effects: Partial<ModifierStats>;
       stackGroup?: string;
       maxStacks?: number;
+      refreshExistingStacks?: boolean;
       eventType?: "ACTOR_BUFF_APPLIED" | "WEAPON_BUFF_APPLIED";
     }): void;
     applyTeamBuff(args: {
@@ -54,6 +56,7 @@ export type WeaponEventListenerContext = {
       effects: Partial<ModifierStats>;
       stackGroup?: string;
       maxStacks?: number;
+      refreshExistingStacks?: boolean;
       eventType?: "ACTOR_BUFF_APPLIED" | "WEAPON_BUFF_APPLIED";
     }): void;
     applyEnemyDebuff(args: {
@@ -82,12 +85,15 @@ export type WeaponEventListenerContext = {
       amount: number;
       threshold?: number;
     }): number;
+    getSelfBuffStackCount(buffId: string): number;
   };
 };
 
 export type WeaponBase = {
   id: string;
   name: string;
+  imagePath?: string;
+  rarity?: 4 | 5 | 6;
   weaponType: WeaponType;
   baseAtkTable: readonly number[];
   tuningMaterials?: readonly [string, string];
@@ -106,6 +112,10 @@ export const WEAPONS: WeaponBase[] = [
   sword.FORGEBORN_SCATHE,
   sword.THERMITE_CUTTER,
   sword.KHRAVENGGER,
+  sword.EMINENT_REPUTE,
+  sword.WHITE_NIGHT_NOVA,
+  sword.FORMER_FINERY,
+  sword.LUPINE_SCARLET,
   handcannon.ARTSY_TYRANNICAL,
   handcannon.CLANNIBAL,
   handcannon.BRIGANDS_CALLING,
@@ -115,6 +125,8 @@ export const WEAPONS: WeaponBase[] = [
   artsunit.DETONATION_UNIT,
   artsunit.DREAMS_OF_THE_STARRY_BEACH,
   artsunit.CHIVALRIC_VIRTUES,
+  artsunit.MONAIHE,
+  artsunit.WILD_WANDERER,
 ];
 
 export function getWeaponById(id: string): WeaponBase | undefined {

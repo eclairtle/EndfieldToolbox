@@ -2,14 +2,32 @@ import type { CharacterBase } from "@/data/characters";
 import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
+const AKEKURI_WINNING_CHEER_1_KEY = "akekuri_winning_cheer_1";
+const AKEKURI_WINNING_CHEER_2_KEY = "akekuri_winning_cheer_2";
 const AKEKURI_STAYING_IN_THE_ZONE_KEY = "akekuri_staying_in_the_zone";
 const AKEKURI_P1_BUFF_ID = "akekuri_p1";
 const AKEKURI_P3_TEAM_ATK_BUFF_ID = "akekuri_p3_team_atk";
 const AKEKURI_ULTIMATE_LINK_DURATION_SECONDS = 155 / 60;
+const AKEKURI_ULTIMATE_TOTAL_SP_RECOVERY_BY_LEVEL = [58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80];
+const AKEKURI_COMBO_SP_SCALING_RATE = 10;
+const AKEKURI_COMBO_SP_BONUS_RATIO_1 = 0.01;
+const AKEKURI_COMBO_SP_BONUS_RATIO_2 = 0.015;
+const AKEKURI_COMBO_SP_BONUS_CAP_1 = 0.5;
+const AKEKURI_COMBO_SP_BONUS_CAP_2 = 0.75;
 
 const AKEKURI_COMBAT_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
+    if (ctx.event.type === "STAGGER_NODE_REACHED" || ctx.event.type === "ENEMY_STAGGERED") {
+      ctx.state.triggerSelfCombo({
+        sourceEventType: ctx.event.type,
+        label: "Akekuri Combo Triggered",
+      });
+    }
+
     if (ctx.event.type !== "SKILL_SP_RECOVERED") {
+      return;
+    }
+    if (!ctx.state.isSelfPotentialActive(1)) {
       return;
     }
     if (ctx.event.slot !== ctx.self.slot && ctx.event.sourceSlot !== ctx.self.slot) {
@@ -29,38 +47,66 @@ const AKEKURI_COMBAT_HOOKS: CharacterCombatHooks = {
     });
   },
   onResolvedHit: (ctx) => {
-    if (ctx.source.characterId !== "akekuri" || ctx.source.commandId !== "akekuri_ultimate" || ctx.source.hitIndex !== 0) {
-      return;
-    }
-    if (!ctx.state.isSelfUniqueTalentEnabled(AKEKURI_STAYING_IN_THE_ZONE_KEY)) {
-      return;
-    }
-    if (!ctx.state.markTriggerOnce(`${ctx.stepId}:akekuri_link`)) {
-      return;
-    }
+    if (ctx.source.characterId === "akekuri" && ctx.source.commandId === "akekuri_ultimate" && ctx.source.hitIndex === 0) {
+      if (!ctx.state.isSelfUniqueTalentEnabled(AKEKURI_STAYING_IN_THE_ZONE_KEY)) {
+        return;
+      }
+      if (!ctx.state.markTriggerOnce(`${ctx.stepId}:akekuri_link`)) {
+        return;
+      }
 
-    const linkDurationSeconds =
-      AKEKURI_ULTIMATE_LINK_DURATION_SECONDS + (ctx.state.isSelfPotentialActive(5) ? 5 : 0);
-    ctx.state.gainTeamLinkStacks({
-      stacks: 1,
-      durationSeconds: linkDurationSeconds,
-      timeScale: "real",
-      label: "Link",
-    });
-
-    if (ctx.state.isSelfPotentialActive(3)) {
-      const teamBuffArgs = {
-        buffId: AKEKURI_P3_TEAM_ATK_BUFF_ID,
-        label: "Akekuri P3 ATK +10%",
+      const linkDurationSeconds =
+        AKEKURI_ULTIMATE_LINK_DURATION_SECONDS + (ctx.state.isSelfPotentialActive(5) ? 5 : 0);
+      ctx.state.gainTeamLinkStacks({
+        stacks: 1,
         durationSeconds: linkDurationSeconds,
-        timeScale: "real" as const,
-        effects: {
-          ATK_PCT: 0.1,
-        },
-      };
-      ctx.state.applySelfBuff(teamBuffArgs);
-      ctx.state.applyOtherTeammatesBuff(teamBuffArgs);
+        timeScale: "game",
+        label: "Link",
+      });
+
+      if (ctx.state.isSelfPotentialActive(3)) {
+        const teamBuffArgs = {
+          buffId: AKEKURI_P3_TEAM_ATK_BUFF_ID,
+          label: "Akekuri P3 ATK +10%",
+          durationSeconds: AKEKURI_ULTIMATE_LINK_DURATION_SECONDS,
+          timeScale: "game" as const,
+          effects: {
+            ATK_PCT: 0.1,
+          },
+        };
+        ctx.state.applySelfBuff(teamBuffArgs);
+        ctx.state.applyOtherTeammatesBuff(teamBuffArgs);
+      }
     }
+
+    if (ctx.source.slot !== ctx.self.slot || ctx.source.characterId !== "akekuri" || ctx.source.commandId !== "akekuri_combo_skill") {
+      return;
+    }
+
+    const hasWinningCheer2 = ctx.state.isSelfUniqueTalentEnabled(AKEKURI_WINNING_CHEER_2_KEY);
+    const hasWinningCheer1 = hasWinningCheer2 || ctx.state.isSelfUniqueTalentEnabled(AKEKURI_WINNING_CHEER_1_KEY);
+    if (!hasWinningCheer1) {
+      return;
+    }
+
+    const baseComboHit = ctx.state.getSelfCommandHit(ctx.source.commandId, ctx.source.hitIndex);
+    const baseSpRecovery = baseComboHit?.spGenerated ?? 0;
+    if (baseSpRecovery <= 0) {
+      return;
+    }
+
+    const intellect = Math.max(0, ctx.state.getSelfAttr("INT"));
+    const bonusRatioPerStack = hasWinningCheer2 ? AKEKURI_COMBO_SP_BONUS_RATIO_2 : AKEKURI_COMBO_SP_BONUS_RATIO_1;
+    const maxBonusRatio = hasWinningCheer2 ? AKEKURI_COMBO_SP_BONUS_CAP_2 : AKEKURI_COMBO_SP_BONUS_CAP_1;
+    const scaledBonusRatio = Math.min(
+      maxBonusRatio,
+      Math.floor(intellect / AKEKURI_COMBO_SP_SCALING_RATE) * bonusRatioPerStack,
+    );
+    if (scaledBonusRatio <= 0) {
+      return;
+    }
+
+    ctx.state.grantReturnedSp(baseSpRecovery * scaledBonusRatio, "Akekuri Winning Cheer");
   },
 };
 
@@ -141,7 +187,7 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
     hiddenInLibrary: true,
-    basicAttackVariant: "sequence_segment",
+    basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 4,
     sequenceSegmentTotal: 4,
     durationFrames: flat12(72),
@@ -159,7 +205,7 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    basicAttackVariant: "final_strike",
+    basicAttackVariant: "finisher",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -213,7 +259,7 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     name: "SQUAD! ON ME!",
     skill: "ultimate",
     attackType: "ULTIMATE",
-    damageType: "Physical",
+    damageType: "Heat",
     mode: "single",
     durationFrames: flat12(258),
     timeFreezeSeconds: flat12(1.683),
@@ -221,11 +267,11 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     energyCost: flat12(120),
     hits: [{multiplier: flat12(0), offsetFrames: flat12(102), 
-      spGenerated: [58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80]},
+      spGenerated: AKEKURI_ULTIMATE_TOTAL_SP_RECOVERY_BY_LEVEL.map((value) => value / 3)},
       {multiplier: flat12(0), offsetFrames: flat12(162), 
-      spGenerated: [58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80]},
+      spGenerated: AKEKURI_ULTIMATE_TOTAL_SP_RECOVERY_BY_LEVEL.map((value) => value / 3)},
       {multiplier: flat12(0), offsetFrames: flat12(257), 
-      spGenerated: [58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80]}
+      spGenerated: AKEKURI_ULTIMATE_TOTAL_SP_RECOVERY_BY_LEVEL.map((value) => value / 3)}
     ],
   },
 ];
@@ -233,6 +279,11 @@ const AKEKURI_COMMANDS: CommandDefinition[] = [
 export const AKEKURI: CharacterBase = {
   id: "akekuri",
   name: "Akekuri",
+  skillIconPaths: {
+    battleSkill: "/avatars/AKEKURI/icon_skill_karin_01.webp",
+    comboSkill: "/avatars/AKEKURI/icon_combo_skill_karin_01.webp",
+    ultimate: "/avatars/AKEKURI/icon_ultimate_skill_karin_01.webp",
+  },
   rarity: 4,
 
   class: "Vanguard",
@@ -250,6 +301,19 @@ export const AKEKURI: CharacterBase = {
   commands: AKEKURI_COMMANDS,
   combatHooks: AKEKURI_COMBAT_HOOKS,
   uniqueTalentDefs: {
+    [AKEKURI_WINNING_CHEER_1_KEY]: {
+      name: "Winning Cheer I",
+      condition: {
+        minEliteStage: 1,
+      },
+    },
+    [AKEKURI_WINNING_CHEER_2_KEY]: {
+      name: "Winning Cheer II",
+      condition: {
+        minEliteStage: 3,
+        requiresUniqueTalentsEnabled: [AKEKURI_WINNING_CHEER_1_KEY],
+      },
+    },
     [AKEKURI_STAYING_IN_THE_ZONE_KEY]: {
       name: "Staying In the Zone",
       condition: {

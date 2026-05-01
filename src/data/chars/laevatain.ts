@@ -265,7 +265,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
-    basicAttackVariant: "final_strike",
+    basicAttackVariant: "finisher",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -376,7 +376,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
         energyReturn: flat12(25),
         registerOffsetFrames: flat12(40),
         offsetFrames: flat12(78),
-        effects: [{ type: "APPLY_BUFF", target: "self", buffId: "melting_flame", stacks: 1 }],
+        postEffects: [{ type: "APPLY_BUFF", target: "self", buffId: "melting_flame", stacks: 1 }],
       },
     ],
   },
@@ -406,6 +406,15 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
             durationSeconds: 15,
             timeScale: "game",
           },
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "no_energy_gain",
+            label: "No Energy Gain",
+            hidden: true,
+            durationSeconds: 15,
+            timeScale: "game",
+          },
         ],
       },
     ],
@@ -424,6 +433,17 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     durationFrames: flat12(132),
     spCost: flat12(100),
     energyGain: flat12(0),
+    initialEffects: [
+      {
+        type: "APPLY_STATUS",
+        target: "self",
+        statusId: "laevatain_twilight_pause",
+        label: "Twilight Pause",
+        durationSeconds: 132 / 60,
+        timeScale: "game",
+        pauseStatusIds: ["laevatain_twilight", "no_energy_gain"],
+      },
+    ],
     hits: [
       LAEVATAIN_UBS_HIT_1,
       LAEVATAIN_UBS_HIT_2,
@@ -443,6 +463,17 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     durationFrames: flat12(132),
     spCost: flat12(100),
     energyGain: flat12(0),
+    initialEffects: [
+      {
+        type: "APPLY_STATUS",
+        target: "self",
+        statusId: "laevatain_twilight_pause",
+        label: "Twilight Pause",
+        durationSeconds: 132 / 60,
+        timeScale: "game",
+        pauseStatusIds: ["laevatain_twilight", "no_energy_gain"],
+      },
+    ],
     hits: [
       LAEVATAIN_UBS_HIT_1,
       LAEVATAIN_UBS_HIT_2,
@@ -468,6 +499,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     damageType: "Heat",
     variant: "enhanced_basic_attack",
     basicAttackVariant: "sequence",
+    noFinisherTransform: true,
     hiddenInLibrary: true,
     mode: "cycling",
     durationFrames: flat12(197),
@@ -593,11 +625,11 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     splitMultiplier: true,
     hits: [
-      {
-        name: "Enhanced Hit 1",
-        multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
-        offsetFrames: flat12(12),
-      },
+      // {
+      //   name: "Enhanced Hit 1",
+      //   multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
+      //   offsetFrames: flat12(12),
+      // },
       {
         name: "Enhanced Hit 2",
         multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
@@ -605,6 +637,8 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
       },
       {
         name: "Enhanced Hit 3",
+        stagger: flat12(18),
+        spGenerated: flat12(20),
         multiplier: pct([203, 223, 243, 263, 284, 304, 324, 344, 365, 390, 420, 456]),
         offsetFrames: flat12(37.8),
       },
@@ -673,6 +707,11 @@ const LAEVATAIN_PROMOTIONS = [
 export const LAEVATAIN: CharacterBase = {
   id: "laevatain",
   name: "Laevatain",
+  skillIconPaths: {
+    battleSkill: "/avatars/LAEVATAIN/icon_skill_laevat_01.webp",
+    comboSkill: "/avatars/LAEVATAIN/icon_combo_skill_laevat_01.webp",
+    ultimate: "/avatars/LAEVATAIN/icon_ultimate_skill_laevat_01.webp",
+  },
   rarity: 6,
   class: "Striker",
   element: "Heat",
@@ -753,6 +792,83 @@ export const LAEVATAIN: CharacterBase = {
   weaponType: "SWORD",
   commands: LAEVATAIN_COMMANDS,
   combatHooks: LAEVATAIN_COMBAT_HOOKS,
+  potentialEffects: {
+    2: {
+      apply: () => ({
+        attrsDelta: {
+          INT: 20,
+        },
+        modsDelta: {
+          BASIC_ATK_DMG_PCT: 0.15,
+        },
+      }),
+    },
+  },
+  mutateResolvedCommands: (commands, ctx) => {
+    const potentialLevel = ctx.buildState.potentialLevel ?? 0;
+    if (potentialLevel <= 0) {
+      return commands;
+    }
+
+    return commands.map((command) => {
+      if (potentialLevel >= 4 && command.id === "laevatain_ultimate_cast") {
+        return {
+          ...command,
+          energyCost: Math.max(0, command.energyCost * 0.85),
+        };
+      }
+
+      const isEnhancedBattleSkill =
+        command.id === "laevatain_enhanced_battle_skill"
+        || command.id === "laevatain_enhanced_ultimate_battle_skill";
+      if (isEnhancedBattleSkill && (potentialLevel >= 1 || potentialLevel >= 3)) {
+        return {
+          ...command,
+          hits: command.hits.map((hit) => {
+            const isAdditionalHit = hit.name === "Additional Hit";
+            let nextHit = hit;
+
+            if (potentialLevel >= 1 && isAdditionalHit) {
+              nextHit = {
+                ...nextHit,
+                multiplier: nextHit.multiplier * 1.2,
+                spReturned: nextHit.spReturned + 20,
+              };
+            }
+
+            if (potentialLevel >= 3) {
+              nextHit = {
+                ...nextHit,
+                effects: nextHit.effects.map((effect) => {
+                  if (effect.type !== "APPLY_REACTION" || effect.reaction !== "Combustion") {
+                    return effect;
+                  }
+                  return {
+                    ...effect,
+                    level: (effect.level ?? 1) + 1,
+                  };
+                }),
+              };
+            }
+
+            return nextHit;
+          }),
+        };
+      }
+
+      if (potentialLevel >= 5 && command.id.startsWith("laevatain_ultimate_basic_sequence")) {
+        return {
+          ...command,
+          hits: command.hits.map((hit) => ({
+            ...hit,
+            multiplier: hit.multiplier * 1.2,
+          })),
+        };
+      }
+
+      return command;
+    });
+  },
   uniqueTalentDefs: {
     laevatain_scorching_heart_1: {
       name: "Scorching Heart I",

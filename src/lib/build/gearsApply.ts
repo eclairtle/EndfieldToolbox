@@ -87,6 +87,19 @@ export function applyGears(args: {
           addMod(mods, "HEAT_DMG_PCT", scaled);
           addMod(mods, "NATURE_DMG_PCT", scaled);
           break;
+        case "CRYO_ELECTRIC_DMG_PCT":
+          addMod(mods, "CRYO_DMG_PCT", scaled);
+          addMod(mods, "ELECTRIC_DMG_PCT", scaled);
+          break;
+        case "CRYO_DMG_PCT":
+          addMod(mods, "CRYO_DMG_PCT", scaled);
+          break;
+        case "ELECTRIC_DMG_PCT":
+          addMod(mods, "ELECTRIC_DMG_PCT", scaled);
+          break;
+        case "NATURE_DMG_PCT":
+          addMod(mods, "NATURE_DMG_PCT", scaled);
+          break;
         case "BASIC_ATK_DMG_PCT":
           addMod(mods, "BASIC_ATK_DMG_PCT", scaled);
           break;
@@ -113,6 +126,9 @@ export function applyGears(args: {
           break;
         case "DMG_VS_STAGGERED_PCT":
           addMod(mods, "DMG_VS_STAGGERED_PCT", scaled);
+          break;
+        case "STAGGER_EFFICIENCY_PCT":
+          addMod(mods, "STAGGER_EFFICIENCY_PCT", scaled);
           break;
         default:
           break;

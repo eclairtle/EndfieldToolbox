@@ -7,7 +7,7 @@ import type {
   LevelStatTable,
   ModifierStats
 } from "@/lib/build/stats";
-import type { CommandDefinition, ResolvedCommandAtLevel } from "@/lib/commands";
+import type { CommandDefinition, ExecuteHitDefinition, ResolvedCommandAtLevel, ResolvedExecuteHitAtLevel } from "@/lib/commands";
 import { calculateCommandDamage, calculateHealingAmount } from "@/lib/combat/combatDamage";
 import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { isBuildConditionMet, isUniqueTalentEnabled, type BuildCondition, type BuildConditionState } from "@/lib/build/buildConditions";
@@ -109,6 +109,21 @@ export type CharacterCommandMutationContext = {
   buildState: BuildConditionState;
 };
 
+export type CharacterConditionalModifierCondition = {
+  requiresUniqueTalentsEnabled?: string[];
+  requiresUniqueTalentsDisabled?: string[];
+  enemyStatusIdsAny?: string[];
+  enemyStatusIdsNone?: string[];
+  enemyInflictionElementsAny?: Array<"Heat" | "Cryo" | "Electric" | "Nature">;
+};
+
+export type CharacterConditionalModifierDefinition = {
+  id: string;
+  label: string;
+  condition: CharacterConditionalModifierCondition;
+  effects: Partial<ModifierStats>;
+};
+
 export type PromotionCostItem = {
   resource: string;
   amount: number;
@@ -123,6 +138,12 @@ export type PromotionStageCost = {
 export type CharacterBase = {
   id: string;
   name: string;
+  imagePath?: string;
+  skillIconPaths?: {
+    battleSkill?: string;
+    comboSkill?: string;
+    ultimate?: string;
+  };
   rarity: number;
   element: ElementType;
   class: CharacterClass;
@@ -138,11 +159,18 @@ export type CharacterBase = {
 
   uniqueTalents?: Record<string, CharacterTalentEffect>;
   uniqueTalentDefs?: Record<string, CharacterUniqueTalent>;
+  conditionalModifiers?: CharacterConditionalModifierDefinition[];
   potentialEffects?: Record<number, CharacterPotentialEffect>;
   mutateResolvedCommands?: (
     commands: ResolvedCommandAtLevel[],
     ctx: CharacterCommandMutationContext,
   ) => ResolvedCommandAtLevel[];
+  executeHits?: ExecuteHitDefinition[];
+  restrictEnergyGainToOwnBattleOrComboCommands?: boolean;
+  mutateResolvedExecuteHits?: (
+    executeHits: Record<string, ResolvedExecuteHitAtLevel>,
+    ctx: CharacterCommandMutationContext,
+  ) => Record<string, ResolvedExecuteHitAtLevel>;
 };
 
 export function applyCharacterRuntimeEffects(args: {
@@ -251,6 +279,7 @@ import { ARDELIA } from "./chars/ardelia";
 import type { CharacterBuildSlot } from "@/stores/buildStore";
 import { WULFGARD } from "./chars/wulfgard";
 import { ARCLIGHT } from "./chars/arclight";
+import { AVYWENNA } from "./chars/avywenna";
 import { EMBER } from "./chars/ember";
 import { LIFENG } from "./chars/lifeng";
 import { SNOWSHINE } from "./chars/snowshine";
@@ -263,17 +292,21 @@ import { CATCHER } from "./chars/catcher";
 import { ALESH } from "./chars/alesh";
 import { LASTRITE } from "./chars/lastrite";
 import { CHENQIANYU } from "./chars/chenqianyu";
+import { XAIHI } from "./chars/xaihi";
+import { TANGTANG } from "./chars/tangtang";
+import { ROSSI } from "./chars/rossi";
+import { POGRANICHNIK } from "./chars/pogranichnik";
+import { ZHUANGFANGYI } from "./chars/zhuangfangyi";
 
 
-/**
- * Keep each array length exactly 90.
- * Index 0 = Lv1, index 89 = Lv90.
- */
 export const CHARACTERS: CharacterBase[] = [
   GILBERTA, LAEVATAIN, YVONNE, 
   AKEKURI, ANTAL, ARDELIA, WULFGARD,
-  ARCLIGHT, EMBER, LIFENG, SNOWSHINE, ENDMINISTRATOR,
+  ARCLIGHT, AVYWENNA, EMBER, LIFENG, SNOWSHINE, ENDMINISTRATOR,
   DAPAN, PERLICA, ESTELLA,
   FLUORITE, CATCHER, ALESH,
   LASTRITE, CHENQIANYU,
+  XAIHI, TANGTANG, ROSSI,
+  POGRANICHNIK,
+  ZHUANGFANGYI,
 ];

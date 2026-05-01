@@ -1,0 +1,172 @@
+{
+  "generatedAt": "2026-04-15T14:11:30.773Z",
+  "source": "https://api.warfarin.wiki/v1/en/operators",
+  "mode": "only-missing",
+  "retriesPerRequest": 4,
+  "totalDrafts": 18,
+  "downloadedCount": 0,
+  "cachedCount": 16,
+  "failureCount": 2,
+  "entries": [
+    {
+      "file": "alesh.ts",
+      "slug": "alesh",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/alesh",
+      "output": "src/data/chars/drafts/raw/alesh.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 361534
+    },
+    {
+      "file": "arclight.ts",
+      "slug": "arclight",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/arclight",
+      "output": "src/data/chars/drafts/raw/arclight.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 348851
+    },
+    {
+      "file": "avywenna.ts",
+      "slug": "avywenna",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/avywenna",
+      "output": "src/data/chars/drafts/raw/avywenna.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 356503
+    },
+    {
+      "file": "catcher.ts",
+      "slug": "catcher",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/catcher",
+      "output": "src/data/chars/drafts/raw/catcher.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 351852
+    },
+    {
+      "file": "chenqianyu.ts",
+      "slug": "chen-qianyu",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/chen-qianyu",
+      "output": "src/data/chars/drafts/raw/chen-qianyu.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 355297
+    },
+    {
+      "file": "dapan.ts",
+      "slug": "da-pan",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/da-pan",
+      "output": "src/data/chars/drafts/raw/da-pan.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 350435
+    },
+    {
+      "file": "ember.ts",
+      "slug": "ember",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/ember",
+      "output": "src/data/chars/drafts/raw/ember.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 357452
+    },
+    {
+      "file": "endministrator.ts",
+      "slug": "endministrator",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/endministrator",
+      "output": "src/data/chars/drafts/raw/endministrator.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 322085
+    },
+    {
+      "file": "estella.ts",
+      "slug": "estella",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/estella",
+      "output": "src/data/chars/drafts/raw/estella.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 339503
+    },
+    {
+      "file": "fluorite.ts",
+      "slug": "fluorite",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/fluorite",
+      "output": "src/data/chars/drafts/raw/fluorite.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 346340
+    },
+    {
+      "file": "lastrite.ts",
+      "slug": "last-rite",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/last-rite",
+      "output": "src/data/chars/drafts/raw/last-rite.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 362865
+    },
+    {
+      "file": "lifeng.ts",
+      "slug": "lifeng",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/lifeng",
+      "output": "src/data/chars/drafts/raw/lifeng.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 364305
+    },
+    {
+      "file": "perlica.ts",
+      "slug": "perlica",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/perlica",
+      "output": "src/data/chars/drafts/raw/perlica.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 341497
+    },
+    {
+      "file": "pogranichnk.ts",
+      "slug": "pogranichnk",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/pogranichnk",
+      "output": "src/data/chars/drafts/raw/pogranichnk.json",
+      "ok": false,
+      "error": "fetch failed"
+    },
+    {
+      "file": "rossi.ts",
+      "slug": "rossi",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/rossi",
+      "output": "src/data/chars/drafts/raw/rossi.json",
+      "ok": false,
+      "error": "fetch failed"
+    },
+    {
+      "file": "snowshine.ts",
+      "slug": "snowshine",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/snowshine",
+      "output": "src/data/chars/drafts/raw/snowshine.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 345002
+    },
+    {
+      "file": "tangtang.ts",
+      "slug": "tangtang",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/tangtang",
+      "output": "src/data/chars/drafts/raw/tangtang.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 387689
+    },
+    {
+      "file": "xaihi.ts",
+      "slug": "xaihi",
+      "apiUrl": "https://api.warfarin.wiki/v1/en/operators/xaihi",
+      "output": "src/data/chars/drafts/raw/xaihi.json",
+      "ok": true,
+      "source": "cached",
+      "bytes": 358467
+    }
+  ]
+}

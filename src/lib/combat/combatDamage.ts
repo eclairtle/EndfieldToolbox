@@ -22,6 +22,20 @@ function getAttackTypeBonus(attackType: AttackType, mods: ModifierStats): number
   }
 }
 
+function getFinalStrikeBonus(
+  attackType: AttackType,
+  basicAttackVariant: ResolvedCommandAtLevel["basicAttackVariant"] | undefined,
+  mods: ModifierStats,
+): number {
+  if (attackType !== "BASIC_ATTACK") {
+    return 0;
+  }
+  if (basicAttackVariant !== "final_strike") {
+    return 0;
+  }
+  return mods.FINAL_STRIKE_DMG_PCT;
+}
+
 function getDamageTypeBonus(damageType: ElementType, mods: ModifierStats): number {
   switch (damageType) {
     case "Physical":
@@ -41,6 +55,25 @@ function getDamageTypeBonus(damageType: ElementType, mods: ModifierStats): numbe
     case "Healing":
       return mods.HEALING_PCT;
 
+    default:
+      return 0;
+  }
+}
+
+function getDamageAmpBonus(damageType: ElementType, mods: ModifierStats): number {
+  switch (damageType) {
+    case "Physical":
+      return mods.DMG_AMP_PCT + mods.PHYSICAL_DMG_AMP_PCT;
+    case "Heat":
+      return mods.DMG_AMP_PCT + mods.HEAT_DMG_AMP_PCT;
+    case "Cryo":
+      return mods.DMG_AMP_PCT + mods.CRYO_DMG_AMP_PCT;
+    case "Electric":
+      return mods.DMG_AMP_PCT + mods.ELECTRIC_DMG_AMP_PCT;
+    case "Nature":
+      return mods.DMG_AMP_PCT + mods.NATURE_DMG_AMP_PCT;
+    case "Aether":
+      return mods.DMG_AMP_PCT + mods.AETHER_DMG_AMP_PCT;
     default:
       return 0;
   }
@@ -98,22 +131,38 @@ function getResistanceIgnore(damageType: ElementType, attackerMods: ModifierStat
   }
 }
 
-function getEnemySusceptibility(damageType: ElementType, enemyMods: ModifierStats): number {
+function getEnemySusceptibility(damageType: ElementType, enemyMods: ModifierStats, attackerMods: ModifierStats): number {
+  const genericSus = enemyMods.SUS_PCT * (1+attackerMods.SUS_ENHANCE_PCT);
   switch (damageType) {
     case "Physical":
-      return enemyMods.PHYSICAL_SUS_PCT;
+      return genericSus + enemyMods.PHYSICAL_SUS_PCT * (1 + attackerMods.PHYSICAL_SUS_ENHANCE_PCT);
     case "Aether":
-      return enemyMods.ARTS_SUS_PCT + enemyMods.AETHER_SUS_PCT;
+      return genericSus + (
+        enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+        + enemyMods.AETHER_SUS_PCT * (1 + attackerMods.AETHER_SUS_ENHANCE_PCT)
+      );
     case "Heat":
-      return enemyMods.ARTS_SUS_PCT + enemyMods.HEAT_SUS_PCT;
+      return genericSus + (
+        enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+        + enemyMods.HEAT_SUS_PCT * (1 + attackerMods.HEAT_SUS_ENHANCE_PCT)
+      );
     case "Cryo":
-      return enemyMods.ARTS_SUS_PCT + enemyMods.CRYO_SUS_PCT;
+      return genericSus + (
+        enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+        + enemyMods.CRYO_SUS_PCT * (1 + attackerMods.CRYO_SUS_ENHANCE_PCT)
+      );
     case "Electric":
-      return enemyMods.ARTS_SUS_PCT + enemyMods.ELECTRIC_SUS_PCT;
+      return genericSus + (
+        enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+        + enemyMods.ELECTRIC_SUS_PCT * (1 + attackerMods.ELECTRIC_SUS_ENHANCE_PCT)
+      );
     case "Nature":
-      return enemyMods.ARTS_SUS_PCT + enemyMods.NATURE_SUS_PCT;
+      return genericSus + (
+        enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+        + enemyMods.NATURE_SUS_PCT * (1 + attackerMods.NATURE_SUS_ENHANCE_PCT)
+      );
     default:
-      return 0;
+      return genericSus;
   }
 }
 
@@ -151,11 +200,13 @@ export function calculateHealingAmount(args: {
 export function calculateResolvedHitDamage(args: {
   finalAtk: number;
   attackType: AttackType;
+  basicAttackVariant?: ResolvedCommandAtLevel["basicAttackVariant"];
   damageType: ElementType;
   hit: ResolvedCommandHitAtLevel;
   attackerMods: ModifierStats;
   enemyMods: ModifierStats;
   enemyStats: EnemyResolvedStats;
+  noCrit?: boolean;
 }): { noCritDamage: number; critDamage: number; averageDamage: number } {
   const {
     finalAtk,
@@ -169,15 +220,17 @@ export function calculateResolvedHitDamage(args: {
   const dmgBonus =
     attackerMods.ALL_DMG_PCT +
     getAttackTypeBonus(attackType, attackerMods) +
+    getFinalStrikeBonus(attackType, args.basicAttackVariant, attackerMods) +
     getDamageTypeBonus(damageType, attackerMods);
+  const dmgAmpMultiplier = 1 + getDamageAmpBonus(damageType, attackerMods);
 
-  const critRate = attackerMods.CRIT_RATE_PCT;
+  const critRate = args.noCrit ? 0 : attackerMods.CRIT_RATE_PCT;
   const critDamageBonus = attackerMods.CRIT_DMG_PCT;
 
   const damageTakenMultiplier = 1 + getEnemyDamageTakenBonus(damageType, enemyMods);
   const effectiveResistance = getEnemyResistance(damageType, enemyMods) - getResistanceIgnore(damageType, attackerMods);
   const resistMultiplier = 1 - effectiveResistance;
-  const susceptibilityMultiplier = 1 + getEnemySusceptibility(damageType, enemyMods);
+  const susceptibilityMultiplier = 1 + getEnemySusceptibility(damageType, enemyMods, attackerMods);
   const defenseMultiplier = (() => {
     if (damageType === "Healing") {
       return 1;
@@ -197,13 +250,16 @@ export function calculateResolvedHitDamage(args: {
     finalAtk *
     hit.multiplier *
     (1 + dmgBonus) *
+    dmgAmpMultiplier *
     damageTakenMultiplier *
     resistMultiplier *
     susceptibilityMultiplier *
     defenseMultiplier;
 
-  const noCritDamage = Math.max(0, preCritBase * hit.times);
-  const critDamage = Math.max(0, preCritBase * (1 + critDamageBonus) * hit.times);
+  // Timeline resolves repeated hits as separate occurrences, so each occurrence
+  // should be a single execution rather than multiplied by hit.times again.
+  const noCritDamage = Math.max(0, preCritBase);
+  const critDamage = Math.max(0, preCritBase * (1 + critDamageBonus));
   const averageDamage = Math.max(0, noCritDamage * (1 - critRate) + critDamage * critRate);
 
   return {
@@ -215,22 +271,25 @@ export function calculateResolvedHitDamage(args: {
 
 export function calculateReactionDamage(args: {
   finalAtk: number;
-  damageType: Extract<ElementType, "Heat" | "Cryo" | "Electric" | "Nature">;
+  damageType: Extract<ElementType, "Physical" | "Heat" | "Cryo" | "Electric" | "Nature">;
   baseMultiplier: number;
   attackerMods: ModifierStats;
   enemyMods: ModifierStats;
   enemyStats: EnemyResolvedStats;
   applierLevel: number;
-  isPhysicalReaction?: boolean;
+  reactionCategory?: "arts" | "physical";
+  noCrit?: boolean;
 }): { noCritDamage: number; critDamage: number; averageDamage: number } {
-  const critRate = args.attackerMods.CRIT_RATE_PCT;
+  const critRate = args.noCrit ? 0 : args.attackerMods.CRIT_RATE_PCT;
   const critDamageBonus = args.attackerMods.CRIT_DMG_PCT;
   const artsIntensity = Math.max(0, args.attackerMods.ARTS_INTENSITY);
+  const dmgBonus = args.attackerMods.ALL_DMG_PCT + getDamageTypeBonus(args.damageType, args.attackerMods);
+  const dmgAmpMultiplier = 1 + getDamageAmpBonus(args.damageType, args.attackerMods);
 
   const damageTakenMultiplier = 1 + getEnemyDamageTakenBonus(args.damageType, args.enemyMods);
   const effectiveResistance = getEnemyResistance(args.damageType, args.enemyMods) - getResistanceIgnore(args.damageType, args.attackerMods);
   const resistMultiplier = 1 - effectiveResistance;
-  const susceptibilityMultiplier = 1 + getEnemySusceptibility(args.damageType, args.enemyMods);
+  const susceptibilityMultiplier = 1 + getEnemySusceptibility(args.damageType, args.enemyMods, args.attackerMods);
   const defenseMultiplier = (() => {
     const defense = args.enemyStats.def;
     if (defense > 0) {
@@ -241,14 +300,16 @@ export function calculateReactionDamage(args: {
     }
     return 1;
   })();
-  const levelMultiplier = args.isPhysicalReaction
-    ? 1 + (Math.max(1, args.applierLevel) - 1) / 196
-    : 1 + (Math.max(1, args.applierLevel) - 1) / 392;
-  const artsIntensityMultiplier = 1 + (2 * artsIntensity) / (artsIntensity + 300);
+  const levelMultiplier = (args.reactionCategory ?? "arts") === "physical"
+    ? 1 + (Math.max(1, args.applierLevel) - 1) / 392
+    : 1 + (Math.max(1, args.applierLevel) - 1) / 196;
+  const artsIntensityMultiplier = 1 + artsIntensity / 100;
 
   const preCritBase =
     args.finalAtk *
     args.baseMultiplier *
+    (1 + dmgBonus) *
+    dmgAmpMultiplier *
     damageTakenMultiplier *
     resistMultiplier *
     susceptibilityMultiplier *

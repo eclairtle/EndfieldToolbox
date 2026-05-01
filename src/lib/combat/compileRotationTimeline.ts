@@ -12,6 +12,8 @@ type TimelineActionInput = {
   characterName: string;
   command: ResolvedCommandAtLevel;
   realStartTime: number;
+  missed?: boolean;
+  interrupted?: boolean;
 };
 
 type CancelCategory =
@@ -100,7 +102,7 @@ function getCancelCategory(command: ResolvedCommandAtLevel): CancelCategory {
   if (command.genericActionType === "jump") return "jump";
   if (command.attackType === "ULTIMATE") return "ultimate";
   if (command.basicAttackVariant === "dive_attack") return "dive_attack";
-  if (command.basicAttackVariant === "final_strike") return "finisher";
+  if (command.basicAttackVariant === "finisher") return "finisher";
   if (command.attackType === "COMBO_SKILL") return "combo_skill";
   if (command.attackType === "BATTLE_SKILL") return "battle_skill";
   if (command.attackType === "BASIC_ATTACK") return "basic_sequence";
@@ -116,6 +118,10 @@ function isUncancellable(command: ResolvedCommandAtLevel): boolean {
     category === "finisher" ||
     category === "switch"
   );
+}
+
+function isTransient(command: ResolvedCommandAtLevel): boolean {
+  return command.overlapMode === "transient";
 }
 
 function canCancel(later: ResolvedCommandAtLevel, earlier: ResolvedCommandAtLevel): boolean {
@@ -188,6 +194,8 @@ function buildTimelineInputs(rotation: Rotation, party: CharacterCombatSnapshot[
       characterName: actor.characterName,
       command,
       realStartTime: round(realStartTime),
+      missed: step.missed === true,
+      interrupted: step.interrupted === true,
     });
 
     currentRealTimeBySlot.set(step.slot, round(Math.max(slotCursor, realStartTime) + command.durationFrames / 60));
@@ -351,6 +359,8 @@ function resolveAction(
     realEndTime,
     timeFreezeSeconds: action.command.timeFreezeSeconds,
     cutscene: action.command.cutscene,
+    missed: action.missed,
+    interrupted: action.interrupted,
   };
 }
 
@@ -382,28 +392,35 @@ function prepareActions(
         - actionInputs.findIndex((entry) => entry.stepId === b.stepId);
     });
 
-    let active: PreparedTimelineAction | null = null;
+    let activeBlocking: PreparedTimelineAction | null = null;
 
     for (const current of slotActions) {
-      if (!active) {
-        active = current;
+      if (isTransient(current.command)) {
+        if (current.command.genericActionType === "switch") {
+          current.resolvedRealStartTime = round(Math.round(current.resolvedRealStartTime * 60) / 60);
+        }
+        continue;
+      }
+
+      if (!activeBlocking) {
+        activeBlocking = current;
         continue;
       }
 
       const activeEnd = round(
         Math.min(
           provisionalTimeContext.getShiftedEndTime(
-            active.resolvedRealStartTime,
-            active.command.durationFrames / 60,
-            active.stepId,
+            activeBlocking.resolvedRealStartTime,
+            activeBlocking.command.durationFrames / 60,
+            activeBlocking.stepId,
           ),
-          active.canceledAt ?? Number.POSITIVE_INFINITY,
+          activeBlocking.canceledAt ?? Number.POSITIVE_INFINITY,
         ),
       );
 
       if (current.resolvedRealStartTime < activeEnd - 0.001) {
-        if (canCancel(current.command, active.command)) {
-          active.canceledAt = current.resolvedRealStartTime;
+        if (canCancel(current.command, activeBlocking.command)) {
+          activeBlocking.canceledAt = current.resolvedRealStartTime;
         } else {
           current.resolvedRealStartTime = activeEnd;
         }
@@ -413,7 +430,7 @@ function prepareActions(
         current.resolvedRealStartTime = round(Math.round(current.resolvedRealStartTime * 60) / 60);
       }
 
-      active = current;
+      activeBlocking = current;
     }
   }
 

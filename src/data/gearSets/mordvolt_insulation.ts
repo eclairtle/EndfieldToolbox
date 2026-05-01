@@ -54,6 +54,10 @@ export const MORDVOLT_INSULATION: GearBase[] = [
       {
         "stat": "INT",
         "value": 21
+      },
+      {
+        "stat": "CRYO_ELECTRIC_DMG_PCT",
+        "value": 0.117
       }
     ],
   },
@@ -193,4 +197,3 @@ export const MORDVOLT_INSULATION: GearBase[] = [
     ],
   }
 ];
-

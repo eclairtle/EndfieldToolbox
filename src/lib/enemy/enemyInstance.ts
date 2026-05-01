@@ -1,10 +1,10 @@
 import type { EnemyBase } from "@/data/enemies";
-import type { AppliedStatus } from "@/lib/status";
 import { makeBaseModifierStats, type ModifierStats } from "@/lib/build/stats";
 
 
 export function getBaseEnemyModifiers(base: EnemyBase): ModifierStats {
   const mods = makeBaseModifierStats();
+  mods.PHYSICAL_RESIST_PCT = base.resistances.Physical;
   mods.HEAT_RESIST_PCT = base.resistances.Heat;
   mods.CRYO_RESIST_PCT = base.resistances.Cryo;
   mods.ELECTRIC_RESIST_PCT = base.resistances.Electric;

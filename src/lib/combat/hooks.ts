@@ -1,5 +1,8 @@
 import type { TimeScale } from "@/lib/commands";
 import type { ModifierStatKey, ModifierStats } from "@/lib/build/stats";
+import type { ResolvedCommandHitAtLevel } from "@/lib/commands";
+import type { CommandHitEffectDefinition } from "@/lib/commands";
+import type { CharacterClass } from "@/data/characters";
 
 export type CombatHookCharacterRef = {
   slot: 0 | 1 | 2 | 3;
@@ -36,11 +39,14 @@ export type CombatResolvedHitHookContext = {
     getEnemyArtsInfliction(): CombatHookEnemyArtsInflictionState | null;
     setEnemyArtsInfliction(value: CombatHookEnemyArtsInflictionState | null): void;
     hasEnemyStatus(statusId: string): boolean;
+    hasStatus(args: { statusId: string; target?: "enemy" | "self" | "global" }): boolean;
     hasSelfBuff(buffId: string): boolean;
     getSelfMeltingFlameStacks(): number;
     gainSelfMeltingFlameStacks(stacks: number, label?: string): void;
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
+    getSelfAttr(attr: "STR" | "AGI" | "INT" | "WIL"): number;
+    getSelfCommandHit(commandId: string, hitIndex: number): ResolvedCommandHitAtLevel | null;
     applySelfBuff(args: {
       buffId: string;
       label: string;
@@ -50,6 +56,7 @@ export type CombatResolvedHitHookContext = {
       hidden?: boolean;
       stackGroup?: string;
       maxStacks?: number;
+      refreshExistingStacks?: boolean;
     }): void;
     applyOtherTeammatesBuff(args: {
       buffId: string;
@@ -60,6 +67,8 @@ export type CombatResolvedHitHookContext = {
       hidden?: boolean;
       stackGroup?: string;
       maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      classes?: CharacterClass[];
     }): void;
     applyEnemyDebuff(args: {
       debuffId: string;
@@ -75,12 +84,33 @@ export type CombatResolvedHitHookContext = {
       timeScale?: TimeScale;
       label?: string;
     }): void;
+    gainTeamStatusStacks(args: {
+      statusId: string;
+      label: string;
+      stacks: number;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      durationSeconds: number;
+      timeScale?: TimeScale;
+    }): number;
+    consumeTeamStatusStacks(args: {
+      statusId: string;
+      stacks: number;
+    }): { consumed: number; remaining: number };
+    getTeamStatusStackCount(statusId: string): number;
+    applyCommandHitHealing(args: {
+      commandId: string;
+      hitIndex: number;
+      target?: "controlled" | "self";
+      label?: string;
+    }): number;
     grantReturnedSp(amount: number, label: string): void;
     markTriggerOnce(key: string): boolean;
     repeatCurrentHitOnce(key: string): boolean;
     triggerSelfCombo(args?: {
       label?: string;
       sourceEventType?: string;
+      comboCommandId?: string;
     }): boolean;
     emitEvent(event: {
       type: string;
@@ -90,6 +120,7 @@ export type CombatResolvedHitHookContext = {
       durationSeconds?: number;
       timeScale?: TimeScale;
     }): void;
+    applyEffects(args: { effects: CommandHitEffectDefinition[]; stepId?: string }): void;
   };
 };
 
@@ -98,14 +129,14 @@ export type CombatActionStartHookContext = {
   time: number;
   gameTime: number;
   stepId: string;
-  source: {
-    slot: 0 | 1 | 2 | 3;
-    characterId: string;
-    characterName: string;
-    commandId: string;
-    commandName: string;
-    attackType: "BASIC_ATTACK" | "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "GENERIC";
-  };
+    source: {
+      slot: 0 | 1 | 2 | 3;
+      characterId: string;
+      characterName: string;
+      commandId: string;
+      commandName: string;
+      attackType: "BASIC_ATTACK" | "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "TALENT" | "GENERIC";
+    };
   state: {
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
@@ -120,14 +151,21 @@ export type CombatEventHookContext = {
     time: number;
     gameTime: number;
     stepId?: string;
+    commandId?: string;
+    commandName?: string;
     slot?: 0 | 1 | 2 | 3;
     sourceSlot?: 0 | 1 | 2 | 3;
     label: string;
+    commandAttackType?: "BASIC_ATTACK" | "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "TALENT" | "REACTION" | "GENERIC";
+    consumedElement?: "Heat" | "Cryo" | "Electric" | "Nature";
+    consumedStacks?: number;
   };
   state: {
+    getEnemyArtsInfliction(): CombatHookEnemyArtsInflictionState | null;
     hasSelfBuff(buffId: string): boolean;
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
+    getSelfCommandHit(commandId: string, hitIndex: number): ResolvedCommandHitAtLevel | null;
     applySelfBuff(args: {
       buffId: string;
       label: string;
@@ -137,6 +175,7 @@ export type CombatEventHookContext = {
       hidden?: boolean;
       stackGroup?: string;
       maxStacks?: number;
+      refreshExistingStacks?: boolean;
     }): void;
     applyOtherTeammatesBuff(args: {
       buffId: string;
@@ -147,6 +186,8 @@ export type CombatEventHookContext = {
       hidden?: boolean;
       stackGroup?: string;
       maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      classes?: CharacterClass[];
     }): void;
     gainTeamLinkStacks(args: {
       stacks: number;
@@ -154,12 +195,43 @@ export type CombatEventHookContext = {
       timeScale?: TimeScale;
       label?: string;
     }): void;
+    gainTeamStatusStacks(args: {
+      statusId: string;
+      label: string;
+      stacks: number;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      durationSeconds: number;
+      timeScale?: TimeScale;
+    }): number;
+    consumeTeamStatusStacks(args: {
+      statusId: string;
+      stacks: number;
+    }): { consumed: number; remaining: number };
+    getTeamStatusStackCount(statusId: string): number;
+    applyCommandHitHealing(args: {
+      commandId: string;
+      hitIndex: number;
+      target?: "controlled" | "self";
+      label?: string;
+    }): number;
     markTriggerOnce(key: string): boolean;
     triggerSelfCombo(args?: {
       label?: string;
       sourceEventType?: string;
+      comboCommandId?: string;
     }): boolean;
     resetSelfComboCooldown(): void;
+    hasStatus(args: { statusId: string; target?: "enemy" | "self" | "global" }): boolean;
+    emitEvent(event: {
+      type: string;
+      label: string;
+      target?: "enemy";
+      stackDelta?: number;
+      durationSeconds?: number;
+      timeScale?: TimeScale;
+    }): void;
+    applyEffects(args: { effects: CommandHitEffectDefinition[]; stepId?: string }): void;
   };
 };
 

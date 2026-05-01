@@ -128,7 +128,7 @@ export const TYPE_50_YINGLUNG: GearBase[] = [
       },
       {
         "stat": "ULTIMATE_DMG_PCT",
-        "value": 0.517
+        "value": 0.518
       }
     ],
   },

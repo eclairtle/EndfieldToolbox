@@ -19,8 +19,8 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
       { name: "Hit 4", multiplier: pct([48, 52, 57, 62, 67, 71, 76, 81, 86, 91, 99, 107]), stagger: flat12(16), offsetFrames: flat12(164) },
     ],
   },
-  { id: "arclight_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "arclight_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "arclight_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "arclight_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "arclight_battle_skill",
     name: "Tempestuous Arc",
@@ -68,6 +68,11 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
 export const ARCLIGHT: CharacterBase = {
   id: "arclight",
   name: "Arclight",
+  skillIconPaths: {
+    battleSkill: "/avatars/ARCLIGHT/icon_skill_ikut_01.webp",
+    comboSkill: "/avatars/ARCLIGHT/icon_combo_skill_ikut_01.webp",
+    ultimate: "/avatars/ARCLIGHT/icon_ultimate_skill_ikut_01.webp",
+  },
   rarity: 5,
   class: "Vanguard",
   element: "Electric",

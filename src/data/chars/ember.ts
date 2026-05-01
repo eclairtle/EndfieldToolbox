@@ -18,8 +18,8 @@ const EMBER_COMMANDS: CommandDefinition[] = [
       { multiplier: pct([82, 90, 98, 106, 114, 122, 131, 139, 147, 157, 169, 184]), stagger: flat12(25), offsetFrames: flat12(212) },
     ],
   },
-  { id: "ember_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "ember_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "ember_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "ember_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "ember_battle_skill",
     name: "Forward March",
@@ -60,6 +60,11 @@ const EMBER_COMMANDS: CommandDefinition[] = [
 export const EMBER: CharacterBase = {
   id: "ember",
   name: "Ember",
+  skillIconPaths: {
+    battleSkill: "/avatars/EMBER/icon_skill_azrila_01.webp",
+    comboSkill: "/avatars/EMBER/icon_combo_skill_azrila_01.webp",
+    ultimate: "/avatars/EMBER/icon_ultimate_skill_azrila_01.webp",
+  },
   rarity: 6,
   class: "Defender",
   element: "Heat",

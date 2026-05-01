@@ -142,6 +142,10 @@ export const FRONTIERS: GearBase[] = [
       {
         "stat": "INT",
         "value": 21
+      },
+      {
+        "stat": "CRYO_ELECTRIC_DMG_PCT",
+        "value": 0.23
       }
     ],
   },
@@ -235,4 +239,3 @@ export const FRONTIERS: GearBase[] = [
     ],
   }
 ];
-

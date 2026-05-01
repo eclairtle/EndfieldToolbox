@@ -1,22 +1,162 @@
 import type { CharacterBase } from "@/data/characters";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
+const YVONNE_COMBAT_HOOKS: CharacterCombatHooks = {
+  onResolvedHit: (ctx) => {
+    if (!ctx.flags.isFinalStrikeOfBasicSequence || !ctx.source.isControlledOperatorHit) {
+      return;
+    }
+
+    if (!ctx.state.hasEnemyStatus("solidification")) {
+      return;
+    }
+
+    ctx.state.triggerSelfCombo({
+      sourceEventType: "BASIC_ATTACK_FINAL_STRIKE_HIT",
+      label: "Yvonne Combo Triggered",
+    });
+  },
+};
+
 const YVONNE_COMMANDS: CommandDefinition[] = [
+  // Animation frame data is sourced from public/gamedata.json.
   {
     id: "yvonne_basic_sequence",
     name: "Basic Attack Sequence",
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
-    mode: "cycling",
-    durationFrames: flat12(216),
+    basicAttackVariant: "sequence",
+    durationFrames: flat12(215.64),
     spCost: flat12(0),
+    transforms: [
+      {
+        toCommandId: "yvonne_ultimate_basic_sequence_3",
+        requiresBuffId: "yvonne_ultimate_final_strike_window",
+      },
+      {
+        toCommandId: "yvonne_ultimate_basic_sequence_recursive_2",
+        requiresBuffIdsAll: ["yvonne_ultimate_enhancement", "yvonne_ultimate_crit_stack"],
+      },
+      {
+        toCommandId: "yvonne_ultimate_basic_sequence_recursive_1",
+        requiresBuffId: "yvonne_ultimate_enhancement",
+      },
+      {
+        toCommandId: "yvonne_basic_sequence_5",
+        requiresBuffId: "yvonne_barrage_of_technology",
+      },
+    ],
+    expandsToCommandIds: [
+      "yvonne_basic_sequence_1",
+      "yvonne_basic_sequence_2",
+      "yvonne_basic_sequence_3",
+      "yvonne_basic_sequence_4",
+      "yvonne_basic_sequence_5",
+    ],
+    hits: [],
+  },
+  {
+    id: "yvonne_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(34.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
     hits: [
-      { name: "Hit 1", multiplier: pct([24, 26, 28, 31, 33, 35, 38, 40, 42, 45, 49, 53]), offsetFrames: flat12(22) },
-      { name: "Hit 2", multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]), offsetFrames: flat12(62) },
-      { name: "Hit 3", multiplier: pct([32, 35, 38, 41, 44, 47, 50, 54, 57, 61, 65, 71]), offsetFrames: flat12(76) },
-      { name: "Hit 4", multiplier: pct([41, 45, 49, 53, 58, 62, 66, 70, 74, 79, 85, 92]), offsetFrames: flat12(118) },
-      { name: "Hit 5", multiplier: pct([56, 62, 67, 73, 79, 84, 90, 96, 101, 108, 117, 126]), stagger: flat12(17), offsetFrames: flat12(188) },
+      { name: "Hit 1", multiplier: pct([24, 26, 28, 31, 33, 35, 38, 40, 42, 45, 49, 53]), offsetFrames: flat12(22.02) },
+    ],
+  },
+  {
+    id: "yvonne_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(30),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]), offsetFrames: flat12(16.02) },
+      { name: "Hit 2", multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]), offsetFrames: flat12(28) },
+    ],
+  },
+  {
+    id: "yvonne_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(31.8),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([32, 35, 38, 41, 44, 47, 50, 54, 57, 61, 65, 71]), registerOffsetFrames: flat12(12), offsetFrames: flat12(14) },
+      { name: "Hit 2", multiplier: pct([32, 35, 38, 41, 44, 47, 50, 54, 57, 61, 65, 71]), registerOffsetFrames: flat12(12), offsetFrames: flat12(20) },
+      { name: "Hit 3", multiplier: pct([32, 35, 38, 41, 44, 47, 50, 54, 57, 61, 65, 71]), registerOffsetFrames: flat12(12), offsetFrames: flat12(26) },
+    ],
+  },
+  {
+    id: "yvonne_basic_sequence_4",
+    name: "Basic Attack Sequence IV",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(49.8),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([41, 45, 49, 53, 58, 62, 66, 70, 74, 79, 85, 92]), offsetFrames: flat12(22.02) },
+    ],
+  },
+  {
+    id: "yvonne_basic_sequence_5",
+    name: "Final Strike",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "final_strike",
+    sequenceSegmentIndex: 5,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(70.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Hit 1",
+        multiplier: pct([56, 62, 67, 73, 79, 84, 90, 96, 101, 108, 117, 126]),
+        stagger: flat12(17),
+        spGenerated: flat12(18),
+        requiresControlledOperator: true,
+        offsetFrames: flat12(42),
+        postEffects: [
+          {
+            type: "REMOVE_BUFF",
+            target: "self",
+            buffId: "yvonne_barrage_of_technology",
+          },
+        ],
+      },
     ],
   },
   {
@@ -26,9 +166,15 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
     mode: "single",
+    basicAttackVariant: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
-    hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
+    hits: [
+      {
+        multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]),
+        offsetFrames: flat12(30),
+      },
+    ],
   },
   {
     id: "yvonne_basic_dive",
@@ -37,9 +183,175 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
     mode: "single",
+    basicAttackVariant: "dive_attack",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
+  },
+  {
+    id: "yvonne_ultimate_basic_sequence_recursive_1",
+    name: "Cryoblasting Basic Sequence (I)",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence",
+    noFinisherTransform: true,
+    durationFrames: flat12(0),
+    spCost: flat12(0),
+    expandsToCommandIds: [
+      "yvonne_ultimate_basic_sequence_1",
+      "yvonne_basic_sequence",
+    ],
+    hits: [],
+  },
+  {
+    id: "yvonne_ultimate_basic_sequence_recursive_2",
+    name: "Cryoblasting Basic Sequence (II)",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence",
+    noFinisherTransform: true,
+    durationFrames: flat12(0),
+    spCost: flat12(0),
+    expandsToCommandIds: [
+      "yvonne_ultimate_basic_sequence_2",
+      "yvonne_basic_sequence",
+    ],
+    hits: [],
+  },
+  {
+    id: "yvonne_ultimate_basic_sequence_1",
+    name: "Enhanced Basic Attack I",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 3,
+    durationFrames: flat12(100),
+    spCost: flat12(0),
+    splitMultiplier: false,
+    hits: [
+      {
+        name: "Hit x11",
+        multiplier: pct([8.9, 9.8, 10.7, 11.6, 12.5, 13.4, 14.3, 15.1, 16, 17.2, 18.5, 20]),
+        offsetFrames: flat12(12),
+        repeatIntervalFrames: flat12(6),
+        times: 11,
+        effects: [
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "yvonne_ultimate_crit_stack",
+            label: "Cryoblasting Pistolier-Crit Stack",
+            effects: {
+              CRIT_RATE_PCT: 0.03,
+            },
+            stackGroup: "yvonne_ultimate_crit_stack",
+            stacks: 1,
+            maxStacks: 10,
+            refreshExistingStacks: true,
+            durationSeconds: 1.5,
+            timeScale: "game",
+          },
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "yvonne_ultimate_crit_dmg",
+            label: "Cryoblasting Pistolier-Crit DMG",
+            effects: {
+              CRIT_DMG_PCT: 0.6,
+            },
+            requiresSelfBuffId: "yvonne_ultimate_crit_stack",
+            requiresSelfBuffStacksAtLeast: 10,
+            durationSeconds: 1.5,
+            timeScale: "game",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "yvonne_ultimate_basic_sequence_2",
+    name: "Enhanced Basic Attack II",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 3,
+    durationFrames: flat12(82),
+    spCost: flat12(0),
+    splitMultiplier: false,
+    hits: [
+      {
+        name: "Hit x16",
+        multiplier: pct([8.9, 9.8, 10.7, 11.6, 12.5, 13.4, 14.3, 15.1, 16, 17.2, 18.5, 20]),
+        offsetFrames: flat12(5),
+        repeatIntervalFrames: flat12(5),
+        times: 16,
+        effects: [
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "yvonne_ultimate_crit_stack",
+            label: "Cryoblasting Pistolier-Crit Stack",
+            effects: {
+              CRIT_RATE_PCT: 0.03,
+            },
+            stackGroup: "yvonne_ultimate_crit_stack",
+            stacks: 1,
+            maxStacks: 10,
+            refreshExistingStacks: true,
+            durationSeconds: 1.5,
+            timeScale: "game",
+          },
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "yvonne_ultimate_crit_dmg",
+            label: "Cryoblasting Pistolier-Crit DMG",
+            effects: {
+              CRIT_DMG_PCT: 0.6,
+            },
+            requiresSelfBuffId: "yvonne_ultimate_crit_stack",
+            requiresSelfBuffStacksAtLeast: 10,
+            durationSeconds: 1.5,
+            timeScale: "game",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "yvonne_ultimate_basic_sequence_3",
+    name: "Enhanced Final Strike",
+    skill: "ultimate",
+    attackType: "BASIC_ATTACK",
+    damageType: "Cryo",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 3,
+    durationFrames: flat12(60),
+    spCost: flat12(0),
+    splitMultiplier: false,
+    hits: [
+      { name: "Enhanced Final Strike", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), requiresControlledOperator: true, offsetFrames: flat12(55.8) },
+      {
+        name: "Additional ATK DMG",
+        multiplier: pct([267, 294, 320, 347, 374, 400, 427, 454, 480, 514, 554, 600]),
+        offsetFrames: flat12(55.8),
+        executeCondition: {
+          requiresEnemyStatusId: "solidification",
+        },
+      },
+    ],
   },
   {
     id: "yvonne_battle_skill",
@@ -48,12 +360,26 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Cryo",
     mode: "single",
-    durationFrames: flat12(68),
+    durationFrames: flat12(67.8),
     spCost: flat12(100),
     energyGain: flat12(0),
     hits: [
-      { name: "Base Hit", multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]), offsetFrames: flat12(10) },
-      { name: "Solidification Hit", multiplier: pct([67, 73, 80, 87, 93, 100, 107, 113, 120, 128, 138, 150]), stagger: flat12(10), offsetFrames: flat12(10) },
+      {
+        name: "Base Hit",
+        multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]),
+        offsetFrames: flat12(40.2),
+        effects: [
+          {
+            type: "APPLY_CUSTOM_REACTION",
+            reactionId: "YVONNE_BATTLE_SKILL_FREEZE",
+            baseMultiplierScaling: pct([67, 73, 80, 87, 93, 100, 107, 113, 120, 128, 138, 150]),
+            bonusMultiplierPerConsumedStackScaling: pct([89, 98, 107, 116, 124, 133, 142, 151, 160, 171, 185, 200]),
+            baseEnergyReturnScaling: flat12(10),
+            bonusEnergyReturnPerConsumedStackScaling: flat12(30),
+            staggerScaling: flat12(10),
+          },
+        ],
+      },
     ],
   },
   {
@@ -63,11 +389,38 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     attackType: "COMBO_SKILL",
     damageType: "Cryo",
     mode: "single",
-    durationFrames: flat12(38),
+    durationFrames: flat12(40),
+    timeFreezeSeconds: flat12(37 / 60),
+    comboCooldownSeconds: [20, 20, 20, 20, 20, 20, 20, 20, 19, 19, 19, 18],
+    comboCooldownTimeScale: "real",
     spCost: flat12(0),
     hits: [
-      { name: "Energy Release x4", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), offsetFrames: flat12(38), times: 4 },
-      { name: "Explosion", multiplier: pct([89, 98, 107, 116, 125, 134, 142, 151, 160, 171, 185, 200]), stagger: flat12(10), offsetFrames: flat12(38) },
+      {
+        name: "Energy Release x4",
+        multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]),
+        registerOffsetFrames: flat12(37),
+        repeatRegisterOffsetWithInterval: false,
+        offsetFrames: flat12(37),
+        times: 4,
+        repeatIntervalFrames: flat12(45),
+      },
+      {
+        name: "Explosion",
+        multiplier: pct([89, 98, 107, 116, 125, 134, 142, 151, 160, 171, 185, 200]),
+        stagger: flat12(10),
+        registerOffsetFrames: flat12(37),
+        offsetFrames: flat12(197),
+        effects: [
+          {
+            type: "APPLY_REACTION",
+            reaction: "Solidification",
+            level: 1,
+            durationSeconds: 8,
+            forceApply: true,
+            reactionDamage: false,
+          },
+        ],
+      },
     ],
   },
   {
@@ -77,12 +430,64 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     attackType: "ULTIMATE",
     damageType: "Cryo",
     mode: "single",
-    durationFrames: flat12(128),
+    durationFrames: flat12(127.8),
+    timeFreezeSeconds: flat12(121.8 / 60),
+    cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(220),
     hits: [
-      { name: "Enhanced Final Strike", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), stagger: flat12(20), offsetFrames: flat12(92) },
-      { name: "Additional Attack", multiplier: pct([267, 294, 320, 347, 374, 400, 427, 454, 480, 514, 554, 600]), offsetFrames: flat12(120) },
+      { name: "Enhanced Final Strike", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), stagger: flat12(20), offsetFrames: flat12(121.8) },
+      {
+        name: "Additional Attack",
+        multiplier: pct([267, 294, 320, 347, 374, 400, 427, 454, 480, 514, 554, 600]),
+        offsetFrames: flat12(127.2),
+        postEffects: [
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "yvonne_ultimate_enhancement",
+            label: "Cryoblasting Pistolier",
+            durationSeconds: 7,
+            timeScale: "game",
+          },
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: "no_energy_gain",
+            label: "No Energy Gain",
+            hidden: true,
+            durationSeconds: 7,
+            timeScale: "game",
+          },
+          {
+            type: "APPLY_STATUS",
+            target: "self",
+            statusId: "yvonne_ultimate_enhancement_tracker",
+            label: "Cryoblasting Pistolier",
+            durationSeconds: 7,
+            timeScale: "game",
+            expireEffects: [
+              {
+                type: "APPLY_BUFF",
+                target: "self",
+                buffId: "yvonne_ultimate_final_strike_window",
+                label: "Cryoblasting Pistolier-Final Strike",
+                durationSeconds: 1.5,
+                timeScale: "game",
+              },
+              {
+                type: "APPLY_BUFF",
+                target: "self",
+                buffId: "no_energy_gain",
+                label: "No Energy Gain",
+                hidden: true,
+                durationSeconds: 1.5,
+                timeScale: "game",
+              },
+            ],
+          },
+        ],
+      },
     ],
   },
 ];
@@ -90,6 +495,11 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
 export const YVONNE: CharacterBase = {
   id: "yvonne",
   name: "Yvonne",
+  skillIconPaths: {
+    battleSkill: "/avatars/YVONNE/icon_skill_yvonne_01.webp",
+    comboSkill: "/avatars/YVONNE/icon_combo_skill_yvonne_01.webp",
+    ultimate: "/avatars/YVONNE/icon_ultimate_skill_yvonne_01.webp",
+  },
   rarity: 6,
   class: "Striker",
   element: "Cryo",
@@ -99,6 +509,154 @@ export const YVONNE: CharacterBase = {
   },
   mainAttr: "INT",
   secondaryAttr: "AGI",
+  potentialEffects: {
+    2: {
+      apply: () => ({
+        attrsDelta: {
+          INT: 20,
+        },
+        modsDelta: {
+          CRIT_RATE_PCT: 0.07,
+        },
+      }),
+    },
+  },
+  uniqueTalentDefs: {
+    yvonne_barrage_of_technology_1: {
+      name: "Barrage of Technology I",
+      condition: {
+        minEliteStage: 1,
+      },
+    },
+    yvonne_barrage_of_technology_2: {
+      name: "Barrage of Technology II",
+      condition: {
+        minEliteStage: 2,
+        requiresUniqueTalentsEnabled: ["yvonne_barrage_of_technology_1"],
+      },
+    },
+    yvonne_freezing_point_1: {
+      name: "Freezing Point I",
+      condition: {
+        minEliteStage: 2,
+      },
+    },
+    yvonne_freezing_point_2: {
+      name: "Freezing Point II",
+      condition: {
+        minEliteStage: 3,
+        requiresUniqueTalentsEnabled: ["yvonne_freezing_point_1"],
+      },
+    },
+  },
+  conditionalModifiers: [
+    {
+      id: "yvonne_freezing_point_infliction",
+      label: "Freezing Point (Cryo Infliction)",
+      condition: {
+        requiresUniqueTalentsEnabled: ["yvonne_freezing_point_1"],
+        enemyInflictionElementsAny: ["Cryo"],
+        enemyStatusIdsNone: ["solidification"],
+      },
+      effects: {
+        CRIT_DMG_PCT: 0.2,
+      },
+    },
+    {
+      id: "yvonne_freezing_point_solidification",
+      label: "Freezing Point (Solidification)",
+      condition: {
+        requiresUniqueTalentsEnabled: ["yvonne_freezing_point_1"],
+        enemyStatusIdsAny: ["solidification"],
+      },
+      effects: {
+        CRIT_DMG_PCT: 0.4,
+      },
+    },
+  ],
+  mutateResolvedCommands: (commands, ctx) => {
+    const potentialLevel = ctx.buildState.potentialLevel ?? 0;
+    if (potentialLevel <= 0) {
+      return commands;
+    }
+
+    return commands.map((command) => {
+      if (command.id === "yvonne_combo_skill" && potentialLevel >= 1) {
+        return {
+          ...command,
+          hits: command.hits.map((hit) => {
+            if (hit.name?.startsWith("Energy Release")) {
+              return {
+                ...hit,
+                times: hit.times + 2,
+              };
+            }
+            if (hit.name === "Explosion") {
+              return {
+                ...hit,
+                energyReturn: hit.energyReturn + 15,
+              };
+            }
+            return hit;
+          }),
+        };
+      }
+
+      if (command.id === "yvonne_battle_skill" && potentialLevel >= 4) {
+        return {
+          ...command,
+          hits: command.hits.map((hit) => {
+            if (hit.name !== "Base Hit") {
+              return hit;
+            }
+            return {
+              ...hit,
+              effects: hit.effects.map((effect) => {
+                if (effect.type !== "APPLY_CUSTOM_REACTION" || effect.reactionId !== "YVONNE_BATTLE_SKILL_FREEZE") {
+                  return effect;
+                }
+                return {
+                  ...effect,
+                  baseEnergyReturn: (effect.baseEnergyReturn ?? 0) + 10,
+                };
+              }),
+            };
+          }),
+        };
+      }
+
+      if (command.id === "yvonne_ultimate" && potentialLevel >= 5) {
+        return {
+          ...command,
+          hits: command.hits.map((hit, index) => {
+            if (index !== 0) {
+              return hit;
+            }
+            return {
+              ...hit,
+              effects: [
+                ...hit.effects,
+                {
+                  type: "APPLY_BUFF",
+                  target: "self",
+                  buffId: "yvonne_potential_5",
+                  label: "Yvonne Potential 5",
+                  durationSeconds: 7,
+                  timeScale: "game",
+                  effects: {
+                    ATK_PCT: 0.1,
+                    CRIT_DMG_PCT: 0.3,
+                  },
+                },
+              ],
+            };
+          }),
+        };
+      }
+
+      return command;
+    });
+  },
   levels: {
     STR: [
         8, 9, 10, 10, 11, 12, 13, 14, 15, 15,
@@ -169,4 +727,5 @@ export const YVONNE: CharacterBase = {
   },
   weaponType: "HANDCANNON",
   commands: YVONNE_COMMANDS,
+  combatHooks: YVONNE_COMBAT_HOOKS,
 };

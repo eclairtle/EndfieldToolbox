@@ -31,6 +31,7 @@ export type GearSubstatBase = {
 export type GearBase = {
   id: string;
   name: string;
+  imagePath?: string;
   slot: GearSlot;
   set?: string;
   upgradable?: boolean;

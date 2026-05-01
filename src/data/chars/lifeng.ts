@@ -18,8 +18,8 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
       { multiplier: pct([68, 74, 81, 88, 95, 101, 108, 115, 122, 130, 140, 152]), stagger: flat12(19), offsetFrames: flat12(166) },
     ],
   },
-  { id: "lifeng_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "lifeng_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "lifeng_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "lifeng_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "lifeng_battle_skill",
     name: "Turbid Avatar",
@@ -71,6 +71,11 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
 export const LIFENG: CharacterBase = {
   id: "lifeng",
   name: "Lifeng",
+  skillIconPaths: {
+    battleSkill: "/avatars/LIFENG/icon_skill_lifeng_01.webp",
+    comboSkill: "/avatars/LIFENG/icon_combo_skill_lifeng_01.webp",
+    ultimate: "/avatars/LIFENG/icon_ultimate_skill_lifeng_01.webp",
+  },
   rarity: 6,
   class: "Guard",
   element: "Physical",

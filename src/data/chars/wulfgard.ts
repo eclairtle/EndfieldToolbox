@@ -204,7 +204,7 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     hiddenInLibrary: true,
-    basicAttackVariant: "sequence_segment",
+    basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 4,
     sequenceSegmentTotal: 4,
     durationFrames: flat12(106.02),
@@ -232,7 +232,7 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
-    basicAttackVariant: "final_strike",
+    basicAttackVariant: "finisher",
     mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -260,7 +260,7 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
         },
     ],
     },
-    {
+  {
     id: "wulfgard_battle_skill",
     name: "Thermite Tracer",
     skill: "battleSkill",
@@ -269,6 +269,12 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     mode: "single",
     durationFrames: flat12(64.2),
     spCost: flat12(100),
+    transforms: [
+      {
+        toCommandId: "wulfgard_battle_skill_reaction",
+        requiresEnemyStatusId: "combustion",
+      },
+    ],
     splitMultiplier: true,
     hits: [
         {
@@ -290,31 +296,31 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
         },
     ],
     },
-    {
+  {
     id: "wulfgard_battle_skill_reaction",
     name: "Thermite Tracer",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     variant: "enhanced_battle_skill",
+    hiddenInLibrary: true,
     mode: "single",
     durationFrames: flat12(124.2),
     spCost: flat12(100),
-    splitMultiplier: true,
     hits: [
         {
         name: "Hit 1",
-        multiplier: pct([378, 415, 453, 491, 529, 566, 604, 642, 680, 727, 784, 850]),
+        multiplier: pct([102/3, 112/3, 122/3, 133/3, 143/3, 153/3, 163/3, 174/3, 184/3, 196/3, 212/3, 230/3]),
         offsetFrames: flat12(12),
         },
         {
         name: "Hit 2",
-        multiplier: pct([378, 415, 453, 491, 529, 566, 604, 642, 680, 727, 784, 850]),
+        multiplier: pct([102/3, 112/3, 122/3, 133/3, 143/3, 153/3, 163/3, 174/3, 184/3, 196/3, 212/3, 230/3]),
         offsetFrames: flat12(31.8),
         },
         {
         name: "Hit 3",
-        multiplier: pct([378, 415, 453, 491, 529, 566, 604, 642, 680, 727, 784, 850]),
+        multiplier: pct([102/3, 112/3, 122/3, 133/3, 143/3, 153/3, 163/3, 174/3, 184/3, 196/3, 212/3, 230/3]),
         stagger: flat12(5),
         offsetFrames: flat12(46.02),
         },
@@ -377,6 +383,11 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
 export const WULFGARD: CharacterBase = {
   id: "wulfgard",
   name: "WulfGard",
+  skillIconPaths: {
+    battleSkill: "/avatars/WULFGARD/icon_skill_wolfgd_01.webp",
+    comboSkill: "/avatars/WULFGARD/icon_combo_skill_wolfgd_01.webp",
+    ultimate: "/avatars/WULFGARD/icon_ultimate_skill_wolfgd_01.webp",
+  },
   rarity: 5,
 
   class: "Caster",

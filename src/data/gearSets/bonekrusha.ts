@@ -104,6 +104,10 @@ export const BONEKRUSHA: GearBase[] = [
       {
         "stat": "STR",
         "value": 58
+      },
+      {
+        "stat": "CRYO_ELECTRIC_DMG_PCT",
+        "value": 0.115
       }
     ],
   },
@@ -226,6 +230,10 @@ export const BONEKRUSHA: GearBase[] = [
       {
         "stat": "AGI",
         "value": 43
+      },
+      {
+        "stat": "HEAT_NATURE_DMG_PCT",
+        "value": 0.192
       }
     ],
   },
@@ -243,8 +251,11 @@ export const BONEKRUSHA: GearBase[] = [
       {
         "stat": "STR",
         "value": 43
+      },
+      {
+        "stat": "CRYO_ELECTRIC_DMG_PCT",
+        "value": 0.192
       }
     ],
   }
 ];
-

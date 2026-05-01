@@ -1,12 +1,15 @@
 import type { ModifierStats } from "@/lib/build/stats";
 import type { EnemyResolvedStats } from "@/lib/enemy/enemyScaling";
-import type { ResolvedCommandAtLevel } from "@/lib/commands";
+import type { ResolvedCommandAtLevel, ResolvedExecuteHitAtLevel } from "@/lib/commands";
+import type { AttackType } from "@/lib/commands";
 import type { ElementType } from "@/data/characters";
+import type { CharacterClass } from "@/data/characters";
 import type { ModifierStatKey } from "@/lib/build/stats";
 import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import type { BuildCondition } from "@/lib/build/buildConditions";
 import type { AscensionStage, PotentialLevel } from "@/lib/build/progression";
 import type { ActiveGearSetInfo } from "@/lib/combat/gearSetEffects";
+import type { CharacterConditionalModifierDefinition } from "@/data/characters";
 
 export type PartySlot = 0 | 1 | 2 | 3;
 
@@ -16,6 +19,8 @@ export type RotationStep = {
   commandId: string;
   startTime?: number;
   groupId?: string;
+  missed?: boolean;
+  interrupted?: boolean;
 };
 
 export type RotationGroup = {
@@ -23,15 +28,28 @@ export type RotationGroup = {
   name: string;
 };
 
+export type CritRigMode = "force_crit" | "force_non_crit";
+
+export type CritRiggingRule = {
+  id: string;
+  stepId: string;
+  hitIndex: number;
+  repeatIndex: number;
+  mode: CritRigMode;
+  enabled?: boolean;
+};
+
 export type Rotation = {
   steps: RotationStep[];
   groups?: RotationGroup[];
+  critRiggingRules?: CritRiggingRule[];
 };
 
 export type CharacterCombatSnapshot = {
   slot: PartySlot;
   characterId: string;
   characterName: string;
+  characterClass: CharacterClass;
   level: number;
   weaponId: string;
   weaponSkillLevels: number[];
@@ -40,13 +58,28 @@ export type CharacterCombatSnapshot = {
   uniqueTalentToggles: Record<string, boolean>;
   uniqueTalentConditions?: Record<string, BuildCondition | undefined>;
   uniqueTalentDefaults?: Record<string, boolean | undefined>;
+  conditionalModifiers: CharacterConditionalModifierDefinition[];
 
   finalAtk: number;
+  maxHp: number;
+  baseHp: number;
+  finalDef: number;
+  baseAtk: number;
+  weaponAtk: number;
+  attributeBonus: number;
+  attrs: {
+    STR: number;
+    AGI: number;
+    INT: number;
+    WIL: number;
+  };
   mods: ModifierStats;
   activeGearSet?: ActiveGearSetInfo;
 
   commands: ResolvedCommandAtLevel[];
+  executeHits: Record<string, ResolvedExecuteHitAtLevel>;
   combatHooks?: CharacterCombatHooks;
+  restrictEnergyGainToOwnBattleOrComboCommands?: boolean;
 };
 
 export type DamageTimelineEntry = {
@@ -74,6 +107,25 @@ export type DamageTimelineEntry = {
   energyReturn: number;
   requiresControlledOperator: boolean;
   triggeredComboSlots: PartySlot[];
+  critRigMode?: CritRigMode;
+  riggedCrit?: boolean;
+  calculationContext?: {
+    finalAtk: number;
+    attackType: AttackType;
+    basicAttackVariant?: ResolvedCommandAtLevel["basicAttackVariant"];
+    attackerMods: ModifierStats;
+    enemyMods: ModifierStats;
+    enemyDef: number;
+    hitTimes: number;
+    linkMultiplier: number;
+    consumedArtsInflictionStacksForBonus?: number;
+    reactionBaseMultiplier?: number;
+    applierLevel?: number;
+    isPhysicalReaction?: boolean;
+    staggeredMultiplier?: number;
+    finisherBonusMultiplier?: number;
+    totalEnemyMultiplier?: number;
+  };
 };
 
 export type RotationTimeExtension = {
@@ -98,6 +150,8 @@ export type CompiledRotationAction = {
   realEndTime: number;
   timeFreezeSeconds: number;
   cutscene: boolean;
+  missed?: boolean;
+  interrupted?: boolean;
 };
 
 export type ActorActiveBuffState = {
@@ -109,14 +163,25 @@ export type ActorActiveBuffState = {
   appliedAt: number;
   appliedAtGameTime: number;
   expiresAt: number;
+  effects?: Partial<ModifierStats>;
+};
+
+export type TeamActiveStatusState = {
+  id: string;
+  label: string;
+  expiresAt: number;
+  timeScale: "real" | "game";
 };
 
 export type ActorCombatStateSnapshot = {
   time: number;
   gameTime: number;
   slot: PartySlot;
+  currentHp: number;
+  maxHp: number;
   meltingFlameStacks: number;
   activeBuffs: ActorActiveBuffState[];
+  activeTeamStatuses: TeamActiveStatusState[];
 };
 
 export type EnemyActiveDebuffState = {
@@ -130,6 +195,7 @@ export type EnemyActiveDebuffState = {
 export type EnemyActiveStatusState = {
   id: string;
   label: string;
+  stacks?: number;
   expiresAt: number;
   timeScale: "real" | "game";
 };
@@ -149,6 +215,25 @@ export type EnemyCombatStateSnapshot = {
   } | null;
 };
 
+export type EnemyActionEffect = {
+  type: "RESET_STAGGER" | "INTERRUPT_ONGOING_COMMANDS";
+};
+
+export type EnemyActionWindow = {
+  id: string;
+  commandId?: string;
+  label: string;
+  startTime: number;
+  endTime: number;
+  invulnerable?: boolean;
+  tintColor?: string;
+  effects?: EnemyActionEffect[];
+  interruptible?: boolean;
+  interrupted?: boolean;
+  interruptedSpGain?: number;
+  interruptedStagger?: number;
+};
+
 export type RotationSimulationResult = {
   totalDamage: number;
   damageBySlot: Array<{
@@ -166,12 +251,47 @@ export type RotationSimulationResult = {
   comboWindows: ComboTriggerWindow[];
   actorStateTimeline: ActorCombatStateSnapshot[];
   enemyStateTimeline: EnemyCombatStateSnapshot[];
+  enemyActionWindows: EnemyActionWindow[];
+  enemyStaggerDecayRate: number;
+  riggedCritCount: number;
+  comboTriggerDebug: ComboTriggerDebugEntry[];
+};
+
+export type ComboTriggerDebugBlockReason =
+  | "MISSING_ACTOR_OR_COMBO_COMMAND"
+  | "ACTIVE_COMBO_WINDOW_EXISTS"
+  | "COMBO_ON_COOLDOWN";
+
+export type ComboTriggerDebugEntry = {
+  time: number;
+  gameTime: number;
+  slot: PartySlot;
+  characterId?: string;
+  characterName?: string;
+  sourceStepId: string;
+  sourceEventType: RotationCombatEventType;
+  label: string;
+  comboCommandId?: string;
+  cooldownOwnerCommandId?: string;
+  triggered: boolean;
+  blockReason?: ComboTriggerDebugBlockReason;
+  hasActiveComboWindow: boolean;
+  hasPendingCooldown: boolean;
+  currentTime: number;
+  cooldownUntil: number;
+  comboTimeScale: "real" | "game";
+  readyAt?: number;
+  expiresAt?: number;
 };
 
 export type RotationCombatEventType =
   | "ULTIMATE_CAST"
+  | "CRIT_THRESHOLD_REACHED"
   | "BASIC_ATTACK_FINAL_STRIKE_HIT"
+  | "DIVE_ATTACK_HIT"
   | "FINISHER_HIT"
+  | "STAGGER_NODE_REACHED"
+  | "ENEMY_STAGGERED"
   | "ENEMY_DEFEATED"
   | "HEAT_INFLICTION_APPLIED"
   | "COMBUSTION_APPLIED"
@@ -182,17 +302,31 @@ export type RotationCombatEventType =
   | "MELTING_FLAME_CONSUMED"
   | "MELTING_FLAME_FULL"
   | "COMBO_TRIGGERED"
+  | "SP_RETURNED"
+  | "TEAM_LINK_GAINED"
   | "WEAPON_BUFF_APPLIED"
   | "ACTOR_BUFF_APPLIED"
   | "SKILL_SP_RECOVERED"
   | "BATTLE_OR_COMBO_HIT"
-  | "ARTS_REACTION_CONSUMED";
+  | "ARTS_INFLICTION_CONSUMED"
+  | "ARTS_REACTION_CONSUMED"
+  | "ARTS_REACTION_APPLIED"
+  | "PHYSICAL_REACTION_APPLIED"
+  | "ARTS_INFLICTION_APPLIED"
+  | "ARTS_BURST_HIT"
+  | "TEAM_STATUS_GAINED"
+  | "TEAM_STATUS_CONSUMED"
+  | "HEALING_HIT_EXECUTED"
+  | "ENEMY_COMMAND_INTERRUPTED"
+  | "ROSSI_VULNERABILITY_AND_ARTS_INFLICTION";
 
 export type RotationCombatEvent = {
   type: RotationCombatEventType;
   time: number;
   gameTime: number;
   stepId?: string;
+  commandId?: string;
+  commandName?: string;
   slot?: PartySlot;
   sourceSlot?: PartySlot;
   target?: "enemy";
@@ -209,12 +343,18 @@ export type RotationCombatEvent = {
   damageType?: ElementType;
   expectedCritCount?: number;
   consumedElement?: "Heat" | "Cryo" | "Electric" | "Nature";
+  consumedStacks?: number;
+  healedAmount?: number;
 };
 
 export type ComboTriggerWindow = {
   slot: PartySlot;
+  commandId: string;
   readyAt: number;
   expiresAt: number;
+  perfectTimingStartAt?: number;
+  perfectTimingEndAt?: number;
+  perfectTimingTriggered?: boolean;
   consumedAt?: number;
   sourceStepId: string;
   sourceEventType: RotationCombatEventType;

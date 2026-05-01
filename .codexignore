@@ -1,0 +1,40 @@
+# Dependencies / build outputs
+node_modules/
+dist/
+dist-ssr/
+coverage/
+
+# VCS metadata
+.git/
+
+# Cache / generated artifacts
+*.tsbuildinfo
+.eslintcache
+*.log
+
+# Windows ADS artifacts that can appear in WSL checkouts
+*.Zone.Identifier
+**/*.Zone.Identifier
+
+# Large binary asset trees (rarely relevant for code edits)
+public/avatars/
+public/equipment/
+public/weapons/
+public/Icon_Enemy/
+public/icons/
+
+# Keep key data files available for simulator/data work
+!public/gamedata.json
+!public/gamedata copy.json
+!public/icons/no_selection.svg
+
+# Optional: ignore all heavy image binaries outside src docs
+**/*.webp
+**/*.png
+**/*.jpg
+**/*.jpeg
+
+# But keep docs/images attached to project docs if needed later
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.jpeg

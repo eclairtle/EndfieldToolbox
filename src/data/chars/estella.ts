@@ -18,8 +18,8 @@ const ESTELLA_COMMANDS: CommandDefinition[] = [
       { name: "Hit 4", multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), offsetFrames: flat12(162) },
     ],
   },
-  { id: "estella_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "estella_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "estella_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "estella_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "estella_battle_skill",
     name: "Battle Skill",
@@ -65,6 +65,11 @@ const ESTELLA_COMMANDS: CommandDefinition[] = [
 export const ESTELLA: CharacterBase = {
   id: "estella",
   name: "Estella",
+  skillIconPaths: {
+    battleSkill: "/avatars/ESTELLA/icon_skill_whiten_01.webp",
+    comboSkill: "/avatars/ESTELLA/icon_combo_skill_whiten_01.webp",
+    ultimate: "/avatars/ESTELLA/icon_ultimate_skill_whiten_01.webp",
+  },
   rarity: 4,
   class: "Guard",
   element: "Cryo",

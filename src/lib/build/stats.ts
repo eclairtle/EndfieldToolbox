@@ -52,11 +52,20 @@ export const MODIFIER_STAT_KEYS = [
   "PHYSICAL_DMG_PCT",
   "ARTS_DMG_PCT",
   "HEAT_NATURE_DMG_PCT",
+  "CRYO_ELECTRIC_DMG_PCT",
   "HEAT_DMG_PCT",
   "CRYO_DMG_PCT",
   "ELECTRIC_DMG_PCT",
   "NATURE_DMG_PCT",
+  "DMG_AMP_PCT",
+  "PHYSICAL_DMG_AMP_PCT",
+  "HEAT_DMG_AMP_PCT",
+  "CRYO_DMG_AMP_PCT",
+  "ELECTRIC_DMG_AMP_PCT",
+  "NATURE_DMG_AMP_PCT",
+  "AETHER_DMG_AMP_PCT",
   "BASIC_ATK_DMG_PCT",
+  "FINAL_STRIKE_DMG_PCT",
   "SKILL_DMG_PCT",
   "BATTLE_SKILL_DMG_PCT",
   "COMBO_SKILL_DMG_PCT",
@@ -85,14 +94,24 @@ export const MODIFIER_STAT_KEYS = [
   "HEALING_PCT",
   "HEALING_RECEIVED_PCT",
   "FINAL_DMG_REDUCTION_PCT",
+  "SUS_PCT",
   "PHYSICAL_SUS_PCT",
   "ARTS_SUS_PCT",
+  "SUS_ENHANCE_PCT",
+  "PHYSICAL_SUS_ENHANCE_PCT",
+  "ARTS_SUS_ENHANCE_PCT",
   "HEAT_SUS_PCT",
+  "HEAT_SUS_ENHANCE_PCT",
   "CRYO_SUS_PCT",
+  "CRYO_SUS_ENHANCE_PCT",
   "ELECTRIC_SUS_PCT",
+  "ELECTRIC_SUS_ENHANCE_PCT",
   "NATURE_SUS_PCT",
+  "NATURE_SUS_ENHANCE_PCT",
   "AETHER_SUS_PCT",
+  "AETHER_SUS_ENHANCE_PCT",
   "DMG_VS_STAGGERED_PCT",
+  "STAGGER_EFFICIENCY_PCT",
 ] as const;
 
 export type ModifierStatKey = (typeof MODIFIER_STAT_KEYS)[number];
@@ -134,12 +153,21 @@ export function makeBaseModifierStats(): ModifierStats {
     PHYSICAL_DMG_PCT: 0,
     ARTS_DMG_PCT: 0,
     HEAT_NATURE_DMG_PCT: 0,
+    CRYO_ELECTRIC_DMG_PCT: 0,
     HEAT_DMG_PCT: 0,
     CRYO_DMG_PCT: 0,
     ELECTRIC_DMG_PCT: 0,
     NATURE_DMG_PCT: 0,
+    DMG_AMP_PCT: 0,
+    PHYSICAL_DMG_AMP_PCT: 0,
+    HEAT_DMG_AMP_PCT: 0,
+    CRYO_DMG_AMP_PCT: 0,
+    ELECTRIC_DMG_AMP_PCT: 0,
+    NATURE_DMG_AMP_PCT: 0,
+    AETHER_DMG_AMP_PCT: 0,
 
     BASIC_ATK_DMG_PCT: 0,
+    FINAL_STRIKE_DMG_PCT: 0,
     SKILL_DMG_PCT: 0,
     BATTLE_SKILL_DMG_PCT: 0,
     COMBO_SKILL_DMG_PCT: 0,
@@ -168,14 +196,24 @@ export function makeBaseModifierStats(): ModifierStats {
     HEALING_PCT: 0,
     HEALING_RECEIVED_PCT: 0,
     FINAL_DMG_REDUCTION_PCT: 0,
+    SUS_PCT: 0,
     PHYSICAL_SUS_PCT: 0,
     ARTS_SUS_PCT: 0,
+    SUS_ENHANCE_PCT: 0,
+    PHYSICAL_SUS_ENHANCE_PCT: 0,
+    ARTS_SUS_ENHANCE_PCT: 0,
     HEAT_SUS_PCT: 0,
+    HEAT_SUS_ENHANCE_PCT: 0,
     CRYO_SUS_PCT: 0,
+    CRYO_SUS_ENHANCE_PCT: 0,
     ELECTRIC_SUS_PCT: 0,
+    ELECTRIC_SUS_ENHANCE_PCT: 0,
     NATURE_SUS_PCT: 0,
+    NATURE_SUS_ENHANCE_PCT: 0,
     AETHER_SUS_PCT: 0,
+    AETHER_SUS_ENHANCE_PCT: 0,
     DMG_VS_STAGGERED_PCT: 0,
+    STAGGER_EFFICIENCY_PCT: 0,
 
   };
 }
@@ -365,7 +403,8 @@ export function computeFinalStats(args: {
   const finalATK = Math.floor((rawATK + modATK + mods.FLAT_ATK) * (1 + attrBonus));
 
   // final HP
-  const finalHP = Math.round((baseHP + attrs.STR * 5 + mods.FLAT_HP) * (1 + mods.HP_PCT));
+  // HP = (Base HP + STR*5) * (1 + HP%) + flat HP
+  const finalHP = Math.round((baseHP + attrs.STR * 5) * (1 + mods.HP_PCT) + mods.FLAT_HP);
 
   const finalDEF = gearDEF;
 

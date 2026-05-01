@@ -12,7 +12,7 @@ export function useEnemyState() {
   const defaultEnemy = firstOrThrow(ENEMIES, "ENEMIES");
 
   const selectedEnemyId = ref<string>(defaultEnemy.id);
-  const enemyLevel = ref<number>(100);
+  const enemyLevel = ref<number>(90);
 
   const selectedEnemy = computed<EnemyBase>(() => {
     return ENEMIES.find((e) => e.id === selectedEnemyId.value) ?? defaultEnemy;

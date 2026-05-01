@@ -19,6 +19,8 @@ function scaledPercentFromRank1(rank1Percent: number, y: number): number {
 export const DELIVERY_GUARANTEED: WeaponBase = {
   id: "delivery_guaranteed",
   name: "Delivery Guaranteed",
+  rarity: 6,
+  imagePath: "/weapons/funnel/wpn_funnel_0011.webp",
   weaponType: "ARTS_UNIT",
   baseAtkTable: ATK_TABLE_51_500,
   tuningMaterials: ["Tachyon Screening Lattice ×16", "Wulingstone ×8"],
@@ -38,24 +40,35 @@ export const DELIVERY_GUARANTEED: WeaponBase = {
     return [
       `Nature DMG Dealt +${percent(scaledPercentFromRank1(16, y))}.`,
       `After the wielder's combo skill applies Lifted, the team gains Arts DMG Dealt +${percent(scaledPercentFromRank1(12, y))} for 15s.`,
+      `For every enemy Lifted, the team gains bonus Arts DMG Dealt +${percent(scaledPercentFromRank1(3.5, y))}, up to a max of +${percent(scaledPercentFromRank1(10.5, y))}.`,
       "Effects of the same name cannot stack.",
     ].join("\n");
   },
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
-    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "BATTLE_OR_COMBO_HIT" || ctx.event.commandAttackType !== "COMBO_SKILL") {
+    if (
+      sourceSlot !== ctx.wearer.slot
+      || ctx.event.type !== "PHYSICAL_REACTION_APPLIED"
+      || ctx.event.commandAttackType !== "COMBO_SKILL"
+      || !ctx.event.label.startsWith("Lift Applied")
+    ) {
       return;
     }
     if (!ctx.helpers.markOnce(`delivery_guaranteed:${ctx.wearer.slot}:${ctx.event.stepId ?? `${ctx.event.time}`}`)) {
       return;
     }
     const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
+    const liftedEnemyCount = Math.max(0, Math.floor(ctx.event.amount ?? 1));
+    const bonusArtsPercent = Math.min(
+      scaledPercentFromRank1(10.5, y),
+      scaledPercentFromRank1(3.5, y) * liftedEnemyCount,
+    );
     ctx.helpers.applyTeamBuff({
       buffId: "weapon_delivery_guaranteed_team_arts",
       label: "Delivery Guaranteed",
       durationSeconds: 15,
       effects: {
-        ARTS_DMG_PCT: scaledPercentFromRank1(12, y) / 100,
+        ARTS_DMG_PCT: (scaledPercentFromRank1(12, y) + bonusArtsPercent) / 100,
       },
       eventType: "WEAPON_BUFF_APPLIED",
     });
@@ -65,6 +78,8 @@ export const DELIVERY_GUARANTEED: WeaponBase = {
 export const STANZA_OF_MEMORIALS: WeaponBase = {
   id: "stanza_of_memorials",
   name: "Stanza of Memorials",
+  rarity: 5,
+  imagePath: "/weapons/funnel/wpn_funnel_0005.webp",
   weaponType: "ARTS_UNIT",
   baseAtkTable: ATK_TABLE_42_411,
   tuningMaterials: ["Quadrant Fitting Fluid ×16", "Wulingstone ×8"],
@@ -98,6 +113,8 @@ export const STANZA_OF_MEMORIALS: WeaponBase = {
 export const DETONATION_UNIT: WeaponBase = {
   id: "detonation_unit",
   name: "Detonation Unit",
+  rarity: 6,
+  imagePath: "/weapons/funnel/wpn_funnel_0010.webp",
   weaponType: "ARTS_UNIT",
   baseAtkTable: ATK_TABLE_50_490,
   tuningMaterials: ["Triphasic Nanoflake ×16", "Wulingstone ×8"],
@@ -141,6 +158,8 @@ export const DETONATION_UNIT: WeaponBase = {
 export const DREAMS_OF_THE_STARRY_BEACH: WeaponBase = {
   id: "dreams_of_the_starry_beach",
   name: "Dreams of the Starry Beach",
+  rarity: 6,
+  imagePath: "/weapons/funnel/wpn_funnel_0013.webp",
   weaponType: "ARTS_UNIT",
   baseAtkTable: ATK_TABLE_50_495,
   tuningMaterials: ["Quadrant Fitting Fluid ×16", "Igneosite ×8"],
@@ -188,25 +207,25 @@ export const DREAMS_OF_THE_STARRY_BEACH: WeaponBase = {
 export const CHIVALRIC_VIRTUES: WeaponBase = {
   id: "chivalric_virtues",
   name: "Chivalric Virtues",
+  rarity: 6,
+  imagePath: "/weapons/funnel/wpn_funnel_0008.webp",
   weaponType: "ARTS_UNIT",
   baseAtkTable: ATK_TABLE_49_485,
   tuningMaterials: ["D96 Steel Sample 4 ×16", "Wulingstone ×8"],
   skills: [
     { id: "WIL_UP", name: "Will Boost [L]", rank: 3, implemented: true },
-    { id: "UNIQUE", name: "HP Boost [L]", rank: 1, implemented: true },
+    { id: "HP_UP", name: "HP Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Medicant: Blight Fervor", rank: 1, implemented: true },
   ],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
-      HP_PCT: scaledPercentFromRank1(10, y) / 100,
       HEALING_PCT: scaledPercentFromRank1(10, y) / 100,
     };
   },
   getUniqueSkillDescription: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return [
-      `Max HP +${percent(scaledPercentFromRank1(10, y))}.`,
       `Treatment Efficiency +${percent(scaledPercentFromRank1(10, y))}.`,
       `After the wielder's skill provides treatment, the entire team gains ATK +${percent(scaledPercentFromRank1(9, y))} for 15s.`,
       "Effects of the same name cannot stack.",
@@ -214,7 +233,7 @@ export const CHIVALRIC_VIRTUES: WeaponBase = {
   },
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
-    if (sourceSlot !== ctx.wearer.slot || (ctx.event.type !== "BATTLE_SKILL_CAST" && ctx.event.type !== "ULTIMATE_CAST")) {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "HEALING_HIT_EXECUTED") {
       return;
     }
     const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
@@ -224,6 +243,85 @@ export const CHIVALRIC_VIRTUES: WeaponBase = {
       durationSeconds: 15,
       effects: {
         ATK_PCT: scaledPercentFromRank1(9, y) / 100,
+      },
+      eventType: "WEAPON_BUFF_APPLIED",
+    });
+  },
+};
+
+export const MONAIHE: WeaponBase = {
+  id: "monaihe",
+  name: "Monaihe",
+  rarity: 5,
+  imagePath: "/weapons/funnel/wpn_funnel_0007.webp",
+  weaponType: "ARTS_UNIT",
+  baseAtkTable: ATK_TABLE_42_411,
+  tuningMaterials: ["Quadrant Fitting Fluid ×16", "Igneosite ×8"],
+  skills: [
+    { id: "WIL_UP", name: "Will Boost [M]", rank: 2, implemented: true },
+    { id: "ULT_GAIN_UP", name: "Ultimate Gain Efficiency Boost [M]", rank: 2, implemented: true },
+    { id: "UNIQUE", name: "Inspiring: Mortise-and-Tenon Analysis", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return {
+      MAIN_ATTR_PCT: (5 + y) / 100,
+      ARTS_INTENSITY: 25 + 5 * y,
+    };
+  },
+  getUniqueSkillDescription: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return [
+      `Main Attribute +${percent(5 + y)}.`,
+      `Arts Intensity +${(25 + 5 * y).toFixed(0)}.`,
+    ].join("\n");
+  },
+};
+
+export const WILD_WANDERER: WeaponBase = {
+  id: "wild_wanderer",
+  name: "Wild Wanderer",
+  rarity: 5,
+  imagePath: "/weapons/funnel/wpn_funnel_0004.webp",
+  weaponType: "ARTS_UNIT",
+  baseAtkTable: ATK_TABLE_42_411,
+  tuningMaterials: ["D96 Steel Sample 4 ×16", "Igneosite ×8"],
+  skills: [
+    { id: "INT_UP", name: "Intellect Boost [M]", rank: 2, implemented: true },
+    { id: "NotImplemented", name: "Electric DMG Boost [M]", rank: 2, implemented: false },
+    { id: "UNIQUE", name: "Infliction: Wilderness Cluster", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return {
+      ARTS_INTENSITY: 10 + 2 * y,
+    };
+  },
+  getUniqueSkillDescription: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return [
+      `Arts Intensity +${(10 + 2 * y).toFixed(0)}.`,
+      `When the wielder applies Electrification, the team gains Physical DMG Dealt and Electric DMG Dealt +${percent(8 + 1.6 * y)} for 15s.`,
+      "Effects of the same name cannot stack.",
+    ].join("\n");
+  },
+  onCombatEvent: (ctx) => {
+    const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
+    if (
+      sourceSlot !== ctx.wearer.slot
+      || ctx.event.type !== "ARTS_REACTION_APPLIED"
+      || ctx.event.consumedElement !== "Electric"
+    ) {
+      return;
+    }
+    const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
+    ctx.helpers.applyTeamBuff({
+      buffId: "weapon_wild_wanderer_team_damage",
+      label: "Wild Wanderer",
+      durationSeconds: 15,
+      effects: {
+        PHYSICAL_DMG_PCT: (8 + 1.6 * y) / 100,
+        ELECTRIC_DMG_PCT: (8 + 1.6 * y) / 100,
       },
       eventType: "WEAPON_BUFF_APPLIED",
     });

@@ -1,21 +1,150 @@
 import type { CharacterBase } from "@/data/characters";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
+const GILBERTA_COMBAT_HOOKS: CharacterCombatHooks = {
+  onEvent: (ctx) => {
+    if (
+      ctx.state.markTriggerOnce("gilberta_messengers_song:init")
+      && (
+        ctx.state.isSelfUniqueTalentEnabled("gilberta_messengers_song_1")
+        || ctx.state.isSelfUniqueTalentEnabled("gilberta_messengers_song_2")
+      )
+    ) {
+      const baseGainPct = ctx.state.isSelfUniqueTalentEnabled("gilberta_messengers_song_2") ? 0.07 : 0.04;
+      const potentialBonus = ctx.state.isSelfPotentialActive(3) ? 0.05 : 0;
+      const totalGainPct = baseGainPct + potentialBonus;
+      const buffArgs = {
+        buffId: "gilberta_messengers_song",
+        label: "Messenger's Song",
+        durationSeconds: 9999,
+        timeScale: "game" as const,
+        hidden: false,
+        classes: ["Guard", "Caster", "Supporter"] as Array<"Guard" | "Caster" | "Supporter">,
+        effects: {
+          ULT_GAIN_PCT: totalGainPct,
+        },
+      };
+      ctx.state.applySelfBuff(buffArgs);
+      ctx.state.applyOtherTeammatesBuff(buffArgs);
+    }
+
+    if (ctx.event.type !== "ARTS_REACTION_APPLIED") {
+      return;
+    }
+
+    ctx.state.triggerSelfCombo({
+      sourceEventType: "ARTS_REACTION_APPLIED",
+      label: "Gilberta Combo Triggered",
+    });
+  },
+};
+
 const GILBERTA_COMMANDS: CommandDefinition[] = [
+  // Animation frame data is sourced from public/gamedata.json.
   {
     id: "gilberta_basic_sequence",
     name: "Basic Attack Sequence",
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
-    mode: "cycling",
-    durationFrames: flat12(214),
+    basicAttackVariant: "sequence",
+    durationFrames: flat12(213.84),
     spCost: flat12(0),
+    expandsToCommandIds: [
+      "gilberta_basic_sequence_1",
+      "gilberta_basic_sequence_2",
+      "gilberta_basic_sequence_3",
+      "gilberta_basic_sequence_4",
+    ],
+    hits: [],
+  },
+  {
+    id: "gilberta_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(37.8),
+    spCost: flat12(0),
+    splitMultiplier: true,
     hits: [
-      { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), offsetFrames: flat12(14) },
-      { name: "Hit 2", multiplier: pct([36, 40, 43, 47, 50, 54, 58, 61, 65, 69, 75, 81]), offsetFrames: flat12(46) },
-      { name: "Hit 3", multiplier: pct([41, 45, 49, 53, 57, 61, 65, 69, 73, 78, 84, 91]), offsetFrames: flat12(98) },
-      { name: "Hit 4", multiplier: pct([50, 55, 60, 65, 70, 75, 80, 85, 90, 96, 104, 112]), stagger: flat12(16), offsetFrames: flat12(178) },
+      { name: "Hit 1", multiplier: pct([30, 33, 36, 39, 42, 45, 48, 51, 54, 58, 62, 68]), offsetFrames: flat12(13.8) },
+    ],
+  },
+  {
+    id: "gilberta_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(46.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([36, 40, 43, 47, 50, 54, 58, 61, 65, 69, 75, 81]), offsetFrames: flat12(7.8) },
+      { name: "Hit 2", multiplier: pct([36, 40, 43, 47, 50, 54, 58, 61, 65, 69, 75, 81]), offsetFrames: flat12(16.02) },
+    ],
+  },
+  {
+    id: "gilberta_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(48),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      { name: "Hit 1", multiplier: pct([41, 45, 49, 53, 57, 61, 65, 69, 73, 78, 84, 91]), offsetFrames: flat12(13.98) },
+      { name: "Hit 2", multiplier: pct([41, 45, 49, 53, 57, 61, 65, 69, 73, 78, 84, 91]), offsetFrames: flat12(19.98) },
+      { name: "Hit 3", multiplier: pct([41, 45, 49, 53, 57, 61, 65, 69, 73, 78, 84, 91]), offsetFrames: flat12(28.02) },
+    ],
+  },
+  {
+    id: "gilberta_basic_sequence_4",
+    name: "Final Strike",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Nature",
+    hiddenInLibrary: true,
+    basicAttackVariant: "final_strike",
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 4,
+    durationFrames: flat12(82.02),
+    spCost: flat12(0),
+    splitMultiplier: true,
+    hits: [
+      {
+        name: "Hit 1",
+        multiplier: pct([50, 55, 60, 65, 70, 75, 80, 85, 90, 96, 104, 112]),
+        offsetFrames: flat12(46.02),
+      },
+      {
+        name: "Hit 2",
+        multiplier: pct([50, 55, 60, 65, 70, 75, 80, 85, 90, 96, 104, 112]),
+        offsetFrames: flat12(49.98),
+      },
+      {
+        name: "Hit 3",
+        multiplier: pct([50, 55, 60, 65, 70, 75, 80, 85, 90, 96, 104, 112]),
+        stagger: flat12(16),
+        spGenerated: flat12(16),
+        requiresControlledOperator: true,
+        offsetFrames: flat12(54),
+      },
     ],
   },
   {
@@ -25,6 +154,7 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
     mode: "single",
+    basicAttackVariant: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -36,6 +166,7 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
     mode: "single",
+    basicAttackVariant: "dive_attack",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
@@ -51,7 +182,7 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     spCost: flat12(100),
     energyGain: flat12(0),
     hits: [
-      { name: "Gravity Pull", multiplier: pct([97, 107, 117, 126, 136, 146, 156, 165, 175, 187, 202, 219]), offsetFrames: flat12(58) },
+      { name: "Gravity Pull", multiplier: pct([97, 107, 117, 126, 136, 146, 156, 165, 175, 187, 202, 219]), offsetFrames: flat12(58.2) },
       { name: "Explosion", multiplier: pct([58, 63, 69, 75, 81, 86, 92, 98, 104, 111, 120, 130]), stagger: flat12(10), offsetFrames: flat12(216) },
     ],
   },
@@ -62,9 +193,22 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     attackType: "COMBO_SKILL",
     damageType: "Nature",
     mode: "single",
-    durationFrames: flat12(106),
+    durationFrames: flat12(106.2),
+    timeFreezeSeconds: flat12(41 / 60),
+    comboCooldownSeconds: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 19],
+    comboCooldownTimeScale: "real",
     spCost: flat12(0),
-    hits: [{ multiplier: pct([140, 154, 168, 182, 196, 210, 224, 238, 252, 270, 291, 315]), stagger: flat12(5), offsetFrames: flat12(96) }],
+    hits: [{
+      multiplier: pct([140, 154, 168, 182, 196, 210, 224, 238, 252, 270, 291, 315]),
+      stagger: flat12(5),
+      offsetFrames: flat12(96),
+      effects: [{
+        type: "APPLY_REACTION",
+        reaction: "Lift",
+        forceApply: true,
+        reactionDamage: true,
+      }],
+    }],
   },
   {
     id: "gilberta_ultimate",
@@ -74,15 +218,55 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
     damageType: "Nature",
     mode: "single",
     durationFrames: flat12(128),
+    timeFreezeSeconds: flat12(65 / 60),
+    cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(90),
-    hits: [{ multiplier: pct([333, 367, 400, 433, 467, 500, 534, 567, 600, 642, 692, 750]), stagger: flat12(20), offsetFrames: flat12(120) }],
+    hits: [{
+      multiplier: pct([333, 367, 400, 433, 467, 500, 534, 567, 600, 642, 692, 750]),
+      stagger: flat12(20),
+      offsetFrames: flat12(120),
+      postEffects: [
+        {
+          type: "APPLY_STATUS",
+          target: "global",
+          statusId: "gilberta_gravity_field",
+          label: "Gravity Field",
+          durationSeconds: 5,
+          timeScale: "game",
+          periods: 10,
+          initialEffects: [
+            {
+              type: "APPLY_GILBERTA_GRAVITY_FIELD_SUS",
+              durationSeconds: 0.6,
+              baseSusPctScaling: pct([18, 18, 18, 22, 22, 22, 26, 26, 26, 30, 30, 30]),
+              perStackSusPctScaling: pct([1.8, 1.8, 1.8, 2.2, 2.2, 2.2, 2.6, 2.6, 2.6, 3, 3, 3]),
+              fourStackSusPctScaling: pct([25.2, 25.2, 25.2, 30.8, 30.8, 30.8, 36.4, 36.4, 36.4, 42, 42, 42]),
+            },
+          ],
+          periodicEffects: [
+            {
+              type: "APPLY_GILBERTA_GRAVITY_FIELD_SUS",
+              durationSeconds: 0.6,
+              baseSusPctScaling: pct([18, 18, 18, 22, 22, 22, 26, 26, 26, 30, 30, 30]),
+              perStackSusPctScaling: pct([1.8, 1.8, 1.8, 2.2, 2.2, 2.2, 2.6, 2.6, 2.6, 3, 3, 3]),
+              fourStackSusPctScaling: pct([25.2, 25.2, 25.2, 30.8, 30.8, 30.8, 36.4, 36.4, 36.4, 42, 42, 42]),
+            },
+          ],
+        },
+      ],
+    }, {name:"Gravity Field End", multiplier: flat12(0), registerOffsetFrames: flat12(120), offsetFrames: flat12(420) }],
   },
 ];
 
 export const GILBERTA: CharacterBase = {
   id: "gilberta",
   name: "Gilberta",
+  skillIconPaths: {
+    battleSkill: "/avatars/GILBERTA/icon_skill_aglina_01.webp",
+    comboSkill: "/avatars/GILBERTA/icon_combo_skill_aglina_01.webp",
+    ultimate: "/avatars/GILBERTA/icon_ultimate_skill_aglina_01.webp",
+  },
   rarity: 6,
   class: "Supporter",
   element: "Nature",
@@ -92,6 +276,63 @@ export const GILBERTA: CharacterBase = {
   },
   mainAttr: "WIL",
   secondaryAttr: "INT",
+  combatHooks: GILBERTA_COMBAT_HOOKS,
+  uniqueTalentDefs: {
+    gilberta_messengers_song_1: {
+      name: "Messenger's Song I",
+      condition: {
+        minEliteStage: 1,
+      },
+    },
+    gilberta_messengers_song_2: {
+      name: "Messenger's Song II",
+      condition: {
+        minEliteStage: 2,
+        requiresUniqueTalentsEnabled: ["gilberta_messengers_song_1"],
+      },
+    },
+    gilberta_belated_reply_1: {
+      name: "Belated Reply I",
+      condition: {
+        minEliteStage: 2,
+      },
+    },
+    gilberta_belated_reply_2: {
+      name: "Belated Reply II",
+      condition: {
+        minEliteStage: 3,
+        requiresUniqueTalentsEnabled: ["gilberta_belated_reply_1"],
+      },
+    },
+  },
+  mutateResolvedCommands: (commands, ctx) => {
+    const potentialLevel = ctx.buildState.potentialLevel ?? 0;
+    if (potentialLevel <= 0) {
+      return commands;
+    }
+
+    return commands.map((command) => {
+      if (command.id === "gilberta_ultimate" && potentialLevel >= 4) {
+        return {
+          ...command,
+          energyCost: Math.max(0, command.energyCost * 0.85),
+        };
+      }
+
+      if (command.id === "gilberta_combo_skill" && potentialLevel >= 5) {
+        return {
+          ...command,
+          comboCooldownSeconds: Math.max(0, command.comboCooldownSeconds - 2),
+          hits: command.hits.map((hit) => ({
+            ...hit,
+            multiplier: hit.multiplier * 1.3,
+          })),
+        };
+      }
+
+      return command;
+    });
+  },
   levels: {
     STR: [
         9, 9, 10, 11, 12, 13, 14, 15, 16, 17,
