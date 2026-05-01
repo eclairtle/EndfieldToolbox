@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useLocale } from "@/i18n/useLocale";
 import type {
   CharacterCombatSnapshot,
@@ -55,6 +56,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useLocale();
+const critRiggingExpanded = ref(false);
 
 function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_crit" | "force_non_crit" {
   const rule = props.selectedStepCritRigRules.find((entry) => entry.hitIndex === hitIndex && entry.repeatIndex === repeatIndex);
@@ -308,8 +310,20 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
       </div>
 
       <div v-if="selectedStepHitRigOptions.length > 0" class="rounded-xl border border-[#ececec] bg-white px-3 py-3">
-        <div class="mb-2 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">Crit Rigging</div>
-        <div class="space-y-2">
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">Crit Rigging</div>
+          <button
+            type="button"
+            class="rounded-lg border border-[#d4d4d4] bg-white px-2.5 py-1 text-xs text-[#333] transition hover:bg-[#f5f5f5]"
+            @click="critRiggingExpanded = !critRiggingExpanded"
+          >
+            {{ critRiggingExpanded ? t("ui.collapse") : t("ui.expand") }}
+          </button>
+        </div>
+        <div v-if="!critRiggingExpanded" class="text-xs text-[#8a8a8a]">
+          Crit rigging hidden.
+        </div>
+        <div v-else class="space-y-2">
           <label
             v-for="hitOption in selectedStepHitRigOptions"
             :key="`crit-rig-${hitOption.hitIndex}-${hitOption.repeatIndex}`"

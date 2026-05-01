@@ -907,6 +907,7 @@ const riggedCritChance = computed(() => {
 const hitTimelineExpanded = ref(false);
 const eventLogExpanded = ref(false);
 const comboTriggerDebugExpanded = ref(false);
+const debugMode = ref(false);
 const liveModifiersExpanded = ref(false);
 const selectedHitForDetails = ref<RotationSimulationResult["timeline"][number] | null>(null);
 const defaultModifierStats = makeBaseModifierStats();
@@ -4625,7 +4626,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           </div>
         </section>
 
-        <section class="mt-4 rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
+        <section v-if="debugMode" class="mt-4 rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
               <div class="text-sm font-semibold text-[#1b1b1b]">Debug Event Log (Temporary)</div>
@@ -4679,7 +4680,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           </div>
         </section>
 
-        <section class="mt-4 rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
+        <section v-if="debugMode" class="mt-4 rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
               <div class="text-sm font-semibold text-[#1b1b1b]">Combo Trigger Debug (Temporary)</div>

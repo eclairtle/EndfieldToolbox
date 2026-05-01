@@ -12,6 +12,7 @@ export default defineConfig({
     process.env.VITE_ENABLE_DEVTOOLS === '1' ? vueDevTools() : null,
     tailwindcss(),
   ].filter(Boolean),
+  base: '/EndfieldToolbox/',
   server: {
     watch: {
       ignored: [
