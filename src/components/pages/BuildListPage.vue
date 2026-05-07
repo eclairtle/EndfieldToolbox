@@ -28,6 +28,9 @@ const editingBuildId = ref<string | null>(null);
 const renameDraft = ref("");
 const pendingDeleteBuildId = ref<string | null>(null);
 const { t } = useLocale();
+const MAX_BUILDS_PER_USER = 6;
+const buildCountLabel = computed(() => `${props.builds.length} / ${MAX_BUILDS_PER_USER}`);
+const canCreateBuild = computed(() => props.builds.length < MAX_BUILDS_PER_USER);
 
 function getSlotImages(slot: CharacterBuildSlot) {
   const character = slot.selectedCharId ? charactersById.value.get(slot.selectedCharId) ?? null : null;
@@ -85,7 +88,10 @@ function confirmDelete() {
     <div class="flex items-center justify-between gap-4">
       <div>
         <div class="text-xs uppercase tracking-[0.26em] text-[#7d7d7d]">{{ t("buildList.manager") }}</div>
-        <h2 class="mt-1 text-2xl font-semibold text-[#1b1b1b]">{{ t("buildList.title") }}</h2>
+        <div class="mt-1 flex items-center gap-3">
+          <h2 class="text-2xl font-semibold text-[#1b1b1b]">{{ t("buildList.title") }}</h2>
+          <span class="rounded-md border border-[#dddddd] bg-[#f7f7f7] px-2 py-0.5 text-xs text-[#666]">{{ buildCountLabel }}</span>
+        </div>
       </div>
     </div>
 
@@ -202,6 +208,7 @@ function confirmDelete() {
       </article>
 
       <button
+        v-if="canCreateBuild"
         type="button"
         class="flex min-h-[240px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#cfcfcf] bg-white p-4 text-[#666] transition hover:border-[#b8b8b8] hover:text-[#333]"
         @click="emit('create')"

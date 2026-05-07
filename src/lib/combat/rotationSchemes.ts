@@ -18,6 +18,7 @@ let stateRef: Ref<RotationSchemesState> | null = null;
 let initialized = false;
 const BUILD_STORAGE_SCOPE_DEFAULT = "__default__";
 let activeBuildScopeId = BUILD_STORAGE_SCOPE_DEFAULT;
+const MAX_ROTATION_SCHEMES_PER_BUILD = 2;
 
 function createRotation(): Rotation {
   return { steps: [], groups: [], critRiggingRules: [] };
@@ -200,10 +201,14 @@ export function useRotationSchemes(buildIdRef?: Ref<string | undefined>) {
     }
   }
 
-  function addScheme() {
+  function addScheme(): boolean {
+    if (state.value.schemes.length >= MAX_ROTATION_SCHEMES_PER_BUILD) {
+      return false;
+    }
     const scheme = createScheme(state.value.schemes.length + 1);
     state.value.schemes.push(scheme);
     state.value.activeSchemeId = scheme.id;
+    return true;
   }
 
   function renameActiveScheme(name: string) {

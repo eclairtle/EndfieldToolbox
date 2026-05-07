@@ -93,6 +93,8 @@ const SWITCH_BACK_COOLDOWN_SECONDS = 2;
 const TIMELINE_ROW_HEIGHT = 112;
 const CONTROL_TRACK_OFFSET = 16;
 const ENEMY_FINISHER_AVAILABLE_STATUS_ID = "enemy_finisher_available";
+const MAX_STEPS_PER_ROTATION = 256;
+const MAX_ROTATIONS_PER_BUILD = 2;
 
 function makeStepId(): string {
   return `step_${Math.random().toString(36).slice(2, 10)}`;
@@ -249,6 +251,8 @@ const selectedEnemyCommandId = ref<string | null>(null);
 const cursorTime = ref(0);
 const teamSpConfigByScheme = ref<Record<string, TeamSpConfig>>(loadTeamSpConfigByScheme());
 const enemyCommandLayoutsByScheme = ref<EnemyCommandLayoutsByScheme>(loadEnemyCommandLayoutsByScheme());
+const rotationCountLabel = computed(() => `${rotationSchemes.value.schemes.length} / ${MAX_ROTATIONS_PER_BUILD}`);
+const canCreateRotationScheme = computed(() => rotationSchemes.value.schemes.length < MAX_ROTATIONS_PER_BUILD);
 const teamSpConfig = computed<TeamSpConfig>(() => {
   const schemeId = activeScheme.value.id;
   const existing = teamSpConfigByScheme.value[schemeId];
@@ -2646,6 +2650,46 @@ function addExpandedSteps(
   let firstCreatedStepId: string | null = null;
   let expandedCount = 0;
 
+  const pruneStaleSteps = (): number => {
+    const commandIdsBySlot = new Map<PartySlot, Set<string>>();
+    for (const [slotKey, snapshot] of partyBySlot.value.entries()) {
+      commandIdsBySlot.set(slotKey, new Set(snapshot.commands.map((entry) => entry.id)));
+    }
+
+    const staleStepIds = new Set<string>();
+    for (const step of rotation.value.steps) {
+      const validCommandIds = commandIdsBySlot.get(step.slot);
+      if (!validCommandIds || !validCommandIds.has(step.commandId)) {
+        staleStepIds.add(step.id);
+      }
+    }
+    if (staleStepIds.size === 0) {
+      return 0;
+    }
+
+    rotation.value.steps = rotation.value.steps.filter((step) => !staleStepIds.has(step.id));
+    rotation.value.critRiggingRules = (rotation.value.critRiggingRules ?? []).filter(
+      (rule) => !staleStepIds.has(rule.stepId),
+    );
+    const usedGroupIds = new Set(rotation.value.steps.map((step) => step.groupId).filter(Boolean));
+    rotation.value.groups = (rotation.value.groups ?? []).filter((group) => usedGroupIds.has(group.id));
+    return staleStepIds.size;
+  };
+
+  const ensureStepCapacity = () => {
+    if (rotation.value.steps.length < MAX_STEPS_PER_ROTATION) {
+      return true;
+    }
+    pruneStaleSteps();
+    if (rotation.value.steps.length >= MAX_STEPS_PER_ROTATION) {
+      if (typeof window !== "undefined") {
+        window.alert("maximum steps reached");
+      }
+      return false;
+    }
+    return true;
+  };
+
   const appendResolvedCommand = (
     commandId: string,
     atStart: number,
@@ -2669,6 +2713,10 @@ function addExpandedSteps(
         nextStart = appendResolvedCommand(nestedCommandId, nextStart, depth + 1);
       }
       return nextStart;
+    }
+
+    if (!ensureStepCapacity()) {
+      return atStart;
     }
 
     const nextStep: RotationStep = {
@@ -2755,7 +2803,13 @@ function updateSelectedStepCritRigging(args: {
 }
 
 function createRotationScheme() {
-  addScheme();
+  const created = addScheme();
+  if (!created) {
+    if (typeof window !== "undefined") {
+      window.alert("maximum rotations reached");
+    }
+    return;
+  }
   sidebarMode.value = "character";
   selectedLibrarySlot.value = 0;
 }
@@ -4132,7 +4186,10 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
       <div class="flex flex-wrap items-center justify-between gap-4 border-b border-[#ececec] px-5 py-4">
         <div>
           <div class="text-xs uppercase tracking-[0.24em] text-[#777]">{{ t("rotation.axisWorkspace") }}</div>
-          <div class="mt-1 text-lg font-semibold">{{ t("rotation.combatRotation") }}</div>
+          <div class="mt-1 flex items-center gap-3">
+            <div class="text-lg font-semibold">{{ t("rotation.combatRotation") }}</div>
+            <span class="rounded-md border border-[#dddddd] bg-[#f7f7f7] px-2 py-0.5 text-xs text-[#666]">{{ rotationCountLabel }}</span>
+          </div>
           <div class="mt-3 flex flex-wrap items-center gap-2">
             <button
               v-for="scheme in rotationSchemes.schemes"
@@ -4147,6 +4204,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               {{ scheme.name }}
             </button>
             <button
+              v-if="canCreateRotationScheme"
               type="button"
               class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8d8d8] bg-white text-[#555] transition hover:bg-[#f6f6f6]"
               @click="createRotationScheme"

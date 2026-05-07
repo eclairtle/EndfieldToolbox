@@ -3,7 +3,9 @@ import { computed, ref, watch } from "vue";
 import {
   BUILD_LIST_STORAGE_KEY,
   BUILD_STORE_STORAGE_KEY,
+  ROTATION_ENEMY_COMMANDS_STORAGE_KEY,
   ROTATION_SCHEMES_STORAGE_KEY,
+  ROTATION_SP_STORAGE_KEY,
 } from "@/lib/storageKeys";
 import type { BuildStoreStateSnapshot } from "@/stores/buildStore";
 import { createDefaultBuildStoreStateSnapshot } from "@/stores/buildStore";
@@ -79,6 +81,10 @@ function makeDefaultExampleBuildLastRite(): SavedBuild {
       lastrite_talent_ult_sus_scale_1: true,
       lastrite_talent_ult_sus_scale_2: true,
     };
+    slot1.armor = { gearId: "item_equip_t4_suit_attri01_body_03", subLevels: [1, 3, 3] };
+    slot1.gloves = { gearId: "item_equip_t4_suit_burst01_hand_01", subLevels: [3, 1, 3] };
+    slot1.kit1 = { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 1, 3] };
+    slot1.kit2 = { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 2, 3] };
 
     slot2.selectedCharId = "ardelia";
     slot2.characterAscension = 4;
@@ -96,6 +102,10 @@ function makeDefaultExampleBuildLastRite(): SavedBuild {
       ardelia_friendly_presence_3: true,
       ardelia_mountainpeak_surfer: true,
     };
+    slot2.armor = { gearId: "item_equip_t4_suit_criti01_body_03", subLevels: [0, 0, 0] };
+    slot2.gloves = { gearId: "item_equip_t4_suit_fire_natr01_hand_03", subLevels: [0, 0, 0] };
+    slot2.kit1 = { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] };
+    slot2.kit2 = { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] };
 
     slot3.selectedCharId = "xaihi";
     slot3.characterAscension = 4;
@@ -112,6 +122,10 @@ function makeDefaultExampleBuildLastRite(): SavedBuild {
       xaihi_execute_process_2: true,
       xaihi_freeze_protocol: true,
     };
+    slot3.armor = { gearId: "item_equip_t4_suit_usp02_body_01", subLevels: [0, 0, 0] };
+    slot3.gloves = { gearId: "item_equip_t4_suit_usp02_hand_02", subLevels: [3, 0, 0] };
+    slot3.kit1 = { gearId: "item_equip_t4_suit_usp02_edc_02", subLevels: [0, 0, 0] };
+    slot3.kit2 = { gearId: "item_equip_t4_suit_atb01_edc_04", subLevels: [0, 3, 3] };
 
     slot4.selectedCharId = "perlica";
     slot4.characterAscension = 4;
@@ -128,12 +142,18 @@ function makeDefaultExampleBuildLastRite(): SavedBuild {
       perlica_talent_staggered_damage_2: true,
       perlica_talent_combo_chain_1: true,
     };
+    slot4.armor = { gearId: "item_equip_t4_suit_pulse_cryst01_body_01", subLevels: [0, 0, 3] };
+    slot4.gloves = { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [0, 0, 2] };
+    slot4.kit1 = { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] };
+    slot4.kit2 = { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] };
   }
   build.currentBuildState.activeSlotIndex = 2;
   build.plannedBuildState = cloneJson(build.currentBuildState);
 
   const scheme = build.rotationState.schemes[0];
   if (scheme) {
+    scheme.id = "rotation_example_lastrite_1";
+    scheme.name = "Rotation 1";
     scheme.rotation.steps = [
       { id: "step_dhqgyd0z", slot: 0, commandId: "lastrite_battle_skill", startTime: -9.7 },
       { id: "step_g7hi63io", slot: 2, commandId: "xaihi_battle_skill", startTime: -8.2 },
@@ -163,6 +183,7 @@ function makeDefaultExampleBuildLastRite(): SavedBuild {
       { id: "step_37oyofyd", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 8 },
       { id: "step_i53frg0n", slot: 0, commandId: "lastrite_combo_skill", startTime: 8.8 },
     ];
+    build.rotationState.activeSchemeId = scheme.id;
   }
 
   build.rotationState.enemyLevel = 90;
@@ -177,6 +198,70 @@ function makeDefaultExampleBuildLastRite(): SavedBuild {
     endTime: 60,
   };
   return build;
+}
+
+function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const activeSchemeId = build.rotationState.activeSchemeId;
+  if (!activeSchemeId) {
+    return;
+  }
+
+  const spRaw = window.localStorage.getItem(ROTATION_SP_STORAGE_KEY);
+  let spParsed: { byBuild?: Record<string, { byScheme?: Record<string, unknown> }> } = {};
+  if (spRaw) {
+    try {
+      spParsed = JSON.parse(spRaw) as typeof spParsed;
+    } catch {
+      spParsed = {};
+    }
+  }
+  if (!spParsed.byBuild) {
+    spParsed.byBuild = {};
+  }
+  spParsed.byBuild[build.id] = {
+    byScheme: {
+      [activeSchemeId]: {
+        initialSp: 200,
+        spRegenRate: 8,
+        startingEnergyBySlot: [100, 100, 100, 100],
+        consumableBySlot: [null, null, null, null],
+      },
+    },
+  };
+  window.localStorage.setItem(ROTATION_SP_STORAGE_KEY, JSON.stringify(spParsed));
+
+  const enemyRaw = window.localStorage.getItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY);
+  let enemyParsed: { byBuild?: Record<string, { byScheme?: Record<string, Record<string, unknown[]>> }> } = {};
+  if (enemyRaw) {
+    try {
+      enemyParsed = JSON.parse(enemyRaw) as typeof enemyParsed;
+    } catch {
+      enemyParsed = {};
+    }
+  }
+  if (!enemyParsed.byBuild) {
+    enemyParsed.byBuild = {};
+  }
+  enemyParsed.byBuild[build.id] = {
+    byScheme: {
+      [activeSchemeId]: {
+        rhodagn: [
+          {
+            id: "rhodagn_phase_transition",
+            commandId: "phase_transition",
+            startTime: 21.1,
+            interrupted: false,
+            interruptedSpGain: 0,
+            interruptedStagger: 0,
+          },
+        ],
+      },
+    },
+  };
+  window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify(enemyParsed));
 }
 
 function cloneJson<T>(value: T): T {
@@ -247,6 +332,7 @@ function isBuildRuntimeBlank(build: SavedBuild): boolean {
 }
 
 export const useBuildListStore = defineStore("buildListStore", () => {
+  const MAX_BUILDS_PER_USER = 6;
   const builds = ref<SavedBuild[]>([]);
   const activeBuildId = ref<string>("");
 
@@ -318,6 +404,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
 
       const first = makeDefaultBuild(1);
       const example = makeDefaultExampleBuildLastRite();
+      seedDefaultRotationUiStateForBuild(example);
       builds.value = [example, first];
       activeBuildId.value = example.id;
       return;
@@ -374,7 +461,10 @@ export const useBuildListStore = defineStore("buildListStore", () => {
 
   const activeBuild = computed(() => builds.value.find((build) => build.id === activeBuildId.value) ?? null);
 
-  function createBuild() {
+  function createBuild(): string | null {
+    if (builds.value.length >= MAX_BUILDS_PER_USER) {
+      return null;
+    }
     const next = makeDefaultBuild(builds.value.length + 1);
     builds.value.push(next);
     return next.id;

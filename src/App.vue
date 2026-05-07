@@ -828,6 +828,12 @@ function updateActiveDamageTallyTiming(next: DamageTallyTiming) {
 function createBuild() {
   persistCurrentBuild();
   const id = buildListStore.createBuild();
+  if (!id) {
+    if (typeof window !== "undefined") {
+      window.alert("maximum builds reached");
+    }
+    return;
+  }
   void router.push({ name: "build-builder", params: { buildId: id } });
 }
 
