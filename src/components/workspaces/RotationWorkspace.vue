@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 
 import { useBuildStore, type CharacterBuildSlot } from "@/stores/buildStore";
@@ -64,11 +64,17 @@ const props = defineProps<{
   enemyStaggerRecoverySeconds: number;
   enemyFinisherMultiplier: number;
   enemyFinisherSpGain: number;
+  damageTallyTiming?: {
+    enabled: boolean;
+    startTime: number;
+    endTime: number;
+  };
 }>();
 
 const emit = defineEmits<{
   (e: "update:selectedEnemyId", value: string): void;
   (e: "update:enemyLevel", value: number): void;
+  (e: "update:damageTallyTiming", value: { enabled: boolean; startTime: number; endTime: number }): void;
 }>();
 
 const buildStore = useBuildStore();
@@ -79,6 +85,9 @@ const AXIS_SCALE = 116;
 const AXIS_SNAP_SECONDS = 0.1;
 const TRACK_LABEL_WIDTH = 160;
 const TEAM_SP_MAX = 300;
+const PRE_BATTLE_SP_MAX = 200;
+const PRE_BATTLE_SP_REGEN_RATE = 50;
+const PRE_BATTLE_SECONDS = 10;
 const GENERATED_SP_TEAM_ENERGY_RATE = 0.065;
 const SWITCH_BACK_COOLDOWN_SECONDS = 2;
 const TIMELINE_ROW_HEIGHT = 112;
@@ -183,7 +192,7 @@ function normalizeEnemyCommandPlacement(value: Partial<EnemyCommandPlacement> | 
   return {
     id: value.id,
     commandId: value.commandId,
-    startTime: Math.max(0, Number(value.startTime ?? 0)),
+    startTime: Number(value.startTime ?? 0),
     interrupted: value.interrupted === true,
     interruptedSpGain: Math.max(0, Number(value.interruptedSpGain ?? 0)),
     interruptedStagger: Math.max(0, Number(value.interruptedStagger ?? 0)),
@@ -258,7 +267,9 @@ const teamSpConfig = computed<TeamSpConfig>(() => {
 const commandListExpanded = ref(true);
 const statusListExpanded = ref(true);
 const enemyCommandDefinitions = computed(() => getEnemyCommandDefinitions(props.selectedEnemyId));
-const enemyCommands = computed<EnemyCommandPlacement[]>(() => {
+const enemyCommands = ref<EnemyCommandPlacement[]>([]);
+
+function ensureEnemyCommandsForActiveContext(): EnemyCommandPlacement[] {
   const schemeId = activeScheme.value.id;
   const enemyId = props.selectedEnemyId;
   const byEnemy = enemyCommandLayoutsByScheme.value[schemeId] ?? {};
@@ -273,8 +284,34 @@ const enemyCommands = computed<EnemyCommandPlacement[]>(() => {
 
   const defaults = getDefaultEnemyCommandPlacements(enemyId);
   byEnemy[enemyId] = defaults.map((entry) => ({ ...entry }));
-  return byEnemy[enemyId];
-});
+  return byEnemy[enemyId]!;
+}
+
+function syncEnemyCommandsFromLayouts() {
+  enemyCommands.value = ensureEnemyCommandsForActiveContext().map((entry) => ({ ...entry }));
+}
+
+watch(
+  [() => activeScheme.value.id, () => props.selectedEnemyId],
+  () => {
+    syncEnemyCommandsFromLayouts();
+  },
+  { immediate: true },
+);
+
+watch(
+  enemyCommands,
+  (value) => {
+    const schemeId = activeScheme.value.id;
+    const enemyId = props.selectedEnemyId;
+    if (!enemyCommandLayoutsByScheme.value[schemeId]) {
+      enemyCommandLayoutsByScheme.value[schemeId] = {};
+    }
+    enemyCommandLayoutsByScheme.value[schemeId]![enemyId] = value.map((entry) => ({ ...entry }));
+  },
+  { deep: true },
+);
+
 const enemyTimelineCommands = computed(() => {
   const definitionById = new Map(enemyCommandDefinitions.value.map((entry) => [entry.id, entry]));
   return enemyCommands.value
@@ -283,7 +320,7 @@ const enemyTimelineCommands = computed(() => {
       if (!definition) {
         return null;
       }
-      const startTime = Math.max(0, roundToSnap(entry.startTime));
+      const startTime = roundToSnap(entry.startTime);
       return {
         ...entry,
         label: definition.label,
@@ -384,23 +421,29 @@ watch(
 
 watch(
   () => props.buildId,
-  () => {
+  async () => {
     teamSpConfigByScheme.value = loadTeamSpConfigByScheme();
     enemyCommandLayoutsByScheme.value = loadEnemyCommandLayoutsByScheme();
+    syncEnemyCommandsFromLayouts();
     setSelectedStepIds(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);
     selectionAnchorId.value = rotation.value.steps[0]?.id ?? null;
     selectedEnemyCommandId.value = null;
     cursorTime.value = 0;
+    await nextTick();
+    resetTimelineViewport();
   },
 );
 
 watch(
   () => activeScheme.value.id,
-  () => {
+  async () => {
+    syncEnemyCommandsFromLayouts();
     setSelectedStepIds(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);
     selectionAnchorId.value = rotation.value.steps[0]?.id ?? null;
     selectedEnemyCommandId.value = null;
     cursorTime.value = 0;
+    await nextTick();
+    resetTimelineViewport();
   },
 );
 
@@ -823,31 +866,144 @@ const simulation = computed(() =>
   }),
 );
 
+const localTallyEnabled = ref(props.damageTallyTiming?.enabled === true);
+const localTallyStartTime = ref(props.damageTallyTiming?.startTime ?? 0);
+const localTallyEndTime = ref(props.damageTallyTiming?.endTime ?? 60);
+
+watch(
+  () => props.damageTallyTiming,
+  (next) => {
+    localTallyEnabled.value = next?.enabled === true;
+    localTallyStartTime.value = next?.startTime ?? 0;
+    localTallyEndTime.value = next?.endTime ?? 60;
+  },
+  { immediate: true, deep: true },
+);
+
+function emitDamageTallyTimingUpdate() {
+  emit("update:damageTallyTiming", {
+    enabled: localTallyEnabled.value,
+    startTime: Number.isFinite(localTallyStartTime.value) ? localTallyStartTime.value : 0,
+    endTime: Number.isFinite(localTallyEndTime.value) ? localTallyEndTime.value : 60,
+  });
+}
+
+const autoTallyStartTime = computed(() => {
+  if (simulation.value.actions.length <= 0) {
+    return 0;
+  }
+  const firstActionStart = simulation.value.actions.reduce(
+    (min, action) => Math.min(min, action.realStartTime),
+    Number.POSITIVE_INFINITY,
+  );
+  if (!Number.isFinite(firstActionStart)) {
+    return 0;
+  }
+  return Math.max(0, firstActionStart);
+});
+
+const autoTallyEndTime = computed(() => {
+  if (simulation.value.timeline.length > 0) {
+    return simulation.value.timeline.reduce((max, entry) => Math.max(max, entry.time), 0);
+  }
+  if (simulation.value.actions.length > 0) {
+    return simulation.value.actions.reduce((max, action) => Math.max(max, action.realEndTime), 0);
+  }
+  return 0;
+});
+
+const displayedTallyStartTime = computed(() =>
+  localTallyEnabled.value ? localTallyStartTime.value : autoTallyStartTime.value,
+);
+const displayedTallyEndTime = computed(() =>
+  localTallyEnabled.value ? localTallyEndTime.value : autoTallyEndTime.value,
+);
+
+const tallyWindowSummary = computed(() => {
+  if (!localTallyEnabled.value) {
+    const start = autoTallyStartTime.value;
+    const end = autoTallyEndTime.value;
+    const duration = Math.max(0, end - start);
+    const totalDamage = simulation.value.timeline
+      .filter((entry) => entry.time >= start - 0.0001 && entry.time <= end + 0.0001)
+      .reduce((sum, entry) => sum + entry.damage, 0);
+    return {
+      totalDamage,
+      dps: duration > 0 ? totalDamage / duration : 0,
+      start,
+      end,
+    };
+  }
+
+  const start = Math.min(localTallyStartTime.value, localTallyEndTime.value);
+  const end = Math.max(localTallyStartTime.value, localTallyEndTime.value);
+  const duration = Math.max(0, end - start);
+  const totalDamage = simulation.value.timeline
+    .filter((entry) => entry.time >= start - 0.0001 && entry.time <= end + 0.0001)
+    .reduce((sum, entry) => sum + entry.damage, 0);
+
+  return {
+    totalDamage,
+    dps: duration > 0 ? totalDamage / duration : 0,
+    start,
+    end,
+  };
+});
+
+function floorToSnap(value: number): number {
+  return Math.floor(value / AXIS_SNAP_SECONDS) * AXIS_SNAP_SECONDS;
+}
+
+function roundToPrecision(value: number, digits = 6): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+const timelineStart = computed(() => {
+  const preBattleStartRealTime = toRealTimeFromExtensions(-PRE_BATTLE_SECONDS, simulation.value.timeExtensions);
+  return Math.min(-PRE_BATTLE_SECONDS, floorToSnap(roundToPrecision(preBattleStartRealTime)));
+});
 const timelineDuration = computed(() => Math.max(12, Math.ceil(simulation.value.totalTime + 2)));
-const timelineWidth = computed(() => timelineDuration.value * AXIS_SCALE);
+const timelineWidth = computed(() => (timelineDuration.value - timelineStart.value) * AXIS_SCALE);
 
 const realSeconds = computed(() =>
-  Array.from({ length: timelineDuration.value + 1 }, (_, index) => index),
+  Array.from(
+    {
+      length: Math.max(0, Math.floor(timelineDuration.value) - Math.ceil(timelineStart.value) + 1),
+    },
+    (_, index) => Math.ceil(timelineStart.value) + index,
+  ),
 );
 
 const gameTimelineDuration = computed(() => {
   const latestCursorGameTime = toGameTimeFromExtensions(cursorTime.value, simulation.value.timeExtensions);
-  return Math.max(0, Math.ceil(Math.max(simulation.value.totalGameTime, latestCursorGameTime)));
+  return Math.ceil(Math.max(simulation.value.totalGameTime, latestCursorGameTime));
 });
 
 const gameSeconds = computed(() =>
-  Array.from({ length: gameTimelineDuration.value + 1 }, (_, index) => ({
-    value: index,
-    realTime: toRealTimeFromExtensions(index, simulation.value.timeExtensions),
-  })).filter((entry) => entry.realTime <= timelineDuration.value),
+  (() => {
+    const gameStart = Math.ceil(toGameTimeFromExtensions(timelineStart.value, simulation.value.timeExtensions));
+    const gameEnd = Math.floor(gameTimelineDuration.value);
+    return Array.from(
+      { length: Math.max(0, gameEnd - gameStart + 1) },
+      (_, index) => gameStart + index,
+    ).map((value) => ({
+      value,
+      realTime: toRealTimeFromExtensions(value, simulation.value.timeExtensions),
+    })).filter((entry) => entry.realTime >= timelineStart.value - 0.0001 && entry.realTime <= timelineDuration.value + 0.0001);
+  })(),
 );
+const preBattleBandStyle = computed(() => ({
+  left: "0px",
+  width: `${Math.max(0, timeToPx(0))}px`,
+}));
 
 const enemyInvulnerabilityWindows = computed(() =>
   simulation.value.enemyActionWindows
-    .filter((window) => window.invulnerable && window.endTime > 0 && window.startTime < timelineDuration.value)
+    .filter((window) => window.invulnerable && window.endTime > timelineStart.value && window.startTime < timelineDuration.value)
     .map((window) => ({
       ...window,
-      start: Math.max(0, window.startTime),
+      start: Math.max(timelineStart.value, window.startTime),
       end: Math.min(timelineDuration.value, window.endTime),
       color: window.tintColor ?? "rgba(215, 64, 64, 0.25)",
     }))
@@ -856,10 +1012,10 @@ const enemyInvulnerabilityWindows = computed(() =>
 
 const enemyPhaseTransitionWindows = computed(() =>
   simulation.value.enemyActionWindows
-    .filter((window) => window.commandId === "phase_transition" && window.endTime > 0 && window.startTime < timelineDuration.value)
+    .filter((window) => window.commandId === "phase_transition" && window.endTime > timelineStart.value && window.startTime < timelineDuration.value)
     .map((window) => ({
       ...window,
-      start: Math.max(0, window.startTime),
+      start: Math.max(timelineStart.value, window.startTime),
       end: Math.min(timelineDuration.value, window.endTime),
       color: "rgba(140, 72, 194, 0.16)",
       borderColor: "rgba(116, 62, 162, 0.48)",
@@ -880,11 +1036,21 @@ const linkEnhancedStepIdSet = computed(() => new Set(simulation.value.linkEnhanc
 
 const DAMAGE_CONTRIBUTION_COLORS = ["#d9cf57", "#73b45d", "#5c9fe8", "#d07fc7"];
 const damageContributions = computed(() => {
-  const totalDamage = simulation.value.totalDamage;
+  const start = tallyWindowSummary.value.start;
+  const end = tallyWindowSummary.value.end;
+  const damageBySlotInWindow = new Map<PartySlot, number>();
+  for (const hit of simulation.value.timeline) {
+    if (hit.time < start - 0.0001 || hit.time > end + 0.0001) {
+      continue;
+    }
+    damageBySlotInWindow.set(hit.slot, (damageBySlotInWindow.get(hit.slot) ?? 0) + hit.damage);
+  }
+  const totalDamage = tallyWindowSummary.value.totalDamage;
   return simulation.value.damageBySlot.map((entry, index) => ({
     ...entry,
+    damage: damageBySlotInWindow.get(entry.slot) ?? 0,
     color: DAMAGE_CONTRIBUTION_COLORS[index % DAMAGE_CONTRIBUTION_COLORS.length],
-    percent: totalDamage > 0 ? (entry.damage / totalDamage) * 100 : 0,
+    percent: totalDamage > 0 ? ((damageBySlotInWindow.get(entry.slot) ?? 0) / totalDamage) * 100 : 0,
     localizedCharacterName: getLocalizedCharacterName(
       partyBySlot.value.get(entry.slot)?.characterId,
       entry.characterName,
@@ -1111,15 +1277,38 @@ const selectedHitDetails = computed(() => {
       default: return 0;
     }
   };
-  const getSus = (damageType: string, mods: ModifierStats): number => {
+  const getSus = (damageType: string, enemyMods: ModifierStats, attackerMods: ModifierStats): number => {
+    const genericSus = enemyMods.SUS_PCT * (1 + attackerMods.SUS_ENHANCE_PCT);
     switch (damageType) {
-      case "Physical": return mods.PHYSICAL_SUS_PCT;
-      case "Heat": return mods.ARTS_SUS_PCT + mods.HEAT_SUS_PCT;
-      case "Cryo": return mods.ARTS_SUS_PCT + mods.CRYO_SUS_PCT;
-      case "Electric": return mods.ARTS_SUS_PCT + mods.ELECTRIC_SUS_PCT;
-      case "Nature": return mods.ARTS_SUS_PCT + mods.NATURE_SUS_PCT;
-      case "Aether": return mods.ARTS_SUS_PCT + mods.AETHER_SUS_PCT;
-      default: return 0;
+      case "Physical":
+        return genericSus + enemyMods.PHYSICAL_SUS_PCT * (1 + attackerMods.PHYSICAL_SUS_ENHANCE_PCT);
+      case "Heat":
+        return genericSus + (
+          enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+          + enemyMods.HEAT_SUS_PCT * (1 + attackerMods.HEAT_SUS_ENHANCE_PCT)
+        );
+      case "Cryo":
+        return genericSus + (
+          enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+          + enemyMods.CRYO_SUS_PCT * (1 + attackerMods.CRYO_SUS_ENHANCE_PCT)
+        );
+      case "Electric":
+        return genericSus + (
+          enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+          + enemyMods.ELECTRIC_SUS_PCT * (1 + attackerMods.ELECTRIC_SUS_ENHANCE_PCT)
+        );
+      case "Nature":
+        return genericSus + (
+          enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+          + enemyMods.NATURE_SUS_PCT * (1 + attackerMods.NATURE_SUS_ENHANCE_PCT)
+        );
+      case "Aether":
+        return genericSus + (
+          enemyMods.ARTS_SUS_PCT * (1 + attackerMods.ARTS_SUS_ENHANCE_PCT)
+          + enemyMods.AETHER_SUS_PCT * (1 + attackerMods.AETHER_SUS_ENHANCE_PCT)
+        );
+      default:
+        return genericSus;
     }
   };
   const defenseMultiplier = (() => {
@@ -1136,7 +1325,7 @@ const selectedHitDetails = computed(() => {
   const damageTakenMultiplier = 1 + getDamageTakenBonus(hit.damageType, ctx.enemyMods);
   const effectiveResistance = getEnemyRes(hit.damageType, ctx.enemyMods) - getResIgnore(hit.damageType, ctx.attackerMods);
   const resistanceMultiplier = 1 - effectiveResistance;
-  const susceptibilityMultiplier = 1 + getSus(hit.damageType, ctx.enemyMods);
+  const susceptibilityMultiplier = 1 + getSus(hit.damageType, ctx.enemyMods, ctx.attackerMods);
   const critAverageMultiplier = getAverageCritMultiplier(ctx.attackerMods);
   const artsIntensity = Math.max(0, ctx.attackerMods.ARTS_INTENSITY);
   const levelMultiplier = ctx.attackType === "REACTION"
@@ -1323,6 +1512,7 @@ const cursorDragState = ref<CursorDragState | null>(null);
 const libraryDragState = ref<LibraryDragState | null>(null);
 const marqueeSelectionState = ref<MarqueeSelectionState | null>(null);
 const actionElementByStepId = new Map<string, HTMLElement>();
+const timelineViewportEl = ref<HTMLElement | null>(null);
 
 const partyDisplay = computed(() =>
   [0, 1, 2, 3].map((index) => {
@@ -1450,7 +1640,8 @@ const selectedCharacterIsControlled = computed(() =>
 
 const selectedCharacterSwitchLockRemaining = computed(() => {
   const lockedUntil = currentControlState.value.switchBackLockedUntilBySlot.get(selectedLibrarySlot.value) ?? 0;
-  return Math.max(0, lockedUntil - cursorTime.value);
+  const switchClock = Math.max(0, cursorTime.value);
+  return Math.max(0, lockedUntil - switchClock);
 });
 
 function getPrimaryCommandForSlot(
@@ -1491,7 +1682,7 @@ function getActiveTriggeredComboWindowForSlot(slot: PartySlot, atTime: number) {
 }
 
 function addStepForSlot(slot: PartySlot, commandId: string) {
-  addStep(slot, commandId);
+  return addStep(slot, commandId);
 }
 
 function executeControlledBasicAttack() {
@@ -1512,16 +1703,42 @@ function executeSwitchToSlot(slot: PartySlot) {
   if (slot === controlled) {
     return;
   }
-  const lockedUntil = currentControlState.value.switchBackLockedUntilBySlot.get(slot) ?? 0;
-  if (lockedUntil > cursorTime.value + 0.0001) {
+  const placeSwitchAndFocus = () => {
+    const createdStepId = addStepForSlot(slot, "__switch");
+    if (!createdStepId) {
+      return;
+    }
+    void nextTick(() => {
+      const resolvedAction = simulation.value.actions.find((entry) => entry.stepId === createdStepId);
+      if (resolvedAction) {
+        cursorTime.value = clampCursorTime(resolvedAction.realStartTime);
+        return;
+      }
+      const rawStep = rotation.value.steps.find((entry) => entry.id === createdStepId);
+      if (rawStep?.startTime != null) {
+        cursorTime.value = clampCursorTime(rawStep.startTime);
+      }
+    });
+  };
+  if (cursorTime.value < 0) {
+    placeSwitchAndFocus();
     return;
   }
-  addStepForSlot(slot, "__switch");
+  const lockedUntil = currentControlState.value.switchBackLockedUntilBySlot.get(slot) ?? 0;
+  const switchClock = Math.max(0, cursorTime.value);
+  if (lockedUntil > switchClock + 0.0001) {
+    return;
+  }
+  placeSwitchAndFocus();
 }
 
 function getSwitchCooldownRemaining(slot: PartySlot): number {
+  if (cursorTime.value < 0) {
+    return 0;
+  }
   const lockedUntil = currentControlState.value.switchBackLockedUntilBySlot.get(slot) ?? 0;
-  return Math.max(0, lockedUntil - cursorTime.value);
+  const switchClock = Math.max(0, cursorTime.value);
+  return Math.max(0, lockedUntil - switchClock);
 }
 
 function executePrimarySkillForSlot(
@@ -1567,7 +1784,7 @@ const controlTimeline = computed(() => {
   const segments: ControlTimelineSegment[] = [];
   const markers: ControlSwitchMarker[] = [];
   let controlledSlot: PartySlot = 0;
-  let segmentStart = 0;
+  let segmentStart = timelineStart.value;
   const switchBackLockedUntilBySlot = new Map<PartySlot, number>();
 
   for (const { action } of switchActions) {
@@ -1675,10 +1892,10 @@ function addReturnedSp(state: TeamSpState, amount: number) {
   state.returned += Math.min(space, amount);
 }
 
-function addGeneratedSp(state: TeamSpState, amount: number) {
+function addGeneratedSp(state: TeamSpState, amount: number, cap = TEAM_SP_MAX) {
   if (amount <= 0) return;
 
-  const directSpace = TEAM_SP_MAX - (state.generated + state.returned);
+  const directSpace = cap - (state.generated + state.returned);
   const directAdded = Math.min(directSpace, amount);
   state.generated += directAdded;
   let remaining = amount - directAdded;
@@ -1689,6 +1906,28 @@ function addGeneratedSp(state: TeamSpState, amount: number) {
     state.generated += converted;
     remaining -= converted;
   }
+}
+
+function getSpRulesAtRealTime(time: number): { cap: number; regen: number } {
+  if (time < 0) {
+    return { cap: PRE_BATTLE_SP_MAX, regen: PRE_BATTLE_SP_REGEN_RATE };
+  }
+  return { cap: TEAM_SP_MAX, regen: teamSpConfig.value.spRegenRate };
+}
+
+function addPassiveSpRegenSegment(state: TeamSpState, fromTime: number, toTime: number) {
+  const start = Math.min(fromTime, toTime);
+  const end = Math.max(fromTime, toTime);
+  if (end <= start) {
+    return;
+  }
+  if (start < 0 && end > 0) {
+    addGeneratedSp(state, (0 - start) * PRE_BATTLE_SP_REGEN_RATE, PRE_BATTLE_SP_MAX);
+    addGeneratedSp(state, end * teamSpConfig.value.spRegenRate, TEAM_SP_MAX);
+    return;
+  }
+  const rules = getSpRulesAtRealTime(start);
+  addGeneratedSp(state, (end - start) * rules.regen, rules.cap);
 }
 
 function consumeTeamSp(state: TeamSpState, amount: number): number {
@@ -1762,6 +2001,10 @@ function applyUltimateEnergyGain(args: {
   if (args.rawAmount <= 0) {
     return;
   }
+  const gameTime = toGameTimeFromExtensions(args.time, simulation.value.timeExtensions);
+  if (gameTime < 0) {
+    return;
+  }
   if (hasNoEnergyGainBuffAtTime({
     slot: args.targetSlot,
     time: args.time,
@@ -1826,7 +2069,7 @@ const cursorCombatState = computed(() => {
   const energyMaxBySlot = new Map<PartySlot, number>();
   const comboBySlot = new Map<PartySlot, { readyRatio: number; label: string; mode?: "normal" | "triggered" | "perfect_window" | "executing" }>();
   const teamSp: TeamSpState = {
-    generated: Math.max(0, Math.min(TEAM_SP_MAX, teamSpConfig.value.initialSp)),
+    generated: Math.max(0, Math.min(PRE_BATTLE_SP_MAX, teamSpConfig.value.initialSp)),
     returned: 0,
   };
 
@@ -1946,11 +2189,10 @@ const cursorCombatState = computed(() => {
     const order = { "action-start": 0, "bonus-return": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
     return order[a.type] - order[b.type];
   });
-  let lastSpTime = 0;
+  let lastSpTime = timelineStart.value;
   for (const event of spEvents) {
     const clampedTime = Math.min(event.time, targetTime);
-    const elapsed = Math.max(0, clampedTime - lastSpTime);
-    addGeneratedSp(teamSp, elapsed * teamSpConfig.value.spRegenRate);
+    addPassiveSpRegenSegment(teamSp, lastSpTime, clampedTime);
 
     if (event.type === "action-start") {
       if (event.energyCost > 0) {
@@ -2022,7 +2264,7 @@ const cursorCombatState = computed(() => {
     lastSpTime = clampedTime;
   }
   if (targetTime > lastSpTime) {
-    addGeneratedSp(teamSp, (targetTime - lastSpTime) * teamSpConfig.value.spRegenRate);
+    addPassiveSpRegenSegment(teamSp, lastSpTime, targetTime);
   }
 
   const totalDamage = simulation.value.timeline
@@ -2133,7 +2375,7 @@ const actionValidationByStep = computed(() => {
   let controlledSlot: PartySlot = 0;
   const switchBackLockedUntilBySlot = new Map<PartySlot, number>();
   const teamSp: TeamSpState = {
-    generated: Math.max(0, Math.min(TEAM_SP_MAX, teamSpConfig.value.initialSp)),
+    generated: Math.max(0, Math.min(PRE_BATTLE_SP_MAX, teamSpConfig.value.initialSp)),
     returned: 0,
   };
 
@@ -2181,11 +2423,10 @@ const actionValidationByStep = computed(() => {
     return order[a.type] - order[b.type];
   });
 
-  let lastSpTime = 0;
+  let lastSpTime = timelineStart.value;
 
   for (const event of validationEvents) {
-    const elapsed = Math.max(0, event.time - lastSpTime);
-    addGeneratedSp(teamSp, elapsed * teamSpConfig.value.spRegenRate);
+    addPassiveSpRegenSegment(teamSp, lastSpTime, event.time);
     lastSpTime = event.time;
 
     if (event.type === "bonus-return") {
@@ -2368,33 +2609,37 @@ const enemyCommandValidationById = computed(() => {
 });
 
 function addStep(slot: PartySlot, commandId: string) {
-  addStepAtTime(slot, commandId, cursorTime.value);
+  return addStepAtTime(slot, commandId, cursorTime.value);
 }
 
 function getEnemyCommandValidation(commandPlacementId: string): string | null {
   return enemyCommandValidationById.value.get(commandPlacementId) ?? null;
 }
 
-function addStepAtTime(slot: PartySlot, commandId: string, startTime: number) {
+function addStepAtTime(slot: PartySlot, commandId: string, startTime: number): string | null {
   const actor = partyBySlot.value.get(slot);
-  const commandState = getCommandStateAtTime(slot, Math.max(0, roundToSnap(startTime)));
+  const requestedStartTime = clampCursorTime(roundToSnap(startTime));
+  const commandState = getCommandStateAtTime(slot, requestedStartTime);
   const command = actor
     ? resolveCommandTransform(actor.commands, commandId, commandState)
     : null;
   if (!actor || !command) {
-    return;
+    return null;
   }
-  addExpandedSteps(slot, command, Math.max(0, roundToSnap(startTime)));
+  const snappedStartTime = clampCursorTime(
+    clampStartTimeForFreezeWindow(requestedStartTime, command),
+  );
+  return addExpandedSteps(slot, command, snappedStartTime);
 }
 
 function addExpandedSteps(
   slot: PartySlot,
   command: CharacterCombatSnapshot["commands"][number],
   startTime: number,
-) {
+): string | null {
   const actor = partyBySlot.value.get(slot);
   if (!actor) {
-    return;
+    return null;
   }
 
   let currentStart = startTime;
@@ -2409,7 +2654,8 @@ function addExpandedSteps(
     if (depth > 64 || expandedCount > 256) {
       return atStart;
     }
-    const commandState = getCommandStateAtTime(slot, Math.max(0, roundToSnap(atStart)));
+    const snappedStart = clampCursorTime(roundToSnap(atStart));
+    const commandState = getCommandStateAtTime(slot, snappedStart);
     const resolved = resolveCommandTransform(actor.commands, commandId, commandState)
       ?? actor.commands.find((entry) => entry.id === commandId)
       ?? null;
@@ -2429,7 +2675,7 @@ function addExpandedSteps(
       id: makeStepId(),
       slot,
       commandId: resolved.id,
-      startTime: Math.max(0, roundToSnap(atStart)),
+      startTime: clampCursorTime(clampStartTimeForFreezeWindow(snappedStart, resolved)),
     };
     rotation.value.steps.push(nextStep);
     firstCreatedStepId ??= nextStep.id;
@@ -2440,6 +2686,7 @@ function addExpandedSteps(
   currentStart = appendResolvedCommand(command.id, currentStart, 0);
 
   setSelectedStepIds(firstCreatedStepId ? [firstCreatedStepId] : []);
+  return firstCreatedStepId;
 }
 
 function addGenericStep(commandId: "__switch" | "__dodge" | "__jump") {
@@ -2608,7 +2855,25 @@ function roundToSnap(value: number): number {
 }
 
 function clampCursorTime(value: number): number {
-  return Math.max(0, Math.min(timelineDuration.value, roundToSnap(value)));
+  return Math.max(timelineStart.value, Math.min(timelineDuration.value, roundToSnap(value)));
+}
+
+function clampStartTimeForFreezeWindow(
+  startTime: number,
+  command: CharacterCombatSnapshot["commands"][number] | null | undefined,
+): number {
+  const freezeSeconds = Math.max(0, command?.timeFreezeSeconds ?? 0);
+  if (freezeSeconds <= 0) {
+    return startTime;
+  }
+  if (startTime < 0 && startTime + freezeSeconds > 0) {
+    const leftOption = -freezeSeconds - 0.05;
+    const rightOption = 0;
+    return Math.abs(startTime - leftOption) <= Math.abs(startTime - rightOption)
+      ? leftOption
+      : rightOption;
+  }
+  return startTime;
 }
 
 function startBlockDrag(event: MouseEvent, stepId: string) {
@@ -2659,7 +2924,7 @@ function handlePointerMove(event: MouseEvent) {
   }
 
   if (cursorDragState.value) {
-    const nextTime = clampCursorTime((event.clientX - cursorDragState.value.laneLeft) / AXIS_SCALE);
+    const nextTime = clampCursorTime((event.clientX - cursorDragState.value.laneLeft) / AXIS_SCALE + timelineStart.value);
     cursorTime.value = nextTime;
     return;
   }
@@ -2675,7 +2940,7 @@ function handlePointerMove(event: MouseEvent) {
     const deltaSeconds = (event.clientX - activeEnemyDrag.originClientX) / AXIS_SCALE;
     for (const command of movingCommands) {
       const origin = activeEnemyDrag.originStartTimes[command.id] ?? 0;
-      command.startTime = Math.max(0, roundToSnap(origin + deltaSeconds));
+      command.startTime = Math.max(timelineStart.value, roundToSnap(origin + deltaSeconds));
     }
     return;
   }
@@ -2694,7 +2959,10 @@ function handlePointerMove(event: MouseEvent) {
   const deltaSeconds = (event.clientX - activeDrag.originClientX) / AXIS_SCALE;
   for (const step of movingSteps) {
     const origin = activeDrag.originStartTimes[step.id] ?? 0;
-    step.startTime = Math.max(0, roundToSnap(origin + deltaSeconds));
+    const actor = partyBySlot.value.get(step.slot);
+    const command = actor?.commands.find((entry) => entry.id === step.commandId) ?? null;
+    const nextStart = clampStartTimeForFreezeWindow(roundToSnap(origin + deltaSeconds), command);
+    step.startTime = Math.max(timelineStart.value, nextStart);
   }
 }
 
@@ -2711,7 +2979,7 @@ function setCursorFromLane(event: MouseEvent) {
     return;
   }
 
-  cursorTime.value = clampCursorTime((event.clientX - target.getBoundingClientRect().left) / AXIS_SCALE);
+  cursorTime.value = clampCursorTime((event.clientX - target.getBoundingClientRect().left) / AXIS_SCALE + timelineStart.value);
 }
 
 function startLibraryCommandDrag(slot: PartySlot, commandId: string) {
@@ -2733,7 +3001,7 @@ function handleLaneDrop(event: DragEvent, slot: PartySlot) {
     return;
   }
 
-  const dropTime = clampCursorTime((event.clientX - target.getBoundingClientRect().left) / AXIS_SCALE);
+  const dropTime = clampCursorTime((event.clientX - target.getBoundingClientRect().left) / AXIS_SCALE + timelineStart.value);
   addStepAtTime(slot, libraryDragState.value.commandId, dropTime);
   selectedLibrarySlot.value = libraryDragState.value.slot;
   clearLibraryCommandDrag();
@@ -2747,7 +3015,7 @@ function addEnemyCommandAtTime(commandId: string, startTime: number) {
   enemyCommands.value.push({
     id: makeEnemyCommandPlacementId(),
     commandId,
-    startTime: Math.max(0, roundToSnap(startTime)),
+    startTime: Math.max(timelineStart.value, roundToSnap(startTime)),
     interrupted: false,
     interruptedSpGain: 0,
     interruptedStagger: 0,
@@ -2790,7 +3058,7 @@ function handleEnemyLaneDrop(event: DragEvent) {
     clearLibraryCommandDrag();
     return;
   }
-  const dropTime = clampCursorTime((event.clientX - target.getBoundingClientRect().left) / AXIS_SCALE);
+  const dropTime = clampCursorTime((event.clientX - target.getBoundingClientRect().left) / AXIS_SCALE + timelineStart.value);
   addEnemyCommandAtTime(libraryDragState.value.commandId, dropTime);
   clearLibraryCommandDrag();
 }
@@ -2835,7 +3103,7 @@ function startCursorDrag(event: MouseEvent) {
   cursorDragState.value = {
     laneLeft: lane.getBoundingClientRect().left,
   };
-  cursorTime.value = clampCursorTime((event.clientX - lane.getBoundingClientRect().left) / AXIS_SCALE);
+  cursorTime.value = clampCursorTime((event.clientX - lane.getBoundingClientRect().left) / AXIS_SCALE + timelineStart.value);
 }
 
 function startMarqueeSelection(event: MouseEvent) {
@@ -2874,6 +3142,9 @@ function isEnemyCommandSelected(commandPlacementId: string): boolean {
 onMounted(() => {
   window.addEventListener("mousemove", handlePointerMove);
   window.addEventListener("mouseup", stopBlockDrag);
+  nextTick(() => {
+    resetTimelineViewport();
+  });
 });
 
 onBeforeUnmount(() => {
@@ -2885,7 +3156,7 @@ onBeforeUnmount(() => {
 watch(
   timelineDuration,
   (value) => {
-    cursorTime.value = Math.min(cursorTime.value, value);
+    cursorTime.value = clampCursorTime(Math.min(cursorTime.value, value));
   },
   { immediate: true },
 );
@@ -2897,6 +3168,18 @@ function formatDamage(value: number): string {
 
 function formatTime(value: number): string {
   return value.toFixed(2);
+}
+
+function timeToPx(time: number): number {
+  return (time - timelineStart.value) * AXIS_SCALE;
+}
+
+function resetTimelineViewport() {
+  const viewport = timelineViewportEl.value;
+  if (!viewport) {
+    return;
+  }
+  viewport.scrollLeft = Math.max(0, timeToPx(-1));
 }
 
 function formatAttackTypeLabel(value: string): string {
@@ -3267,7 +3550,7 @@ function getSwitchConnectorStyle(marker: ControlSwitchMarker): Record<string, st
   const absSlots = Math.abs(deltaSlots);
 
   return {
-    left: `${marker.time * AXIS_SCALE + 11}px`,
+    left: `${timeToPx(marker.time) + 11}px`,
     top:
       deltaSlots >= 0
         ? `${CONTROL_TRACK_OFFSET - absSlots * TIMELINE_ROW_HEIGHT}px`
@@ -3348,44 +3631,55 @@ function getSimpleSkillButtonStyle(
 }
 
 function toGameTimeFromExtensions(realTime: number, timeExtensions: RotationTimeExtension[]): number {
+  if (realTime >= 0) {
+    let cumulativeFreezeBefore = 0;
+    for (const ext of timeExtensions) {
+      const freezeStart = ext.time;
+      const freezeEnd = ext.time + ext.amount;
+      if (freezeEnd <= 0 || freezeStart >= realTime) {
+        continue;
+      }
+      const overlapStart = Math.max(0, freezeStart);
+      const overlapEnd = Math.min(realTime, freezeEnd);
+      if (overlapEnd > overlapStart) {
+        cumulativeFreezeBefore += overlapEnd - overlapStart;
+      }
+    }
+    return realTime - cumulativeFreezeBefore;
+  }
+
+  let cumulativeFreezeAfter = 0;
   for (const ext of timeExtensions) {
-    const freezeRealStart = ext.time;
-    const freezeRealEnd = ext.time + ext.amount;
-
-    if (realTime >= freezeRealStart && realTime < freezeRealEnd) {
-      return ext.gameTime;
+    const freezeStart = ext.time;
+    const freezeEnd = ext.time + ext.amount;
+    if (freezeEnd <= realTime || freezeStart >= 0) {
+      continue;
     }
-
-    if (realTime < freezeRealStart) {
-      return realTime - ext.cumulativeFreezeTime;
+    const overlapStart = Math.max(realTime, freezeStart);
+    const overlapEnd = Math.min(0, freezeEnd);
+    if (overlapEnd > overlapStart) {
+      cumulativeFreezeAfter += overlapEnd - overlapStart;
     }
   }
-
-  const last = timeExtensions[timeExtensions.length - 1];
-  if (!last) {
-    return realTime;
-  }
-
-  return realTime - (last.cumulativeFreezeTime + last.amount);
+  return realTime + cumulativeFreezeAfter;
 }
 
 function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTimeExtension[]): number {
-  let freezePassed = 0;
+  const totalFreeze = timeExtensions.reduce((sum, ext) => sum + Math.max(0, ext.amount), 0);
+  let low = gameTime - totalFreeze - 10;
+  let high = gameTime + totalFreeze + 10;
 
-  for (const ext of timeExtensions) {
-    if (gameTime < ext.gameTime) {
-      return gameTime + freezePassed;
+  for (let index = 0; index < 80; index += 1) {
+    const mid = (low + high) / 2;
+    const midGameTime = toGameTimeFromExtensions(mid, timeExtensions);
+    if (midGameTime < gameTime) {
+      low = mid;
+    } else {
+      high = mid;
     }
-
-    const freezeGameEnd = ext.gameTime;
-    if (gameTime === freezeGameEnd) {
-      return ext.time;
-    }
-
-    freezePassed = ext.cumulativeFreezeTime + ext.amount;
   }
 
-  return gameTime + freezePassed;
+  return (low + high) / 2;
 }
 </script>
 
@@ -3715,7 +4009,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             </div>
           </section>
 
-          <section v-if="sidebarMode === 'character'" class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb]">
+          <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb]">
             <button
               type="button"
               class="flex w-full items-center justify-between px-4 py-3 text-left"
@@ -3907,7 +4201,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
         </div>
       </div>
 
-      <div class="overflow-x-auto py-5">
+      <div ref="timelineViewportEl" class="overflow-x-auto py-5">
         <div class="min-w-full" :style="{ width: `${TRACK_LABEL_WIDTH + timelineWidth}px` }">
           <div class="grid grid-cols-[160px_minmax(0,1fr)]">
             <div class="sticky left-0 z-[30] border-b border-r border-[#ececec] bg-[#fafafa] px-4 py-3 text-sm font-medium text-[#5d5d5d]">
@@ -3925,11 +4219,12 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   backgroundImage: 'repeating-linear-gradient(to right, rgba(27,27,27,0.06) 0, rgba(27,27,27,0.06) 1px, transparent 1px, transparent 116px)',
                 }"
               >
+                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
                 <div
                   v-for="second in realSeconds"
                   :key="`real-${second}`"
                   class="absolute top-1/2 text-[11px] text-[#7d7d7d]"
-                  :style="getTickLabelStyle(second * AXIS_SCALE)"
+                  :style="getTickLabelStyle(timeToPx(second))"
                 >
                   {{ second }}
                 </div>
@@ -3951,17 +4246,18 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   backgroundImage: 'repeating-linear-gradient(to right, rgba(27,27,27,0.04) 0, rgba(27,27,27,0.04) 1px, transparent 1px, transparent 116px)',
                 }"
               >
+                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
                 <div
                   v-for="second in gameSeconds"
                   :key="`game-line-${second.value}`"
                   class="absolute inset-y-0 w-px bg-[#1b1b1b]/10"
-                  :style="{ left: `${second.realTime * AXIS_SCALE}px` }"
+                  :style="{ left: `${timeToPx(second.realTime)}px` }"
                 />
                 <div
                   v-for="second in gameSeconds"
                   :key="`game-${second.value}`"
                   class="absolute top-1/2 text-[11px] text-[#7d7d7d]"
-                  :style="getTickLabelStyle(second.realTime * AXIS_SCALE)"
+                  :style="getTickLabelStyle(timeToPx(second.realTime))"
                 >
                   {{ second.value }}
                 </div>
@@ -3969,7 +4265,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
 
               <div
                 class="absolute top-0 h-full w-0.5 bg-[#1b1b1b] z-10"
-                :style="{ left: `${cursorTime * AXIS_SCALE}px` }"
+                :style="{ left: `${timeToPx(cursorTime)}px` }"
                 @mousedown.stop="startCursorDrag"
               >
                 <div class="absolute left-2 top-2 rounded bg-[#1b1b1b] px-2 py-1 text-[10px] font-medium text-white whitespace-nowrap">
@@ -4080,13 +4376,14 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 @dragover.prevent
                 @drop="handleLaneDrop($event, (slotIndex - 1) as PartySlot)"
               >
+                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
                 <div class="absolute inset-x-0 top-0 h-7 border-b border-[#f1f1f1] bg-white/85">
                   <div
                     v-for="segment in laneControlSegments((slotIndex - 1) as PartySlot)"
                     :key="`${slotIndex}-${segment.startTime}-${segment.endTime}`"
                     class="absolute top-4 h-1 rounded-full bg-[#73b45d]"
                     :style="{
-                      left: `${segment.startTime * AXIS_SCALE}px`,
+                      left: `${timeToPx(segment.startTime)}px`,
                       width: `${Math.max(6, (segment.endTime - segment.startTime) * AXIS_SCALE)}px`,
                     }"
                   />
@@ -4095,7 +4392,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     v-for="marker in laneSwitchMarkers((slotIndex - 1) as PartySlot)"
                     :key="marker.stepId"
                     class="absolute top-1 z-[7]"
-                    :style="{ left: `${marker.time * AXIS_SCALE}px` }"
+                    :style="{ left: `${timeToPx(marker.time)}px` }"
                   >
                     <div
                       v-if="marker.previousSlot !== marker.slot"
@@ -4108,15 +4405,17 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     />
                     <button
                       type="button"
-                      class="relative z-[8] flex h-7 w-7 -translate-x-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-[#73b45d] bg-white shadow-sm transition hover:scale-105"
+                      class="relative z-[8] flex h-7 w-7 -translate-x-1/2 select-none items-center justify-center overflow-hidden rounded-full border-2 border-[#73b45d] bg-white shadow-sm transition hover:scale-105"
                       :class="isStepSelected(marker.stepId) ? 'ring-2 ring-[#c8d13c] ring-offset-1' : ''"
                       @click.stop="selectStep(marker.stepId, $event.shiftKey ? 'range' : (($event.ctrlKey || $event.metaKey) ? 'toggle' : 'replace'))"
+                      @dragstart.prevent
                     >
                       <img
                         v-if="getCharacterAvatarPath(partyDisplay[slotIndex - 1]?.actor?.characterId)"
                         :src="getCharacterAvatarPath(partyDisplay[slotIndex - 1]?.actor?.characterId)!"
                         :alt="getLocalizedCharacterName(partyDisplay[slotIndex - 1]?.actor?.characterId, partyDisplay[slotIndex - 1]?.actor?.characterName) || t('rotation.switch')"
-                        class="h-full w-full object-cover"
+                        class="h-full w-full select-none object-cover"
+                        draggable="false"
                       >
                       <span v-else class="text-[9px] font-semibold text-[#1b1b1b]">
                         {{ getAvatarInitials(getLocalizedCharacterName(partyDisplay[slotIndex - 1]?.actor?.characterId, partyDisplay[slotIndex - 1]?.actor?.characterName)) }}
@@ -4130,7 +4429,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   :key="extension.sourceStepId"
                   class="absolute top-0 h-full border-x border-[#efe77c] bg-[#f7f2a7]/45"
                   :style="{
-                    left: `${extension.time * AXIS_SCALE}px`,
+                    left: `${timeToPx(extension.time)}px`,
                     width: `${Math.max(6, extension.amount * AXIS_SCALE)}px`,
                   }"
                 />
@@ -4139,7 +4438,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   :key="`${slotIndex}-${window.id}-${window.start}-${window.end}`"
                   class="absolute inset-y-0 border-x border-[#c74d4d]/50"
                   :style="{
-                    left: `${window.start * AXIS_SCALE}px`,
+                    left: `${timeToPx(window.start)}px`,
                     width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
                     backgroundColor: window.color,
                   }"
@@ -4149,7 +4448,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   :key="`${slotIndex}-phase-${window.id}-${window.start}-${window.end}`"
                   class="absolute inset-y-0 z-[2] border-x"
                   :style="{
-                    left: `${window.start * AXIS_SCALE}px`,
+                    left: `${timeToPx(window.start)}px`,
                     width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
                     backgroundColor: window.color,
                     borderColor: window.borderColor,
@@ -4161,7 +4460,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   :key="action.stepId"
                   type="button"
                   :ref="(element) => setActionElement(action.stepId, element)"
-                  class="absolute top-8 overflow-hidden rounded-2xl border px-3 py-2.5 text-left shadow-sm transition active:cursor-grabbing"
+                  class="absolute top-8 select-none overflow-hidden rounded-2xl border px-3 py-2.5 text-left shadow-sm transition active:cursor-grabbing"
                   :class="
                     [
                       isActionTransient(action) ? 'h-[5.25rem] opacity-70' : 'h-[4.5rem]',
@@ -4183,12 +4482,13 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     ]
                   "
                   :style="{
-                    left: `${action.realStartTime * AXIS_SCALE}px`,
+                    left: `${timeToPx(action.realStartTime)}px`,
                     width: `${getActionCardWidth(action)}px`,
                     zIndex: `${getActionCardZIndex(action)}`,
                   }"
                   @click.stop.prevent="handleActionClick($event, action.stepId)"
                   @mousedown.stop="startBlockDrag($event, action.stepId)"
+                  @dragstart.prevent
                 >
                   <div
                     v-if="getStepGroup(action.stepId)"
@@ -4272,7 +4572,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   v-for="entry in simulation.timeline.filter((entry) => entry.slot === ((slotIndex - 1) as PartySlot))"
                   :key="`${entry.stepId}-${entry.hitIndex}-${entry.time}-${entry.damage}`"
                   class="absolute top-2 z-[12] h-24 w-0.5 bg-[#1b1b1b]/25"
-                  :style="{ left: `${entry.time * AXIS_SCALE}px` }"
+                  :style="{ left: `${timeToPx(entry.time)}px` }"
                 >
                   <div
                     v-if="entry.registerTime < entry.time - 0.001"
@@ -4312,7 +4612,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
 
                 <div
                   class="absolute top-0 h-full w-0.5 bg-[#1b1b1b] z-[8]"
-                  :style="{ left: `${cursorTime * AXIS_SCALE}px` }"
+                  :style="{ left: `${timeToPx(cursorTime)}px` }"
                   @mousedown.stop="startCursorDrag"
                 />
               </div>
@@ -4391,12 +4691,13 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               @dragover.prevent
               @drop="handleEnemyLaneDrop"
             >
+              <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
               <div
                 v-for="window in enemyInvulnerabilityWindows"
                 :key="`enemy-${window.id}-${window.start}-${window.end}`"
                 class="pointer-events-none absolute inset-y-0 border-x border-[#c74d4d]/50"
                 :style="{
-                  left: `${window.start * AXIS_SCALE}px`,
+                  left: `${timeToPx(window.start)}px`,
                   width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
                   backgroundColor: window.color,
                 }"
@@ -4406,7 +4707,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 :key="`enemy-phase-${window.id}-${window.start}-${window.end}`"
                 class="pointer-events-none absolute inset-y-0 z-[2] border-x"
                 :style="{
-                  left: `${window.start * AXIS_SCALE}px`,
+                  left: `${timeToPx(window.start)}px`,
                   width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
                   backgroundColor: window.color,
                   borderColor: window.borderColor,
@@ -4416,7 +4717,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 v-for="command in enemyTimelineCommands"
                 :key="`enemy-cmd-${command.id}`"
                 type="button"
-                class="absolute z-[6] overflow-hidden rounded-2xl border px-3 py-2 text-left shadow-sm transition active:cursor-grabbing"
+                class="absolute z-[6] select-none overflow-hidden rounded-2xl border px-3 py-2 text-left shadow-sm transition active:cursor-grabbing"
                 :class="[
                   command.commandId === 'phase_transition' ? 'top-0 z-[9] h-full' : 'top-8 h-[4.5rem]',
                   isEnemyCommandSelected(command.id)
@@ -4428,7 +4729,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                       : 'border-[#d1d1d1] bg-white hover:border-[#c8d13c]',
                 ]"
                 :style="{
-                  left: `${command.startTime * AXIS_SCALE}px`,
+                  left: `${timeToPx(command.startTime)}px`,
                   width: `${Math.max(44, (command.endTime - command.startTime) * AXIS_SCALE)}px`,
                 }"
                 @mousedown.stop="startEnemyCommandBlockDrag($event, command.id)"
@@ -4436,6 +4737,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   selectEnemyCommand(command.id);
                   cursorTime = clampCursorTime(command.startTime);
                 "
+                @dragstart.prevent
               >
                 <div
                   class="truncate text-[12px] font-semibold uppercase tracking-[0.06em]"
@@ -4464,7 +4766,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </button>
               <div
                 class="absolute top-0 z-[8] h-full w-0.5 bg-[#1b1b1b]"
-                :style="{ left: `${cursorTime * AXIS_SCALE}px` }"
+                :style="{ left: `${timeToPx(cursorTime)}px` }"
                 @mousedown.stop="startCursorDrag"
               />
             </div>
@@ -4748,7 +5050,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           <div class="rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
             <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.totalDamage") }}</div>
             <div class="mt-2 text-2xl font-semibold text-[#1b1b1b]">
-              {{ formatDamage(simulation.totalDamage) }}
+              {{ formatDamage(tallyWindowSummary.totalDamage) }}
             </div>
             <div v-if="riggedCritChance != null" class="mt-1 text-xs text-[#8b5b23]">
               Rig chance: {{ (riggedCritChance * 100).toFixed(2) }}%
@@ -4757,11 +5059,46 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           <div class="rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
             <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.dps") }}</div>
             <div class="mt-2 text-2xl font-semibold text-[#1b1b1b]">
-              {{ formatDamage(simulation.totalTime > 0 ? simulation.totalDamage / simulation.totalTime : 0) }}
+              {{ formatDamage(tallyWindowSummary.dps) }}
             </div>
           </div>
           <div class="col-span-2 text-xs text-[#777]">
             {{ enemyName }} {{ t("enemy.level") }} {{ enemyLevel }} · {{ t("rotation.realTime") }} {{ formatTime(simulation.totalTime) }}s · {{ t("rotation.gameTime") }} {{ formatTime(simulation.totalGameTime) }}s
+          </div>
+          <div class="col-span-2 rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
+            <div class="mb-2 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">Damage Tally Timing</div>
+            <label class="mb-2 flex items-center gap-2 text-sm text-[#333]">
+              <input
+                type="checkbox"
+                :checked="localTallyEnabled"
+                @change="localTallyEnabled = ($event.target as HTMLInputElement).checked; emitDamageTallyTimingUpdate()"
+              >
+              <span>Custom timing</span>
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="text-xs text-[#666]">
+                Start (s)
+                <input
+                  type="number"
+                  step="0.1"
+                  class="mt-1 w-full rounded border border-[#d6d6d6] bg-white px-2 py-1 text-sm text-[#1b1b1b]"
+                  :disabled="!localTallyEnabled"
+                  :value="displayedTallyStartTime"
+                  @input="localTallyStartTime = Number(($event.target as HTMLInputElement).value); emitDamageTallyTimingUpdate()"
+                >
+              </label>
+              <label class="text-xs text-[#666]">
+                End (s)
+                <input
+                  type="number"
+                  step="0.1"
+                  class="mt-1 w-full rounded border border-[#d6d6d6] bg-white px-2 py-1 text-sm text-[#1b1b1b]"
+                  :disabled="!localTallyEnabled"
+                  :value="displayedTallyEndTime"
+                  @input="localTallyEndTime = Number(($event.target as HTMLInputElement).value); emitDamageTallyTimingUpdate()"
+                >
+              </label>
+            </div>
           </div>
         </section>
 

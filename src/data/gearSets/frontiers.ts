@@ -180,6 +180,10 @@ export const FRONTIERS: GearBase[] = [
       {
         "stat": "INT",
         "value": 21
+      },
+      {
+        "stat": "SECONDARY_ATTR_PCT",
+        "value": 0.207
       }
     ],
   },

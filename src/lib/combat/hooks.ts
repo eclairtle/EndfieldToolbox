@@ -51,6 +51,7 @@ export type CombatResolvedHitHookContext = {
       buffId: string;
       label: string;
       durationSeconds: number;
+      infiniteDuration?: boolean;
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
       hidden?: boolean;
@@ -62,6 +63,7 @@ export type CombatResolvedHitHookContext = {
       buffId: string;
       label: string;
       durationSeconds: number;
+      infiniteDuration?: boolean;
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
       hidden?: boolean;
@@ -170,6 +172,7 @@ export type CombatEventHookContext = {
       buffId: string;
       label: string;
       durationSeconds: number;
+      infiniteDuration?: boolean;
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
       hidden?: boolean;
@@ -181,6 +184,7 @@ export type CombatEventHookContext = {
       buffId: string;
       label: string;
       durationSeconds: number;
+      infiniteDuration?: boolean;
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
       hidden?: boolean;

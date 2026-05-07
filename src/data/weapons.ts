@@ -59,6 +59,18 @@ export type WeaponEventListenerContext = {
       refreshExistingStacks?: boolean;
       eventType?: "ACTOR_BUFF_APPLIED" | "WEAPON_BUFF_APPLIED";
     }): void;
+    applyTeamBuffFiltered(args: {
+      buffId: string;
+      label: string;
+      durationSeconds: number;
+      timeScale?: "real" | "game";
+      effects: Partial<ModifierStats>;
+      shouldApplyTo: (target: CharacterCombatSnapshot) => boolean;
+      stackGroup?: string;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      eventType?: "ACTOR_BUFF_APPLIED" | "WEAPON_BUFF_APPLIED";
+    }): void;
     applyEnemyDebuff(args: {
       debuffId: string;
       label: string;

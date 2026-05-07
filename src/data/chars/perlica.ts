@@ -145,6 +145,8 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
     durationFrames: flat12(126),
     spCost: flat12(0),
     energyCost: flat12(80),
+    cutscene: true,
+    timeFreezeSeconds: flat12(114/60),
     hits: [
       { multiplier: pct([445, 489, 534, 578, 622, 667, 711, 756, 800, 856, 923, 1000]), offsetFrames: flat12(116) },
     ],

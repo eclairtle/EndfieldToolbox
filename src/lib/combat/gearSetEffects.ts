@@ -50,6 +50,12 @@ const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
       ARTS_INTENSITY: 30,
     },
   },
+  "Tide Surge": {
+    ...GEAR_SET_BONUSES["Tide Surge"]!,
+    staticModifiers: {
+      SKILL_DMG_PCT: 0.2,
+    },
+  },
 };
 
 export function getActiveGearSetInfo(
@@ -79,6 +85,7 @@ export type GearSetListenerContext = {
       label: string;
       hidden?: boolean;
       durationSeconds: number;
+      infiniteDuration?: boolean;
       timeScale?: "real" | "game";
       effects: Partial<ModifierStats>;
       stackGroup?: string;
@@ -90,6 +97,7 @@ export type GearSetListenerContext = {
       buffId: string;
       label: string;
       durationSeconds: number;
+      infiniteDuration?: boolean;
       timeScale?: "real" | "game";
       effects: Partial<ModifierStats>;
       stackGroup?: string;
@@ -199,7 +207,8 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
       buffId: "set_catastrophe_used",
       label: "Catastrophe Used",
       hidden: true,
-      durationSeconds: 9999,
+      durationSeconds: 0,
+      infiniteDuration: true,
       effects: {},
     });
 
@@ -289,7 +298,8 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
         buffId: "set_bonekrusha_smash_stack",
         label: "Bonekrushing Smash",
         hidden: true,
-        durationSeconds: 9999,
+        durationSeconds: 0,
+        infiniteDuration: true,
         effects: {
           BATTLE_SKILL_DMG_PCT: 0.3,
         },
@@ -346,6 +356,36 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
       });
       return;
     }
+  }
+
+  if (activeSetName === "Tide Surge") {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ARTS_INFLICTION_APPLIED") {
+      return;
+    }
+
+    const triggerBuffId = "set_tide_surge_trigger";
+    if (ctx.helpers.hasSelfBuff(triggerBuffId)) {
+      ctx.helpers.removeSelfBuff(triggerBuffId);
+      ctx.helpers.applySelfBuff({
+        buffId: "set_tide_surge_active",
+        label: "Tide Surge",
+        durationSeconds: 15,
+        effects: {
+          ARTS_DMG_PCT: 0.35,
+        },
+      });
+      return;
+    }
+
+    ctx.helpers.applySelfBuff({
+      buffId: triggerBuffId,
+      label: "Tide Surge Trigger",
+      hidden: true,
+      durationSeconds: 0,
+      infiniteDuration: true,
+      effects: {},
+    });
+    return;
   }
 
   if (activeSetName === "Swordmancer") {

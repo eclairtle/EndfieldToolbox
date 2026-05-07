@@ -58,6 +58,45 @@ export type CombatCondition =
 
 export type ScalingTable = number[]; // length 12, index 0 = Lv1
 
+export type HitAccumulatorDefinition = {
+  type: "consume_enemy_status";
+  statusId: string;
+  maxConsumed?: ScalingTable;
+  useLevelAsStacks?: boolean;
+  multiplier?: ScalingTable;
+  flatAmount?: ScalingTable;
+  stagger?: ScalingTable;
+  spGenerated?: ScalingTable;
+  spReturned?: ScalingTable;
+  energyReturn?: ScalingTable;
+};
+
+export type ResolvedHitAccumulatorDefinition = {
+  type: "consume_enemy_status";
+  statusId: string;
+  maxConsumed: ScalingTable;
+  useLevelAsStacks: boolean;
+  multiplier: ScalingTable;
+  flatAmount: ScalingTable;
+  stagger: ScalingTable;
+  spGenerated: ScalingTable;
+  spReturned: ScalingTable;
+  energyReturn: ScalingTable;
+};
+
+export type ResolvedHitAccumulatorAtLevel = {
+  type: "consume_enemy_status";
+  statusId: string;
+  maxConsumed: number;
+  useLevelAsStacks: boolean;
+  multiplier: number;
+  flatAmount: number;
+  stagger: number;
+  spGenerated: number;
+  spReturned: number;
+  energyReturn: number;
+};
+
 type CommandHitEffectCore =
   | {
       type: "APPLY_ARTS_INFLICTION";
@@ -203,6 +242,7 @@ type CommandHitEffectCore =
 
 export type CommandHitEffectDefinition = CommandHitEffectCore & {
   condition?: CombatCondition;
+  chance?: number;
 };
 
 export type CommandHitDefinition = {
@@ -223,9 +263,7 @@ export type CommandHitDefinition = {
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
   noCrit?: boolean;
-  bonusMultiplierPerEnemyArtsInflictionStack?: ScalingTable;
-  consumeEnemyArtsInflictionStacksForBonus?: boolean;
-  maxEnemyArtsInflictionStacksForBonus?: number;
+  accumulator?: HitAccumulatorDefinition;
   effects?: CommandHitEffectDefinition[];
   postEffects?: CommandHitEffectDefinition[];
   condition?: BuildCondition;
@@ -309,9 +347,7 @@ export type ResolvedCommandHit = {
   attackType: AttackType;
   damageType: ElementType;
   noCrit: boolean;
-  bonusMultiplierPerEnemyArtsInflictionStack: ScalingTable;
-  consumeEnemyArtsInflictionStacksForBonus: boolean;
-  maxEnemyArtsInflictionStacksForBonus: number;
+  accumulator?: ResolvedHitAccumulatorDefinition;
   effects: CommandHitEffectDefinition[];
   postEffects: CommandHitEffectDefinition[];
   condition?: BuildCondition;
@@ -427,9 +463,20 @@ export function resolveCommandDefinition(
       attackType: hit.attackType ?? command.attackType,
       damageType: hit.damageType ?? command.damageType,
       noCrit: hit.noCrit ?? false,
-      bonusMultiplierPerEnemyArtsInflictionStack: hit.bonusMultiplierPerEnemyArtsInflictionStack ?? flat12(0),
-      consumeEnemyArtsInflictionStacksForBonus: hit.consumeEnemyArtsInflictionStacksForBonus ?? false,
-      maxEnemyArtsInflictionStacksForBonus: hit.maxEnemyArtsInflictionStacksForBonus ?? 4,
+      accumulator: hit.accumulator
+        ? {
+            type: hit.accumulator.type,
+            statusId: hit.accumulator.statusId,
+            maxConsumed: hit.accumulator.maxConsumed ?? flat12(99),
+            useLevelAsStacks: hit.accumulator.useLevelAsStacks ?? true,
+            multiplier: hit.accumulator.multiplier ?? flat12(0),
+            flatAmount: hit.accumulator.flatAmount ?? flat12(0),
+            stagger: hit.accumulator.stagger ?? flat12(0),
+            spGenerated: hit.accumulator.spGenerated ?? flat12(0),
+            spReturned: hit.accumulator.spReturned ?? flat12(0),
+            energyReturn: hit.accumulator.energyReturn ?? flat12(0),
+          }
+        : undefined,
       effects: hit.effects ?? [],
       postEffects: hit.postEffects ?? [],
       condition: hit.condition,
@@ -462,9 +509,7 @@ export type ResolvedCommandHitAtLevel = {
   attackType: AttackType;
   damageType: ElementType;
   noCrit: boolean;
-  bonusMultiplierPerEnemyArtsInflictionStack: number;
-  consumeEnemyArtsInflictionStacksForBonus: boolean;
-  maxEnemyArtsInflictionStacksForBonus: number;
+  accumulator?: ResolvedHitAccumulatorAtLevel;
   effects: CommandHitEffectDefinition[];
   postEffects: CommandHitEffectDefinition[];
   condition?: BuildCondition;
@@ -689,11 +734,20 @@ export function resolveCommandAtLevel(
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,
       noCrit: hit.noCrit ?? false,
-      bonusMultiplierPerEnemyArtsInflictionStack: hit.bonusMultiplierPerEnemyArtsInflictionStack
-        ? resolveTable(hit.bonusMultiplierPerEnemyArtsInflictionStack, level)
-        : 0,
-      consumeEnemyArtsInflictionStacksForBonus: hit.consumeEnemyArtsInflictionStacksForBonus ?? false,
-      maxEnemyArtsInflictionStacksForBonus: hit.maxEnemyArtsInflictionStacksForBonus ?? 4,
+      accumulator: hit.accumulator
+        ? {
+            type: hit.accumulator.type,
+            statusId: hit.accumulator.statusId,
+            maxConsumed: resolveTable(hit.accumulator.maxConsumed ?? flat12(99), level),
+            useLevelAsStacks: hit.accumulator.useLevelAsStacks ?? true,
+            multiplier: resolveTable(hit.accumulator.multiplier ?? flat12(0), level),
+            flatAmount: resolveTable(hit.accumulator.flatAmount ?? flat12(0), level),
+            stagger: resolveTable(hit.accumulator.stagger ?? flat12(0), level),
+            spGenerated: resolveTable(hit.accumulator.spGenerated ?? flat12(0), level),
+            spReturned: resolveTable(hit.accumulator.spReturned ?? flat12(0), level),
+            energyReturn: resolveTable(hit.accumulator.energyReturn ?? flat12(0), level),
+          }
+        : undefined,
       effects: (hit.effects ?? []).map((effect) => resolveHitEffectAtLevel(effect, level)),
       postEffects: (hit.postEffects ?? []).map((effect) => resolveHitEffectAtLevel(effect, level)),
       condition: hit.condition,
@@ -738,11 +792,20 @@ export function resolveExecuteHitsAtLevel(
         attackType: executeHit.attackType,
         damageType: executeHit.damageType,
         noCrit: executeHit.noCrit ?? false,
-        bonusMultiplierPerEnemyArtsInflictionStack: executeHit.bonusMultiplierPerEnemyArtsInflictionStack
-          ? resolveTable(executeHit.bonusMultiplierPerEnemyArtsInflictionStack, level)
-          : 0,
-        consumeEnemyArtsInflictionStacksForBonus: executeHit.consumeEnemyArtsInflictionStacksForBonus ?? false,
-        maxEnemyArtsInflictionStacksForBonus: executeHit.maxEnemyArtsInflictionStacksForBonus ?? 4,
+        accumulator: executeHit.accumulator
+          ? {
+              type: executeHit.accumulator.type,
+              statusId: executeHit.accumulator.statusId,
+              maxConsumed: resolveTable(executeHit.accumulator.maxConsumed ?? flat12(99), level),
+              useLevelAsStacks: executeHit.accumulator.useLevelAsStacks ?? true,
+              multiplier: resolveTable(executeHit.accumulator.multiplier ?? flat12(0), level),
+              flatAmount: resolveTable(executeHit.accumulator.flatAmount ?? flat12(0), level),
+              stagger: resolveTable(executeHit.accumulator.stagger ?? flat12(0), level),
+              spGenerated: resolveTable(executeHit.accumulator.spGenerated ?? flat12(0), level),
+              spReturned: resolveTable(executeHit.accumulator.spReturned ?? flat12(0), level),
+              energyReturn: resolveTable(executeHit.accumulator.energyReturn ?? flat12(0), level),
+            }
+          : undefined,
         effects: (executeHit.effects ?? []).map((effect) => resolveHitEffectAtLevel(effect, level)),
         postEffects: (executeHit.postEffects ?? []).map((effect) => resolveHitEffectAtLevel(effect, level)),
         condition: executeHit.condition,

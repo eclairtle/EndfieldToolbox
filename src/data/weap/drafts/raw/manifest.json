@@ -1,0 +1,212 @@
+[
+  {
+    "file": "artzy-tyrannical.json",
+    "slug": "artzy-tyrannical",
+    "name": "Artzy Tyrannical",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "brigands-calling.json",
+    "slug": "brigands-calling",
+    "name": "Brigand's Calling",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "chivalric-virtues.json",
+    "slug": "chivalric-virtues",
+    "name": "Chivalric Virtues",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "clannibal.json",
+    "slug": "clannibal",
+    "name": "Clannibal",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "delivery-guaranteed.json",
+    "slug": "delivery-guaranteed",
+    "name": "Delivery Guaranteed",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "detonation-unit.json",
+    "slug": "detonation-unit",
+    "name": "Detonation Unit",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "dreams-of-the-starry-beach.json",
+    "slug": "dreams-of-the-starry-beach",
+    "name": "Dreams of the Starry Beach",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "eminent-repute.json",
+    "slug": "eminent-repute",
+    "name": "Eminent Repute",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "exemplar.json",
+    "slug": "exemplar",
+    "name": "Exemplar",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "forgeborn-scathe.json",
+    "slug": "forgeborn-scathe",
+    "name": "Forgeborn Scathe",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "former-finery.json",
+    "slug": "former-finery",
+    "name": "Former Finery",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "glorious-memory.json",
+    "slug": "glorious-memory",
+    "name": "Glorious Memory",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "grand-vision.json",
+    "slug": "grand-vision",
+    "name": "Grand Vision",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "home-longing.json",
+    "slug": "home-longing",
+    "name": "Home Longing",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "jet.json",
+    "slug": "jet",
+    "name": "JET",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "khravengger.json",
+    "slug": "khravengger",
+    "name": "Khravengger",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "lupine-scarlet.json",
+    "slug": "lupine-scarlet",
+    "name": "Lupine Scarlet",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "mountain-bearer.json",
+    "slug": "mountain-bearer",
+    "name": "Mountain Bearer",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "navigator.json",
+    "slug": "navigator",
+    "name": "Navigator",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "never-rest.json",
+    "slug": "never-rest",
+    "name": "Never Rest",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "oblivion.json",
+    "slug": "oblivion",
+    "name": "Oblivion",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "opus-etch-figure.json",
+    "slug": "opus-etch-figure",
+    "name": "Opus: Etch Figure",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "rapid-ascent.json",
+    "slug": "rapid-ascent",
+    "name": "Rapid Ascent",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "sundered-prince.json",
+    "slug": "sundered-prince",
+    "name": "Sundered Prince",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "thermite-cutter.json",
+    "slug": "thermite-cutter",
+    "name": "Thermite Cutter",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "thunderberge.json",
+    "slug": "thunderberge",
+    "name": "Thunderberge",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "umbral-torch.json",
+    "slug": "umbral-torch",
+    "name": "Umbral Torch",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "valiant.json",
+    "slug": "valiant",
+    "name": "Valiant",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "wedge.json",
+    "slug": "wedge",
+    "name": "Wedge",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "white-night-nova.json",
+    "slug": "white-night-nova",
+    "name": "White Night Nova",
+    "lang": "en",
+    "type": "weapon"
+  }
+]

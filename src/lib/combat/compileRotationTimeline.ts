@@ -41,25 +41,37 @@ export class RotationTimeContext {
   constructor(private readonly extensions: RotationTimeExtension[]) {}
 
   toGameTime(realTime: number): number {
+    if (realTime >= 0) {
+      let cumulativeFreezeBefore = 0;
+      for (const ext of this.extensions) {
+        const freezeStart = ext.time;
+        const freezeEnd = ext.time + ext.amount;
+        if (freezeEnd <= 0 || freezeStart >= realTime) {
+          continue;
+        }
+        const overlapStart = Math.max(0, freezeStart);
+        const overlapEnd = Math.min(realTime, freezeEnd);
+        if (overlapEnd > overlapStart) {
+          cumulativeFreezeBefore += overlapEnd - overlapStart;
+        }
+      }
+      return round(realTime - cumulativeFreezeBefore);
+    }
+
+    let cumulativeFreezeAfter = 0;
     for (const ext of this.extensions) {
-      const freezeRealStart = ext.time;
-      const freezeRealEnd = ext.time + ext.amount;
-
-      if (realTime >= freezeRealStart && realTime < freezeRealEnd) {
-        return ext.gameTime;
+      const freezeStart = ext.time;
+      const freezeEnd = ext.time + ext.amount;
+      if (freezeEnd <= realTime || freezeStart >= 0) {
+        continue;
       }
-
-      if (realTime < freezeRealStart) {
-        return realTime - ext.cumulativeFreezeTime;
+      const overlapStart = Math.max(realTime, freezeStart);
+      const overlapEnd = Math.min(0, freezeEnd);
+      if (overlapEnd > overlapStart) {
+        cumulativeFreezeAfter += overlapEnd - overlapStart;
       }
     }
-
-    const last = this.extensions[this.extensions.length - 1];
-    if (!last) {
-      return realTime;
-    }
-
-    return realTime - (last.cumulativeFreezeTime + last.amount);
+    return round(realTime + cumulativeFreezeAfter);
   }
 
   getShiftedEndTime(startTime: number, duration: number, excludeStepId: string | null = null): number {
@@ -178,6 +190,14 @@ function buildTimelineInputs(rotation: Rotation, party: CharacterCombatSnapshot[
 
     const slotCursor = currentRealTimeBySlot.get(step.slot) ?? 0;
     let realStartTime = step.startTime ?? slotCursor;
+    const freezeSeconds = Math.max(0, command.timeFreezeSeconds);
+    if (freezeSeconds > 0 && realStartTime < 0 && realStartTime + freezeSeconds > 0) {
+      const leftOption = -freezeSeconds - 0.05;
+      const rightOption = 0;
+      realStartTime = Math.abs(realStartTime - leftOption) <= Math.abs(realStartTime - rightOption)
+        ? leftOption
+        : rightOption;
+    }
 
     if (command.genericActionType === "switch") {
       let frame = Math.round(realStartTime * 60);

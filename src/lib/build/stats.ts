@@ -399,7 +399,7 @@ export function computeFinalStats(args: {
 
   // final ATK
   const rawATK = baseATK + weaponATK;
-  const modATK = Math.round(rawATK * mods.ATK_PCT);
+  const modATK = rawATK * mods.ATK_PCT;
   const finalATK = Math.floor((rawATK + modATK + mods.FLAT_ATK) * (1 + attrBonus));
 
   // final HP

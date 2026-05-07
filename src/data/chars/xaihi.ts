@@ -7,46 +7,93 @@ const XAIHI_AUXILIARY_CRYSTAL_DURATION_SECONDS = 25;
 const XAIHI_AUXILIARY_CRYSTAL_MAX_STACKS = 2;
 const XAIHI_BATTLE_SKILL_AMP_DURATION_SECONDS = 25;
 const XAIHI_AUXILIARY_CRYSTAL_HEAL_HIT_ID = "xaihi_auxiliary_crystal_heal";
+const XAIHI_TALENT_EXECUTE_PROCESS_1 = "xaihi_execute_process_1";
+const XAIHI_TALENT_EXECUTE_PROCESS_2 = "xaihi_execute_process_2";
+const XAIHI_TALENT_FREEZE_PROTOCOL = "xaihi_freeze_protocol";
+const XAIHI_EXECUTE_PROCESS_DEBUFF_ID = "xaihi_execute_process_cryo_taken";
 
 const XAIHI_COMBAT_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
-    if (ctx.event.type !== "BASIC_ATTACK_FINAL_STRIKE_HIT") {
-      return;
+    if (ctx.event.type === "BASIC_ATTACK_FINAL_STRIKE_HIT") {
+      const beforeCount = ctx.state.getTeamStatusStackCount(XAIHI_AUXILIARY_CRYSTAL_TEAM_STATUS_ID);
+      if (beforeCount > 0) {
+        ctx.state.applyEffects({
+          effects: [
+            {
+              type: "CONSUME_TEAM_STATUS",
+              statusId: XAIHI_AUXILIARY_CRYSTAL_TEAM_STATUS_ID,
+              stacks: 1,
+              label: "Auxiliary Crystal",
+            },
+          ],
+        });
+
+        const remaining = ctx.state.getTeamStatusStackCount(XAIHI_AUXILIARY_CRYSTAL_TEAM_STATUS_ID);
+        if (remaining < beforeCount) {
+          ctx.state.applyEffects({
+            effects: [{
+              type: "EXECUTE_HIT",
+              hitRefId: XAIHI_AUXILIARY_CRYSTAL_HEAL_HIT_ID,
+              commandName: "Auxiliary Crystal Treatment",
+            }],
+          });
+
+          if (remaining <= 0) {
+            ctx.state.triggerSelfCombo({
+              sourceEventType: "BASIC_ATTACK_FINAL_STRIKE_HIT",
+              label: "Xaihi Combo Triggered",
+            });
+          }
+        }
+      }
     }
 
-    const beforeCount = ctx.state.getTeamStatusStackCount(XAIHI_AUXILIARY_CRYSTAL_TEAM_STATUS_ID);
-    if (beforeCount <= 0) {
-      return;
+    // Execute Process (talent 1): Combo Skill hit on target with Cryo Infliction or
+    // Solidification applies Cryo DMG Taken for 5s.
+    if (
+      ctx.event.type === "BATTLE_OR_COMBO_HIT"
+      && ctx.event.sourceSlot === ctx.self.slot
+      && ctx.event.commandId === "xaihi_combo_skill"
+      && (
+        ctx.state.getEnemyArtsInfliction()?.element === "Cryo"
+        || ctx.state.hasStatus({ statusId: "solidification", target: "enemy" })
+      )
+    ) {
+      const cryoTakenPct = ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_EXECUTE_PROCESS_2)
+        ? 0.10
+        : ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_EXECUTE_PROCESS_1)
+          ? 0.07
+          : 0;
+      if (cryoTakenPct > 0) {
+        ctx.state.applyEffects({
+          effects: [
+            {
+              type: "APPLY_BUFF",
+              target: "enemy",
+              buffId: XAIHI_EXECUTE_PROCESS_DEBUFF_ID,
+              label: "Execute Process",
+              durationSeconds: 5,
+              timeScale: "game",
+              effects: {
+                CRYO_DMG_TAKEN_PCT: cryoTakenPct,
+              },
+            },
+          ],
+          stepId: `${ctx.event.stepId ?? "event"}:xaihi_execute_process`,
+        });
+      }
     }
 
-    ctx.state.applyEffects({
-      effects: [
-        {
-          type: "CONSUME_TEAM_STATUS",
-          statusId: XAIHI_AUXILIARY_CRYSTAL_TEAM_STATUS_ID,
-          stacks: 1,
-          label: "Auxiliary Crystal",
-        },
-      ],
-    });
-
-    const remaining = ctx.state.getTeamStatusStackCount(XAIHI_AUXILIARY_CRYSTAL_TEAM_STATUS_ID);
-    if (remaining >= beforeCount) {
-      return;
-    }
-
-    ctx.state.applyEffects({
-      effects: [{
-        type: "EXECUTE_HIT",
-        hitRefId: XAIHI_AUXILIARY_CRYSTAL_HEAL_HIT_ID,
-        commandName: "Auxiliary Crystal Treatment",
-      }],
-    });
-
-    if (remaining <= 0) {
-      ctx.state.triggerSelfCombo({
-        sourceEventType: "BASIC_ATTACK_FINAL_STRIKE_HIT",
-        label: "Xaihi Combo Triggered",
+    // Freeze Protocol (talent 2) dispels operator-side Cryo Infliction/Solidification.
+    // Operator debuff stacks are not modeled in the current simulator yet.
+    if (
+      ctx.event.type === "ULTIMATE_CAST"
+      && ctx.event.sourceSlot === ctx.self.slot
+      && ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_FREEZE_PROTOCOL)
+    ) {
+      ctx.state.emitEvent({
+        type: "ACTOR_BUFF_APPLIED",
+        label: "Freeze Protocol (operator dispel pending engine support)",
       });
     }
   },
@@ -334,20 +381,20 @@ export const XAIHI: CharacterBase = {
   mainAttr: "WIL",
   secondaryAttr: "INT",
   uniqueTalentDefs: {
-    xaihi_execute_process_1: {
+    [XAIHI_TALENT_EXECUTE_PROCESS_1]: {
       name: "Execute Process I",
       condition: {
         minEliteStage: 1,
       },
     },
-    xaihi_execute_process_2: {
+    [XAIHI_TALENT_EXECUTE_PROCESS_2]: {
       name: "Execute Process II",
       condition: {
         minEliteStage: 2,
-        requiresUniqueTalentsEnabled: ["xaihi_execute_process_1"],
+        requiresUniqueTalentsEnabled: [XAIHI_TALENT_EXECUTE_PROCESS_1],
       },
     },
-    xaihi_freeze_protocol: {
+    [XAIHI_TALENT_FREEZE_PROTOCOL]: {
       name: "Freeze Protocol",
       condition: {
         minEliteStage: 3,

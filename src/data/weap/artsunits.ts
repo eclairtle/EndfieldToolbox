@@ -1,5 +1,6 @@
 import { skillY } from "@/lib/build/weaponSkills";
 import type { WeaponBase } from "@/data/weapons";
+import { CHARACTERS } from "@/data/characters";
 import {
   ATK_TABLE_42_411,
   ATK_TABLE_49_485,
@@ -14,6 +15,10 @@ function percent(value: number) {
 
 function scaledPercentFromRank1(rank1Percent: number, y: number): number {
   return rank1Percent * (0.8 + 0.2 * y);
+}
+
+function getCharacterElementById(characterId: string) {
+  return CHARACTERS.find((character) => character.id === characterId)?.element;
 }
 
 export const DELIVERY_GUARANTEED: WeaponBase = {
@@ -86,24 +91,42 @@ export const STANZA_OF_MEMORIALS: WeaponBase = {
   skills: [
     { id: "INT_UP", name: "Intellect Boost [M]", rank: 2, implemented: true },
     { id: "ATK_UP", name: "Attack Boost [M]", rank: 2, implemented: true },
-    { id: "UNIQUE", name: "Conditional ATK Boost", rank: 1, implemented: true },
+    { id: "UNIQUE", name: "Twilight: Lustrous Pyre", rank: 1, implemented: true },
   ],
+  getUniqueStaticModifiers: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return {
+      HP_PCT: scaledPercentFromRank1(10, y) / 100,
+    };
+  },
   getUniqueSkillDescription: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
-    return `Gain ATK +${percent(scaledPercentFromRank1(10, y))} for 15s after the wielder's skill recovers SP. Effects of the same name cannot stack.`;
+    return [
+      `Max HP +${percent(scaledPercentFromRank1(10, y))}.`,
+      `When the wielder casts an ultimate, operators whose elements differ from the wielder gain ATK +${percent(scaledPercentFromRank1(8, y))} for 20s.`,
+      "Effects of the same name cannot stack.",
+    ].join("\n");
   },
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
-    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "SKILL_SP_RECOVERED") {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ULTIMATE_CAST") {
       return;
     }
     const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
-    ctx.helpers.applySelfBuff({
-      buffId: "weapon_stanza_of_memorials_attack",
-      label: "Stanza of Memorials",
-      durationSeconds: 15,
+    const wearerElement = getCharacterElementById(ctx.wearer.characterId);
+    ctx.helpers.applyTeamBuffFiltered({
+      buffId: "weapon_stanza_of_memorials_attack_team_diff_element",
+      label: "Twilight: Lustrous Pyre",
+      durationSeconds: 20,
+      shouldApplyTo: (target) => {
+        const targetElement = getCharacterElementById(target.characterId);
+        if (!wearerElement || !targetElement) {
+          return false;
+        }
+        return targetElement !== wearerElement;
+      },
       effects: {
-        ATK_PCT: scaledPercentFromRank1(10, y) / 100,
+        ATK_PCT: scaledPercentFromRank1(8, y) / 100,
       },
       eventType: "WEAPON_BUFF_APPLIED",
     });
@@ -133,13 +156,13 @@ export const DETONATION_UNIT: WeaponBase = {
     const y = skillY(uniqueSkillLevel);
     return [
       `Secondary Attribute +${percent(scaledPercentFromRank1(10, y))}.`,
-      `When the wielder triggers an Arts Reaction, target enemy suffers Arts DMG Taken +${percent(scaledPercentFromRank1(9, y))} for 15s.`,
+      `After the wielder applies an Arts Burst, target enemy suffers Arts DMG Taken +${percent(scaledPercentFromRank1(9, y))} for 15s.`,
       "Effects of the same name cannot stack.",
     ].join("\n");
   },
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
-    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ARTS_REACTION_CONSUMED") {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ARTS_BURST_APPLIED") {
       return;
     }
     const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);

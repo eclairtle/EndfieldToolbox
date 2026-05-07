@@ -16,6 +16,12 @@ export type BuildSummarySnapshot = {
   updatedAt: number | null;
 };
 
+export type DamageTallyTiming = {
+  enabled: boolean;
+  startTime: number;
+  endTime: number;
+};
+
 export type SavedBuild = {
   id: string;
   name: string;
@@ -23,6 +29,7 @@ export type SavedBuild = {
   plannedBuildState: BuildStoreStateSnapshot;
   rotationState: RotationSchemesState;
   summary: BuildSummarySnapshot;
+  damageTallyTiming: DamageTallyTiming;
 };
 
 function makeBuildId() {
@@ -41,7 +48,135 @@ function makeDefaultBuild(index: number): SavedBuild {
       dps: null,
       updatedAt: null,
     },
+    damageTallyTiming: {
+      enabled: false,
+      startTime: 0,
+      endTime: 60,
+    },
   };
+}
+
+function makeDefaultExampleBuildLastRite(): SavedBuild {
+  const build = makeDefaultBuild(1);
+  build.id = "example_lastrite_rhodagn_11s";
+  build.name = "别礼大王11秒罗丹";
+
+  const [slot1, slot2, slot3, slot4] = build.currentBuildState.slots;
+  if (slot1 && slot2 && slot3 && slot4) {
+    slot1.selectedCharId = "lastrite";
+    slot1.characterAscension = 4;
+    slot1.characterPotential = 5;
+    slot1.level = 90;
+    slot1.selectedWeaponId = "khravengger";
+    slot1.weaponAscension = 4;
+    slot1.weaponPotential = 5;
+    slot1.weaponLevel = 90;
+    slot1.weaponSkillLevels = [9, 9, 9];
+    slot1.characterSkillLevels = { basic: 12, battleSkill: 12, comboSkill: 12, ultimate: 12 };
+    slot1.uniqueTalentToggles = {
+      lastrite_talent_cryo_sus_1: true,
+      lastrite_talent_cryo_sus_2: true,
+      lastrite_talent_ult_sus_scale_1: true,
+      lastrite_talent_ult_sus_scale_2: true,
+    };
+
+    slot2.selectedCharId = "ardelia";
+    slot2.characterAscension = 4;
+    slot2.characterPotential = 5;
+    slot2.level = 90;
+    slot2.selectedWeaponId = "dreams_of_the_starry_beach";
+    slot2.weaponAscension = 4;
+    slot2.weaponPotential = 5;
+    slot2.weaponLevel = 90;
+    slot2.weaponSkillLevels = [9, 4, 9];
+    slot2.characterSkillLevels = { basic: 9, battleSkill: 12, comboSkill: 9, ultimate: 10 };
+    slot2.uniqueTalentToggles = {
+      ardelia_friendly_presence_1: true,
+      ardelia_friendly_presence_2: true,
+      ardelia_friendly_presence_3: true,
+      ardelia_mountainpeak_surfer: true,
+    };
+
+    slot3.selectedCharId = "xaihi";
+    slot3.characterAscension = 4;
+    slot3.characterPotential = 5;
+    slot3.level = 90;
+    slot3.selectedWeaponId = "detonation_unit";
+    slot3.weaponAscension = 4;
+    slot3.weaponPotential = 5;
+    slot3.weaponLevel = 90;
+    slot3.weaponSkillLevels = [9, 9, 9];
+    slot3.characterSkillLevels = { basic: 9, battleSkill: 10, comboSkill: 9, ultimate: 12 };
+    slot3.uniqueTalentToggles = {
+      xaihi_execute_process_1: true,
+      xaihi_execute_process_2: true,
+      xaihi_freeze_protocol: true,
+    };
+
+    slot4.selectedCharId = "perlica";
+    slot4.characterAscension = 4;
+    slot4.characterPotential = 5;
+    slot4.level = 90;
+    slot4.selectedWeaponId = "stanza_of_memorials";
+    slot4.weaponAscension = 4;
+    slot4.weaponPotential = 5;
+    slot4.weaponLevel = 90;
+    slot4.weaponSkillLevels = [7, 3, 9];
+    slot4.characterSkillLevels = { basic: 9, battleSkill: 9, comboSkill: 9, ultimate: 9 };
+    slot4.uniqueTalentToggles = {
+      perlica_talent_staggered_damage_1: true,
+      perlica_talent_staggered_damage_2: true,
+      perlica_talent_combo_chain_1: true,
+    };
+  }
+  build.currentBuildState.activeSlotIndex = 2;
+  build.plannedBuildState = cloneJson(build.currentBuildState);
+
+  const scheme = build.rotationState.schemes[0];
+  if (scheme) {
+    scheme.rotation.steps = [
+      { id: "step_dhqgyd0z", slot: 0, commandId: "lastrite_battle_skill", startTime: -9.7 },
+      { id: "step_g7hi63io", slot: 2, commandId: "xaihi_battle_skill", startTime: -8.2 },
+      { id: "step_35x7pzi8", slot: 0, commandId: "lastrite_basic_sequence_1", startTime: -8.9 },
+      { id: "step_p7hopuw2", slot: 0, commandId: "lastrite_basic_sequence_2", startTime: -8.3 },
+      { id: "step_qhhfrdm7", slot: 0, commandId: "lastrite_basic_sequence_3", startTime: -7.6 },
+      { id: "step_vr69qokw", slot: 0, commandId: "lastrite_basic_sequence_4", startTime: -5.6 },
+      { id: "step_synwljdm", slot: 2, commandId: "xaihi_ultimate", startTime: -5.2 },
+      { id: "step_rpziige0", slot: 1, commandId: "ardelia_ultimate", startTime: -3.7 },
+      { id: "step_k113vam8", slot: 3, commandId: "perlica_ultimate", startTime: -1.9 },
+      { id: "step_r22wtb6a", slot: 2, commandId: "__switch", startTime: 0.6 },
+      { id: "step_evpz6xxn", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 0.8 },
+      { id: "step_rsvt34td", slot: 0, commandId: "lastrite_battle_skill", startTime: 0.9 },
+      { id: "step_qx5x3sfu", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 1.2 },
+      { id: "step_w4u7vdvi", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 1.9 },
+      { id: "step_785jv49s", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 2.4 },
+      { id: "step_b42isksw", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 2.9 },
+      { id: "step_kqy4ool4", slot: 1, commandId: "ardelia_combo_skill", startTime: 3.9 },
+      { id: "step_kwcupqog", slot: 2, commandId: "xaihi_combo_skill", startTime: 4.1 },
+      { id: "step_gjylf5a3", slot: 3, commandId: "perlica_combo_skill", startTime: 4.3 },
+      { id: "step_d4f0fwae", slot: 0, commandId: "lastrite_battle_skill", startTime: 5.9 },
+      { id: "step_j67rfn5p", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 5.9 },
+      { id: "step_p91raerp", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 6.3 },
+      { id: "step_kuqp2lpk", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 6.7 },
+      { id: "step_u5fpg9rg", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 7.2 },
+      { id: "step_wb8ct519", slot: 1, commandId: "ardelia_battle_skill", startTime: 7.4 },
+      { id: "step_37oyofyd", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 8 },
+      { id: "step_i53frg0n", slot: 0, commandId: "lastrite_combo_skill", startTime: 8.8 },
+    ];
+  }
+
+  build.rotationState.enemyLevel = 90;
+  build.summary = {
+    totalDamage: 1647757.7708065223,
+    dps: 139640.4890514002,
+    updatedAt: 1778171011834,
+  };
+  build.damageTallyTiming = {
+    enabled: false,
+    startTime: 0,
+    endTime: 60,
+  };
+  return build;
 }
 
 function cloneJson<T>(value: T): T {
@@ -153,6 +288,17 @@ export const useBuildListStore = defineStore("buildListStore", () => {
             ? raw.summary.updatedAt
             : null,
       },
+      damageTallyTiming: {
+        enabled: raw.damageTallyTiming?.enabled === true,
+        startTime:
+          typeof raw.damageTallyTiming?.startTime === "number" && Number.isFinite(raw.damageTallyTiming.startTime)
+            ? raw.damageTallyTiming.startTime
+            : 0,
+        endTime:
+          typeof raw.damageTallyTiming?.endTime === "number" && Number.isFinite(raw.damageTallyTiming.endTime)
+            ? raw.damageTallyTiming.endTime
+            : 60,
+      },
     };
   }
 
@@ -171,8 +317,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
       }
 
       const first = makeDefaultBuild(1);
-      builds.value = [first];
-      activeBuildId.value = first.id;
+      const example = makeDefaultExampleBuildLastRite();
+      builds.value = [example, first];
+      activeBuildId.value = example.id;
       return;
     }
 
@@ -245,6 +392,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     plannedBuildState: BuildStoreStateSnapshot;
     rotationState: RotationSchemesState;
     summary?: { totalDamage: number; dps: number };
+    damageTallyTiming?: DamageTallyTiming;
   }) {
     const target = builds.value.find((build) => build.id === args.buildId);
     if (!target) {
@@ -260,6 +408,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
         dps: args.summary.dps,
         updatedAt: Date.now(),
       };
+    }
+    if (args.damageTallyTiming) {
+      target.damageTallyTiming = cloneJson(args.damageTallyTiming);
     }
   }
 

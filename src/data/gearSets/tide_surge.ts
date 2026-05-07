@@ -86,7 +86,7 @@ export const TIDE_SURGE: GearBase[] = [
       },
       {
         "stat": "CRYO_ELECTRIC_DMG_PCT",
-        "value": 0.192
+        "value": 0.1916
       }
     ],
   }

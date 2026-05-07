@@ -255,9 +255,13 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
       {
         name: "Combo 2",
         multiplier: pct([133, 147, 160, 173, 187, 200, 213, 227, 240, 257, 277, 300]),
-        bonusMultiplierPerEnemyArtsInflictionStack: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
-        consumeEnemyArtsInflictionStacksForBonus: true,
-        maxEnemyArtsInflictionStacksForBonus: 4,
+        accumulator: {
+          type: "consume_enemy_status",
+          statusId: "arts_infliction",
+          maxConsumed: flat12(4),
+          useLevelAsStacks: false,
+          multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
+        },
         stagger: flat12(5),
         offsetFrames: flat12(54),
         effects: [

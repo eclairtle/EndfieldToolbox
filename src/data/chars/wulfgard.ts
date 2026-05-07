@@ -6,6 +6,16 @@ const WULFGARD_SCORCHING_FANGS_BUFF_ID = "wulfgard_scorching_fangs";
 
 const WULFGARD_COMBAT_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
+    if (ctx.event.type === "ARTS_INFLICTION_APPLIED") {
+      const artsInfliction = ctx.state.getEnemyArtsInfliction();
+      if (artsInfliction?.element === "Heat") {
+        ctx.state.triggerSelfCombo({
+          label: "Wulfgard Combo Triggered",
+          sourceEventType: "ARTS_INFLICTION_APPLIED",
+        });
+      }
+    }
+
     if (
       ctx.event.type === "COMBUSTION_APPLIED"
       && (ctx.event.slot === ctx.self.slot || ctx.event.sourceSlot === ctx.self.slot)

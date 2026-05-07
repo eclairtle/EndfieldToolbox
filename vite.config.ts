@@ -14,6 +14,7 @@ export default defineConfig({
   ].filter(Boolean),
   base: process.env.NODE_ENV === 'production' ? '/EndfieldToolbox/' : '/',
   server: {
+    host: true,
     watch: {
       ignored: [
         '**/public/avatars/**',

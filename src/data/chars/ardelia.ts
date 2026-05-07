@@ -54,16 +54,8 @@ const ARDELIA_COMBAT_HOOKS: CharacterCombatHooks = {
     if (
       ctx.source.commandId === "ardelia_ultimate"
       && hasFriendlyPresenceTalentEnabled(ctx.state)
-      && ctx.state.markTriggerOnce(`${ctx.stepId}:ardelia_dolly_shadow_ultimate`)
     ) {
-      ctx.state.applySelfBuff({
-        buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
-        label: "Dolly's Shadow",
-        durationSeconds: 10,
-        timeScale: "game",
-        stackGroup: ARDELIA_DOLLY_SHADOW_BUFF_ID,
-        maxStacks: 10,
-      });
+      // Handled by per-hit chance effect on Ultimate hit definition.
     }
 
     if (!ctx.state.isSelfUniqueTalentEnabled("ardelia_mountainpeak_surfer")) {
@@ -340,12 +332,39 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     attackType: "ULTIMATE",
     damageType: "Nature",
     mode: "single",
-    durationFrames: flat12(418),
+    durationFrames: flat12(288),
     timeFreezeSeconds: flat12(105 / 60),
     cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(90),
-    hits: [{ multiplier: pct([73, 81, 88, 95, 103, 110, 117, 125, 132, 141, 152, 165]), offsetFrames: flat12(108) }],
+    hits: [{
+      multiplier: pct([73, 81, 88, 95, 103, 110, 117, 125, 132, 141, 152, 165]),
+      stagger: [2,2,2,2,2,2,2,2,2,3,3,3],
+      offsetFrames: flat12(108),
+      times: 30,
+      repeatIntervalFrames: flat12(18),
+      effects: [
+        {
+          type: "APPLY_BUFF",
+          target: "self",
+          buffId: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+          label: "Dolly's Shadow",
+          durationSeconds: 10,
+          timeScale: "game",
+          stackGroup: ARDELIA_DOLLY_SHADOW_BUFF_ID,
+          maxStacks: 10,
+          chance: 0.3,
+          condition: {
+            type: "or",
+            conditions: [
+              { type: "require_talent", talentKey: "ardelia_friendly_presence_1", enabled: true },
+              { type: "require_talent", talentKey: "ardelia_friendly_presence_2", enabled: true },
+              { type: "require_talent", talentKey: "ardelia_friendly_presence_3", enabled: true },
+            ],
+          },
+        },
+      ],
+    }],
   },
 ];
 
@@ -461,20 +480,55 @@ export const ARDELIA: CharacterBase = {
       }
 
       if (command.id === "ardelia_ultimate") {
+        const baseDurationFrames = potentialLevel >= 3 ? command.durationFrames + 60 : command.durationFrames;
+        const scaledHits = command.hits.map((hit) => {
+          const intervalFrames = Math.max(1, hit.repeatIntervalFrames || 0);
+          const baseOffset = hit.offsetFrames;
+          const computedTimes = intervalFrames > 0
+            ? Math.max(1, Math.floor((baseDurationFrames - baseOffset) / intervalFrames) + 1)
+            : 1;
+          const effects = hit.effects.map((effect) => {
+            if (
+              effect.type === "APPLY_BUFF"
+              && effect.target === "self"
+              && effect.buffId === ARDELIA_DOLLY_SHADOW_BUFF_ID
+            ) {
+              const baseChance = effect.chance ?? 1;
+              const scaledChance = potentialLevel >= 3 ? Math.min(1, baseChance * 1.2) : baseChance;
+              return {
+                ...effect,
+                chance: scaledChance,
+              };
+            }
+            return effect;
+          });
+          return {
+            ...hit,
+            times: computedTimes,
+            effects,
+          };
+        });
         if (potentialLevel >= 4) {
           return {
             ...command,
             energyCost: Math.max(0, command.energyCost * 0.85),
-            durationFrames: potentialLevel >= 3 ? command.durationFrames + 60 : command.durationFrames,
+            durationFrames: baseDurationFrames,
+            hits: scaledHits,
           };
         }
 
         if (potentialLevel >= 3) {
           return {
             ...command,
-            durationFrames: command.durationFrames + 60,
+            durationFrames: baseDurationFrames,
+            hits: scaledHits,
           };
         }
+        return {
+          ...command,
+          durationFrames: baseDurationFrames,
+          hits: scaledHits,
+        };
       }
 
       if (command.id === "ardelia_combo_skill" && potentialLevel >= 5) {

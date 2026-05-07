@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useBuildStore, type BuildStoreStateSnapshot, type CharacterBuildSlot } from "@/stores/buildStore";
-import { useBuildListStore } from "@/stores/buildListStore";
+import { useBuildListStore, type DamageTallyTiming } from "@/stores/buildListStore";
 
 import CharacterCard from "@/components/cards/characterCard.vue";
 import WeaponCard from "@/components/cards/weaponCard.vue";
@@ -58,6 +58,9 @@ const { builds, activeBuildId } = storeToRefs(buildListStore);
 const { t, locale, setLocale } = useLocale();
 const route = useRoute();
 const router = useRouter();
+const activeDamageTallyTiming = computed<DamageTallyTiming>(() =>
+  buildListStore.activeBuild?.damageTallyTiming ?? { enabled: false, startTime: 0, endTime: 60 },
+);
 
 const routeBuildId = computed(() =>
   typeof route.params.buildId === "string" ? route.params.buildId : "",
@@ -278,17 +281,59 @@ function simulateForBuildSnapshot(
   });
 }
 
+function getTallyWindowSummary(
+  simulation: ReturnType<typeof simulateRotation> | null | undefined,
+  timing: DamageTallyTiming,
+): { totalDamage: number; dps: number } {
+  if (!simulation) {
+    return { totalDamage: 0, dps: 0 };
+  }
+
+  const getAutoWindow = () => {
+    const actionStart = simulation.actions.length > 0
+      ? simulation.actions.reduce((min, action) => Math.min(min, action.realStartTime), Number.POSITIVE_INFINITY)
+      : 0;
+    const start = Number.isFinite(actionStart) ? Math.max(0, actionStart) : 0;
+    const end = simulation.timeline.length > 0
+      ? simulation.timeline.reduce((max, entry) => Math.max(max, entry.time), 0)
+      : simulation.actions.reduce((max, action) => Math.max(max, action.realEndTime), 0);
+    return { start, end };
+  };
+
+  if (!timing.enabled) {
+    const { start, end } = getAutoWindow();
+    const duration = Math.max(0, end - start);
+    const totalDamage = simulation.timeline
+      .filter((entry) => entry.time >= start - 0.0001 && entry.time <= end + 0.0001)
+      .reduce((sum, entry) => sum + entry.damage, 0);
+    return {
+      totalDamage,
+      dps: duration > 0 ? totalDamage / duration : 0,
+    };
+  }
+
+  const start = Math.min(timing.startTime, timing.endTime);
+  const end = Math.max(timing.startTime, timing.endTime);
+  const duration = Math.max(0, end - start);
+  const totalDamage = simulation.timeline
+    .filter((entry) => entry.time >= start - 0.0001 && entry.time <= end + 0.0001)
+    .reduce((sum, entry) => sum + entry.damage, 0);
+  return {
+    totalDamage,
+    dps: duration > 0 ? totalDamage / duration : 0,
+  };
+}
+
 const builderRotationSimulation = computed(() => {
   return simulateForRotation(activeScheme.value.rotation);
 });
 
-const builderRotationDps = computed(() => {
-  const simulation = builderRotationSimulation.value;
-  if (!simulation || simulation.totalTime <= 0) {
-    return 0;
-  }
+const builderTallySummary = computed(() =>
+  getTallyWindowSummary(builderRotationSimulation.value, activeDamageTallyTiming.value),
+);
 
-  return simulation.totalDamage / simulation.totalTime;
+const builderRotationDps = computed(() => {
+  return builderTallySummary.value.dps;
 });
 
 const currentPlannerRotationSimulation = computed(() =>
@@ -300,19 +345,11 @@ const plannedPlannerRotationSimulation = computed(() =>
 );
 
 const currentPlannerRotationDps = computed(() => {
-  const simulation = currentPlannerRotationSimulation.value;
-  if (!simulation || simulation.totalTime <= 0) {
-    return 0;
-  }
-  return simulation.totalDamage / simulation.totalTime;
+  return getTallyWindowSummary(currentPlannerRotationSimulation.value, activeDamageTallyTiming.value).dps;
 });
 
 const plannedPlannerRotationDps = computed(() => {
-  const simulation = plannedPlannerRotationSimulation.value;
-  if (!simulation || simulation.totalTime <= 0) {
-    return 0;
-  }
-  return simulation.totalDamage / simulation.totalTime;
+  return getTallyWindowSummary(plannedPlannerRotationSimulation.value, activeDamageTallyTiming.value).dps;
 });
 
 const firstSchemeSimulation = computed(() => {
@@ -321,11 +358,7 @@ const firstSchemeSimulation = computed(() => {
 });
 
 const firstSchemeDps = computed(() => {
-  const simulation = firstSchemeSimulation.value;
-  if (!simulation || simulation.totalTime <= 0) {
-    return 0;
-  }
-  return simulation.totalDamage / simulation.totalTime;
+  return getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).dps;
 });
 
 const DAMAGE_CONTRIBUTION_COLORS = ["#d9cf57", "#73b45d", "#5c9fe8", "#d07fc7"];
@@ -336,11 +369,25 @@ const builderDamageContributions = computed(() => {
     return [];
   }
 
-  const totalDamage = simulation.totalDamage;
+  const start = activeDamageTallyTiming.value.enabled
+    ? Math.min(activeDamageTallyTiming.value.startTime, activeDamageTallyTiming.value.endTime)
+    : 0;
+  const end = activeDamageTallyTiming.value.enabled
+    ? Math.max(activeDamageTallyTiming.value.startTime, activeDamageTallyTiming.value.endTime)
+    : simulation.totalTime;
+  const damageBySlotInWindow = new Map<number, number>();
+  for (const hit of simulation.timeline) {
+    if (hit.time < start - 0.0001 || hit.time > end + 0.0001) {
+      continue;
+    }
+    damageBySlotInWindow.set(hit.slot, (damageBySlotInWindow.get(hit.slot) ?? 0) + hit.damage);
+  }
+  const totalDamage = builderTallySummary.value.totalDamage;
   return simulation.damageBySlot.map((entry, index) => ({
     ...entry,
+    damage: damageBySlotInWindow.get(entry.slot) ?? 0,
     color: DAMAGE_CONTRIBUTION_COLORS[index % DAMAGE_CONTRIBUTION_COLORS.length],
-    percent: totalDamage > 0 ? (entry.damage / totalDamage) * 100 : 0,
+    percent: totalDamage > 0 ? ((damageBySlotInWindow.get(entry.slot) ?? 0) / totalDamage) * 100 : 0,
     localizedCharacterName: getCharacterDisplayNameByCharacter(
       CHARACTERS.find((character) => character.id === slots.value[entry.slot]?.selectedCharId) ?? null,
     ) || entry.characterName,
@@ -521,8 +568,8 @@ const plannerDamageComparison = computed(() => {
     return null;
   }
 
-  const currentDamage = currentPlannerRotationSimulation.value?.totalDamage ?? 0;
-  const plannedDamage = plannedPlannerRotationSimulation.value?.totalDamage ?? 0;
+  const currentDamage = getTallyWindowSummary(currentPlannerRotationSimulation.value, activeDamageTallyTiming.value).totalDamage;
+  const plannedDamage = getTallyWindowSummary(plannedPlannerRotationSimulation.value, activeDamageTallyTiming.value).totalDamage;
   return { current: currentDamage, planned: plannedDamage };
 });
 
@@ -729,9 +776,10 @@ function persistCurrentBuild() {
     plannedBuildState: plannedBuildSnapshot.value,
     rotationState: exportRotationSchemes(),
     summary: {
-      totalDamage: firstSchemeSimulation.value?.totalDamage ?? 0,
+      totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
       dps: firstSchemeDps.value,
     },
+    damageTallyTiming: activeDamageTallyTiming.value,
   });
 }
 
@@ -761,6 +809,20 @@ function openBuild(buildId: string) {
     return;
   }
   void router.push({ name: "build-builder", params: { buildId } });
+}
+
+function updateActiveDamageTallyTiming(next: DamageTallyTiming) {
+  if (!activeBuildId.value || !currentBuildSnapshot.value || !plannedBuildSnapshot.value) {
+    return;
+  }
+  syncModeSnapshotFromEditor();
+  buildListStore.updateBuildRuntime({
+    buildId: activeBuildId.value,
+    currentBuildState: currentBuildSnapshot.value,
+    plannedBuildState: plannedBuildSnapshot.value,
+    rotationState: exportRotationSchemes(),
+    damageTallyTiming: next,
+  });
 }
 
 function createBuild() {
@@ -1123,7 +1185,7 @@ watch(
                       {{ `${Math.round(plannerDamageComparison.current).toLocaleString()} → ${Math.round(plannerDamageComparison.planned).toLocaleString()}` }}
                     </template>
                     <template v-else>
-                      {{ Math.round(builderRotationSimulation?.totalDamage ?? 0).toLocaleString() }}
+                      {{ Math.round(builderTallySummary.totalDamage).toLocaleString() }}
                     </template>
                   </div>
                 </div>
@@ -1202,8 +1264,10 @@ watch(
           :enemy-stagger-recovery-seconds="selectedEnemy.staggerRecoverySeconds"
           :enemy-finisher-multiplier="selectedEnemy.finisherMultiplier"
           :enemy-finisher-sp-gain="selectedEnemy.finisherSpGain"
+          :damage-tally-timing="activeDamageTallyTiming"
           @update:selected-enemy-id="selectedEnemyId = $event"
           @update:enemy-level="enemyLevel = $event"
+          @update:damage-tally-timing="updateActiveDamageTallyTiming"
         />
       </template>
     </div>
