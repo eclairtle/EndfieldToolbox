@@ -60,7 +60,7 @@ function makeDefaultBuild(index: number): SavedBuild {
 
 function makeDefaultExampleBuildLastRite(): SavedBuild {
   const build = makeDefaultBuild(1);
-  build.id = "example_lastrite_rhodagn_11s";
+  build.id = "build_sb34yazo";
   build.name = "别礼大王11秒罗丹";
 
   const [slot1, slot2, slot3, slot4] = build.currentBuildState.slots;
@@ -250,7 +250,9 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
   }
   enemyParsed.byBuild[build.id] = {
     byScheme: {
-      [activeSchemeId]: {},
+      [activeSchemeId]: {
+        rhodagn: [],
+      },
     },
   };
   window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify(enemyParsed));
