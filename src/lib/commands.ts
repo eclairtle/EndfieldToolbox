@@ -213,7 +213,9 @@ type CommandHitEffectCore =
           {
             attribute: "STR" | "AGI" | "INT" | "WIL";
             ratio: number;
+            ratioScaling?: ScalingTable;
             max?: number;
+            maxScaling?: ScalingTable;
           }
         >
       >;
@@ -635,6 +637,25 @@ function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: numb
 
   return {
     ...effect,
+    effectAttributeScalings: effect.effectAttributeScalings
+      ? Object.fromEntries(
+        Object.entries(effect.effectAttributeScalings).map(([key, scaling]) => {
+          if (!scaling) {
+            return [key, scaling];
+          }
+          return [
+            key,
+            {
+              ...scaling,
+              ratio: Array.isArray(scaling.ratioScaling) ? resolveTable(scaling.ratioScaling, level) : scaling.ratio,
+              max: Array.isArray(scaling.maxScaling) ? resolveTable(scaling.maxScaling, level) : scaling.max,
+              ratioScaling: undefined,
+              maxScaling: undefined,
+            },
+          ];
+        }),
+      ) as typeof effect.effectAttributeScalings
+      : undefined,
     effects: {
       ...(effect.effects ?? {}),
       ...resolvedScalingEffects,

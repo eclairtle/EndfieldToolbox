@@ -308,8 +308,26 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
               NATURE_DMG_AMP_PCT: [0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.21, 0.22, 0.24],
             },
             effectAttributeScalings: {
-              CRYO_DMG_AMP_PCT: { attribute: "INT", ratio: 0.00014, max: 0.3 },
-              NATURE_DMG_AMP_PCT: { attribute: "INT", ratio: 0.00014, max: 0.3 },
+              CRYO_DMG_AMP_PCT: {
+                attribute: "INT",
+                ratio: 0.00014,
+                ratioScaling: [
+                  0.00014, 0.00015, 0.00016, 0.00018, 0.00019, 0.0002,
+                  0.00022, 0.00023, 0.00024, 0.00026, 0.00028, 0.0003,
+                ],
+                max: 0.3,
+                maxScaling: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.36],
+              },
+              NATURE_DMG_AMP_PCT: {
+                attribute: "INT",
+                ratio: 0.00014,
+                ratioScaling: [
+                  0.00014, 0.00015, 0.00016, 0.00018, 0.00019, 0.0002,
+                  0.00022, 0.00023, 0.00024, 0.00026, 0.00028, 0.0003,
+                ],
+                max: 0.3,
+                maxScaling: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.36],
+              },
             },
           },
         ],
@@ -415,41 +433,79 @@ export const XAIHI: CharacterBase = {
   },
   mutateResolvedCommands: (commands, ctx) => {
     const potentialLevel = ctx.buildState.potentialLevel ?? 0;
-    if (potentialLevel <= 0) {
-      return commands;
-    }
-
     return commands.map((command) => {
-      if (command.id === "xaihi_ultimate" && potentialLevel >= 2) {
-        return {
+      if (command.id !== "xaihi_ultimate") {
+        return command;
+      }
+
+      const withPotential2 = potentialLevel >= 2
+        ? {
           ...command,
           energyCost: Math.max(0, command.energyCost * 0.9),
-        };
+        }
+        : command;
+
+      if (potentialLevel < 5) {
+        return withPotential2;
       }
 
-      if (command.id === "xaihi_ultimate" && potentialLevel >= 5) {
-        return {
-          ...command,
-          hits: command.hits.map((hit) => ({
-            ...hit,
-            effects: hit.effects.map((effect) => {
-              if (effect.type !== "APPLY_BUFF" || effect.target !== "team") {
-                return effect;
-              }
-              return {
-                ...effect,
-                effects: {
-                  ...effect.effects,
-                  CRYO_DMG_AMP_PCT: (effect.effects?.CRYO_DMG_AMP_PCT ?? 0) * 1.1,
-                  NATURE_DMG_AMP_PCT: (effect.effects?.NATURE_DMG_AMP_PCT ?? 0) * 1.1,
-                },
-              };
-            }),
-          })),
-        };
-      }
-
-      return command;
+      return {
+        ...withPotential2,
+        hits: withPotential2.hits.map((hit) => ({
+          ...hit,
+          effects: hit.effects.map((effect) => {
+            if (effect.type !== "APPLY_BUFF" || effect.target !== "team") {
+              return effect;
+            }
+            return {
+              ...effect,
+              effects: {
+                ...effect.effects,
+                CRYO_DMG_AMP_PCT: (effect.effects?.CRYO_DMG_AMP_PCT ?? 0) * 1.1,
+                NATURE_DMG_AMP_PCT: (effect.effects?.NATURE_DMG_AMP_PCT ?? 0) * 1.1,
+              },
+              effectScalings: effect.effectScalings
+                ? {
+                  ...effect.effectScalings,
+                  CRYO_DMG_AMP_PCT: effect.effectScalings.CRYO_DMG_AMP_PCT?.map((value) => value * 1.1),
+                  NATURE_DMG_AMP_PCT: effect.effectScalings.NATURE_DMG_AMP_PCT?.map((value) => value * 1.1),
+                }
+                : effect.effectScalings,
+              effectAttributeScalings: effect.effectAttributeScalings
+                ? {
+                  ...effect.effectAttributeScalings,
+                  CRYO_DMG_AMP_PCT: effect.effectAttributeScalings.CRYO_DMG_AMP_PCT
+                    ? {
+                      ...effect.effectAttributeScalings.CRYO_DMG_AMP_PCT,
+                      ratio: effect.effectAttributeScalings.CRYO_DMG_AMP_PCT.ratio * 1.1,
+                      ratioScaling: effect.effectAttributeScalings.CRYO_DMG_AMP_PCT.ratioScaling
+                        ?.map((value) => value * 1.1),
+                      max: effect.effectAttributeScalings.CRYO_DMG_AMP_PCT.max != null
+                        ? effect.effectAttributeScalings.CRYO_DMG_AMP_PCT.max * 1.1
+                        : undefined,
+                      maxScaling: effect.effectAttributeScalings.CRYO_DMG_AMP_PCT.maxScaling
+                        ?.map((value) => value * 1.1),
+                    }
+                    : undefined,
+                  NATURE_DMG_AMP_PCT: effect.effectAttributeScalings.NATURE_DMG_AMP_PCT
+                    ? {
+                      ...effect.effectAttributeScalings.NATURE_DMG_AMP_PCT,
+                      ratio: effect.effectAttributeScalings.NATURE_DMG_AMP_PCT.ratio * 1.1,
+                      ratioScaling: effect.effectAttributeScalings.NATURE_DMG_AMP_PCT.ratioScaling
+                        ?.map((value) => value * 1.1),
+                      max: effect.effectAttributeScalings.NATURE_DMG_AMP_PCT.max != null
+                        ? effect.effectAttributeScalings.NATURE_DMG_AMP_PCT.max * 1.1
+                        : undefined,
+                      maxScaling: effect.effectAttributeScalings.NATURE_DMG_AMP_PCT.maxScaling
+                        ?.map((value) => value * 1.1),
+                    }
+                    : undefined,
+                }
+                : effect.effectAttributeScalings,
+            };
+          }),
+        })),
+      };
     });
   },
   levels: {

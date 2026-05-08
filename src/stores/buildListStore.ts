@@ -149,48 +149,51 @@ function makeDefaultExampleBuildLastRite(): SavedBuild {
   }
   build.currentBuildState.activeSlotIndex = 2;
   build.plannedBuildState = cloneJson(build.currentBuildState);
+  build.plannedBuildState.activeSlotIndex = 3;
 
   const scheme = build.rotationState.schemes[0];
   if (scheme) {
-    scheme.id = "rotation_example_lastrite_1";
+    scheme.id = "rotation_xpzih3i3";
     scheme.name = "Rotation 1";
     scheme.rotation.steps = [
-      { id: "step_dhqgyd0z", slot: 0, commandId: "lastrite_battle_skill", startTime: -9.7 },
-      { id: "step_g7hi63io", slot: 2, commandId: "xaihi_battle_skill", startTime: -8.2 },
-      { id: "step_35x7pzi8", slot: 0, commandId: "lastrite_basic_sequence_1", startTime: -8.9 },
-      { id: "step_p7hopuw2", slot: 0, commandId: "lastrite_basic_sequence_2", startTime: -8.3 },
-      { id: "step_qhhfrdm7", slot: 0, commandId: "lastrite_basic_sequence_3", startTime: -7.6 },
-      { id: "step_vr69qokw", slot: 0, commandId: "lastrite_basic_sequence_4", startTime: -5.6 },
-      { id: "step_synwljdm", slot: 2, commandId: "xaihi_ultimate", startTime: -5.2 },
-      { id: "step_rpziige0", slot: 1, commandId: "ardelia_ultimate", startTime: -3.7 },
-      { id: "step_k113vam8", slot: 3, commandId: "perlica_ultimate", startTime: -1.9 },
-      { id: "step_r22wtb6a", slot: 2, commandId: "__switch", startTime: 0.6 },
-      { id: "step_evpz6xxn", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 0.8 },
-      { id: "step_rsvt34td", slot: 0, commandId: "lastrite_battle_skill", startTime: 0.9 },
-      { id: "step_qx5x3sfu", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 1.2 },
-      { id: "step_w4u7vdvi", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 1.9 },
-      { id: "step_785jv49s", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 2.4 },
-      { id: "step_b42isksw", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 2.9 },
-      { id: "step_kqy4ool4", slot: 1, commandId: "ardelia_combo_skill", startTime: 3.9 },
-      { id: "step_kwcupqog", slot: 2, commandId: "xaihi_combo_skill", startTime: 4.1 },
-      { id: "step_gjylf5a3", slot: 3, commandId: "perlica_combo_skill", startTime: 4.3 },
-      { id: "step_d4f0fwae", slot: 0, commandId: "lastrite_battle_skill", startTime: 5.9 },
-      { id: "step_j67rfn5p", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 5.9 },
-      { id: "step_p91raerp", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 6.3 },
-      { id: "step_kuqp2lpk", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 6.7 },
-      { id: "step_u5fpg9rg", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 7.2 },
-      { id: "step_wb8ct519", slot: 1, commandId: "ardelia_battle_skill", startTime: 7.4 },
-      { id: "step_37oyofyd", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 8 },
-      { id: "step_i53frg0n", slot: 0, commandId: "lastrite_combo_skill", startTime: 8.8 },
+      { id: "step_yx248t0q", slot: 0, commandId: "lastrite_battle_skill", startTime: -9.9 },
+      { id: "step_r7a98fhj", slot: 2, commandId: "xaihi_battle_skill", startTime: -9.2 },
+      { id: "step_rbtfoijo", slot: 2, commandId: "xaihi_ultimate", startTime: -5.3 },
+      { id: "step_0ll65ix7", slot: 1, commandId: "ardelia_ultimate", startTime: -3.7 },
+      { id: "step_d99fzzg9", slot: 3, commandId: "perlica_ultimate", startTime: -1.9 },
+      { id: "step_yw36e18u", slot: 0, commandId: "lastrite_basic_sequence_1", startTime: -8.9, groupId: "group_dlwvzyjf" },
+      { id: "step_mc4sfksf", slot: 0, commandId: "lastrite_basic_sequence_2", startTime: -8.3, groupId: "group_dlwvzyjf" },
+      { id: "step_vb0qnjs4", slot: 0, commandId: "lastrite_basic_sequence_3", startTime: -7.5, groupId: "group_dlwvzyjf" },
+      { id: "step_sayh2y3n", slot: 0, commandId: "lastrite_basic_sequence_4", startTime: -5.7, groupId: "group_dlwvzyjf" },
+      { id: "step_o34mcvu9", slot: 2, commandId: "__switch", startTime: 0.3 },
+      { id: "step_y5x7jpux", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 0.6 },
+      { id: "step_50cdfocb", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 1.1 },
+      { id: "step_1r8o9gqg", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 1.7 },
+      { id: "step_7b12jbas", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 2.2 },
+      { id: "step_n1002i5p", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 2.9 },
+      { id: "step_a4k932pm", slot: 0, commandId: "lastrite_battle_skill", startTime: 0.6 },
+      { id: "step_zcgyg92f", slot: 2, commandId: "xaihi_combo_skill", startTime: 3.7 },
+      { id: "step_102updpe", slot: 3, commandId: "perlica_combo_skill", startTime: 3.7 },
+      { id: "step_8f4unvna", slot: 1, commandId: "ardelia_combo_skill", startTime: 3.7 },
+      { id: "step_yor7p2qw", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 4.7 },
+      { id: "step_2utrngbe", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 5.8 },
+      { id: "step_d40hb14d", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 6.3 },
+      { id: "step_j5fh0b24", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 6.8 },
+      { id: "step_ps6kgcpg", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 7 },
+      { id: "step_wqic1zyf", slot: 0, commandId: "lastrite_battle_skill", startTime: 5.8 },
+      { id: "step_v5h1csgs", slot: 1, commandId: "ardelia_battle_skill", startTime: 6.2 },
+      { id: "step_lx6tljsh", slot: 0, commandId: "lastrite_combo_skill", startTime: 8.2 },
     ];
+    scheme.rotation.groups = [{ id: "group_dlwvzyjf", name: "group 1" }];
+    scheme.rotation.critRiggingRules = [];
     build.rotationState.activeSchemeId = scheme.id;
   }
 
   build.rotationState.enemyLevel = 90;
   build.summary = {
-    totalDamage: 1647757.7708065223,
-    dps: 139640.4890514002,
-    updatedAt: 1778171011834,
+    totalDamage: 2134915.1116965273,
+    dps: 190617.42068718997,
+    updatedAt: 1778205335297,
   };
   build.damageTallyTiming = {
     enabled: false,
@@ -226,7 +229,7 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
       [activeSchemeId]: {
         initialSp: 200,
         spRegenRate: 8,
-        startingEnergyBySlot: [100, 100, 100, 100],
+        startingEnergyBySlot: [0, 0, 0, 0],
         consumableBySlot: [null, null, null, null],
       },
     },
@@ -247,18 +250,7 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
   }
   enemyParsed.byBuild[build.id] = {
     byScheme: {
-      [activeSchemeId]: {
-        rhodagn: [
-          {
-            id: "rhodagn_phase_transition",
-            commandId: "phase_transition",
-            startTime: 21.1,
-            interrupted: false,
-            interruptedSpGain: 0,
-            interruptedStagger: 0,
-          },
-        ],
-      },
+      [activeSchemeId]: {},
     },
   };
   window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify(enemyParsed));
@@ -336,6 +328,16 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   const builds = ref<SavedBuild[]>([]);
   const activeBuildId = ref<string>("");
 
+  function createSeededDefaultBuilds() {
+    const first = makeDefaultBuild(1);
+    const example = makeDefaultExampleBuildLastRite();
+    seedDefaultRotationUiStateForBuild(example);
+    return {
+      builds: [example, first],
+      activeBuildId: example.id,
+    };
+  }
+
   function normalizeStoredBuild(
     raw: Partial<SavedBuild> & { buildState?: BuildStoreStateSnapshot },
     index: number,
@@ -402,11 +404,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
         return;
       }
 
-      const first = makeDefaultBuild(1);
-      const example = makeDefaultExampleBuildLastRite();
-      seedDefaultRotationUiStateForBuild(example);
-      builds.value = [example, first];
-      activeBuildId.value = example.id;
+      const seeded = createSeededDefaultBuilds();
+      builds.value = seeded.builds;
+      activeBuildId.value = seeded.activeBuildId;
       return;
     }
 
@@ -533,9 +533,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   }
 
   function resetAll() {
-    const first = makeDefaultBuild(1);
-    builds.value = [first];
-    activeBuildId.value = first.id;
+    const seeded = createSeededDefaultBuilds();
+    builds.value = seeded.builds;
+    activeBuildId.value = seeded.activeBuildId;
     localStorage.removeItem(BUILD_LIST_STORAGE_KEY);
   }
 

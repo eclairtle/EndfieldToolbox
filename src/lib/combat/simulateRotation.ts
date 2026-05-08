@@ -2687,6 +2687,7 @@ export function simulateRotation(args: {
     registerGameTime?: number;
     linkSourceStepId?: string;
     applySourceCommandModifiers?: boolean;
+    triggerSlots?: CharacterCombatSnapshot["slot"][];
   }) => {
     if (
       args.hit.damageType !== "Healing"
@@ -2705,7 +2706,7 @@ export function simulateRotation(args: {
       return;
     }
 
-    const triggeredComboSlots: CharacterCombatSnapshot["slot"][] = [];
+    const triggeredComboSlots = args.triggerSlots ?? [];
     const effectiveEnemyMods = getEffectiveEnemyMods(actor, args.time, args.gameTime);
     const sourceCommand = actor.commands.find((command) => command.id === args.commandId);
     const baseActorMods = getEffectiveActorMods(actor, args.time, args.gameTime);
@@ -2741,14 +2742,14 @@ export function simulateRotation(args: {
     const averageDamage = damageBreakdown.averageDamage * (1 + linkMultiplier) * totalEnemyMultiplier;
     const finisherBonusSp =
       isEnemyStaggered && isFinisherHit && finisherAvailable ? enemyFinisherSpGain : 0;
-    const appliedStagger = applyEnemyStaggerFromHit({
-      rawStagger: args.hit.stagger,
-      time: args.time,
-      gameTime: args.gameTime,
-      stepId: args.stepId,
-      sourceSlot: args.sourceSlot,
-      triggerSlots: triggeredComboSlots,
-    });
+      const appliedStagger = applyEnemyStaggerFromHit({
+        rawStagger: args.hit.stagger,
+        time: args.time,
+        gameTime: args.gameTime,
+        stepId: args.stepId,
+        sourceSlot: args.sourceSlot,
+        triggerSlots: triggeredComboSlots,
+      });
     if (finisherBonusSp > 0) {
       removeEnemyStatusById(ENEMY_FINISHER_AVAILABLE_STATUS_ID);
     }
@@ -3026,6 +3027,7 @@ export function simulateRotation(args: {
         registerGameTime,
         linkSourceStepId: inheritSourceBonuses ? args.linkSourceStepId : undefined,
         applySourceCommandModifiers: inheritSourceBonuses,
+        triggerSlots: args.triggerSlots,
       });
 
       if (hit.damageType === "Healing") {
@@ -3138,6 +3140,7 @@ export function simulateRotation(args: {
         registerGameTime: next.registerGameTime,
         linkSourceStepId: next.applySourceCommandModifiers === false ? undefined : next.linkSourceStepId,
         applySourceCommandModifiers: next.applySourceCommandModifiers,
+        triggerSlots: next.triggerSlots,
       });
 
       if (next.hit.damageType === "Healing") {
