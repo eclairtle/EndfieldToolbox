@@ -780,6 +780,17 @@ const hasAnySelectedCommand = computed(() => selectedSteps.value.length > 0 || h
 
 const selectedCommandsCount = computed(() => selectedSteps.value.length);
 const hasMultiSelection = computed(() => selectedCommandsCount.value > 1);
+const validStepCount = computed(() => {
+  const commandIdsBySlot = new Map<PartySlot, Set<string>>();
+  for (const [slotKey, snapshot] of partyBySlot.value.entries()) {
+    commandIdsBySlot.set(slotKey, new Set(snapshot.commands.map((entry) => entry.id)));
+  }
+  return rotation.value.steps.filter((step) => {
+    const validCommandIds = commandIdsBySlot.get(step.slot);
+    return Boolean(validCommandIds && validCommandIds.has(step.commandId));
+  }).length;
+});
+const totalStepCount = computed(() => rotation.value.steps.length);
 
 const selectedStepCommand = computed(() => {
   if (selectedCommandsCount.value !== 1) {
@@ -1510,11 +1521,26 @@ type MarqueeSelectionState = {
   currentClientY: number;
 };
 
+type PendingLongPressDrag = {
+  kind: "step" | "enemy";
+  id: string;
+  touchId: number;
+  startClientX: number;
+  startClientY: number;
+  timerId: number;
+  activated: boolean;
+};
+
+const MOBILE_LONG_PRESS_MS = 220;
+const MOBILE_DRAG_CANCEL_MOVE_PX = 8;
+
 const dragState = ref<DragState | null>(null);
 const enemyCommandDragState = ref<EnemyCommandDragState | null>(null);
 const cursorDragState = ref<CursorDragState | null>(null);
 const libraryDragState = ref<LibraryDragState | null>(null);
 const marqueeSelectionState = ref<MarqueeSelectionState | null>(null);
+const pendingLongPressDrag = ref<PendingLongPressDrag | null>(null);
+const suppressTapUntilMs = ref(0);
 const actionElementByStepId = new Map<string, HTMLElement>();
 const timelineViewportEl = ref<HTMLElement | null>(null);
 
@@ -1774,6 +1800,37 @@ function executeComboForSlot(slot: PartySlot) {
     return;
   }
   addStepForSlot(slot, command.id);
+}
+
+function getSimpleComboState(slot: PartySlot) {
+  return cursorCombatState.value.comboBySlot.get(slot) ?? { readyRatio: 1, label: t("rotation.ready"), mode: "normal" as const };
+}
+
+function isSimpleComboOnCooldown(slot: PartySlot): boolean {
+  const state = getSimpleComboState(slot);
+  return state.mode === "normal" && state.readyRatio < 0.999;
+}
+
+function getSimpleComboCooldownLabel(slot: PartySlot): string {
+  return getSimpleComboState(slot).label;
+}
+
+function getSimpleUltimateEnergyRatio(slot: PartySlot): number {
+  const display = partyDisplay.value.find((entry) => entry.slot === slot);
+  if (!display || display.ultimateMaxEnergy <= 0) {
+    return 0;
+  }
+  const current = cursorCombatState.value.energyBySlot.get(slot) ?? 0;
+  return Math.max(0, Math.min(1, current / display.ultimateMaxEnergy));
+}
+
+function isSimpleUltimateReady(slot: PartySlot): boolean {
+  const display = partyDisplay.value.find((entry) => entry.slot === slot);
+  if (!display || display.ultimateMaxEnergy <= 0) {
+    return false;
+  }
+  const current = cursorCombatState.value.energyBySlot.get(slot) ?? 0;
+  return current >= display.ultimateMaxEnergy - 0.001;
 }
 
 const controlTimeline = computed(() => {
@@ -2944,10 +3001,14 @@ function startBlockDrag(event: MouseEvent, stepId: string) {
     selectStep(stepId, "replace");
   }
 
+  beginStepDrag(stepId, event.clientX);
+}
+
+function beginStepDrag(stepId: string, originClientX: number) {
   const dragStepIds = normalizeSelection(selectedStepIds.value.includes(stepId) ? selectedStepIds.value : [stepId]);
   dragState.value = {
     stepIds: dragStepIds,
-    originClientX: event.clientX,
+    originClientX,
     originStartTimes: Object.fromEntries(
       rotation.value.steps
         .filter((entry) => dragStepIds.includes(entry.id))
@@ -2956,10 +3017,10 @@ function startBlockDrag(event: MouseEvent, stepId: string) {
   };
 }
 
-function handlePointerMove(event: MouseEvent) {
+function handleClientPointerMove(clientX: number, clientY: number) {
   if (marqueeSelectionState.value) {
-    marqueeSelectionState.value.currentClientX = event.clientX;
-    marqueeSelectionState.value.currentClientY = event.clientY;
+    marqueeSelectionState.value.currentClientX = clientX;
+    marqueeSelectionState.value.currentClientY = clientY;
 
     const left = Math.min(marqueeSelectionState.value.startClientX, marqueeSelectionState.value.currentClientX);
     const right = Math.max(marqueeSelectionState.value.startClientX, marqueeSelectionState.value.currentClientX);
@@ -2978,7 +3039,7 @@ function handlePointerMove(event: MouseEvent) {
   }
 
   if (cursorDragState.value) {
-    const nextTime = clampCursorTime((event.clientX - cursorDragState.value.laneLeft) / AXIS_SCALE + timelineStart.value);
+    const nextTime = clampCursorTime((clientX - cursorDragState.value.laneLeft) / AXIS_SCALE + timelineStart.value);
     cursorTime.value = nextTime;
     return;
   }
@@ -2991,7 +3052,7 @@ function handlePointerMove(event: MouseEvent) {
       return;
     }
 
-    const deltaSeconds = (event.clientX - activeEnemyDrag.originClientX) / AXIS_SCALE;
+    const deltaSeconds = (clientX - activeEnemyDrag.originClientX) / AXIS_SCALE;
     for (const command of movingCommands) {
       const origin = activeEnemyDrag.originStartTimes[command.id] ?? 0;
       command.startTime = Math.max(timelineStart.value, roundToSnap(origin + deltaSeconds));
@@ -3010,7 +3071,7 @@ function handlePointerMove(event: MouseEvent) {
     return;
   }
 
-  const deltaSeconds = (event.clientX - activeDrag.originClientX) / AXIS_SCALE;
+  const deltaSeconds = (clientX - activeDrag.originClientX) / AXIS_SCALE;
   for (const step of movingSteps) {
     const origin = activeDrag.originStartTimes[step.id] ?? 0;
     const actor = partyBySlot.value.get(step.slot);
@@ -3018,6 +3079,10 @@ function handlePointerMove(event: MouseEvent) {
     const nextStart = clampStartTimeForFreezeWindow(roundToSnap(origin + deltaSeconds), command);
     step.startTime = Math.max(timelineStart.value, nextStart);
   }
+}
+
+function handlePointerMove(event: MouseEvent) {
+  handleClientPointerMove(event.clientX, event.clientY);
 }
 
 function stopBlockDrag() {
@@ -3121,19 +3186,128 @@ function startEnemyCommandBlockDrag(event: MouseEvent, commandPlacementId: strin
   if (event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey) {
     return;
   }
+  beginEnemyCommandDrag(commandPlacementId, event.clientX);
+}
+
+function beginEnemyCommandDrag(commandPlacementId: string, originClientX: number) {
   selectedEnemyCommandId.value = commandPlacementId;
   selectedStepIds.value = [];
   selectionAnchorId.value = null;
   const dragIds = [commandPlacementId];
   enemyCommandDragState.value = {
     commandIds: dragIds,
-    originClientX: event.clientX,
+    originClientX,
     originStartTimes: Object.fromEntries(
       enemyCommands.value
         .filter((entry) => dragIds.includes(entry.id))
         .map((entry) => [entry.id, entry.startTime ?? 0]),
     ),
   };
+}
+
+function clearPendingLongPressDrag() {
+  const pending = pendingLongPressDrag.value;
+  if (!pending) {
+    return;
+  }
+  window.clearTimeout(pending.timerId);
+  pendingLongPressDrag.value = null;
+}
+
+function startStepTouchPress(event: TouchEvent, stepId: string) {
+  if (event.touches.length !== 1) {
+    clearPendingLongPressDrag();
+    return;
+  }
+  const touch = event.touches[0];
+  if (!touch) {
+    return;
+  }
+  clearPendingLongPressDrag();
+  const timerId = window.setTimeout(() => {
+    if (!pendingLongPressDrag.value || pendingLongPressDrag.value.id !== stepId) {
+      return;
+    }
+    pendingLongPressDrag.value.activated = true;
+    if (!selectedStepIds.value.includes(stepId)) {
+      selectStep(stepId, "replace");
+    }
+    beginStepDrag(stepId, touch.clientX);
+  }, MOBILE_LONG_PRESS_MS);
+  pendingLongPressDrag.value = {
+    kind: "step",
+    id: stepId,
+    touchId: touch.identifier,
+    startClientX: touch.clientX,
+    startClientY: touch.clientY,
+    timerId,
+    activated: false,
+  };
+}
+
+function startEnemyTouchPress(event: TouchEvent, commandPlacementId: string) {
+  if (event.touches.length !== 1) {
+    clearPendingLongPressDrag();
+    return;
+  }
+  const touch = event.touches[0];
+  if (!touch) {
+    return;
+  }
+  clearPendingLongPressDrag();
+  const timerId = window.setTimeout(() => {
+    if (!pendingLongPressDrag.value || pendingLongPressDrag.value.id !== commandPlacementId) {
+      return;
+    }
+    pendingLongPressDrag.value.activated = true;
+    beginEnemyCommandDrag(commandPlacementId, touch.clientX);
+  }, MOBILE_LONG_PRESS_MS);
+  pendingLongPressDrag.value = {
+    kind: "enemy",
+    id: commandPlacementId,
+    touchId: touch.identifier,
+    startClientX: touch.clientX,
+    startClientY: touch.clientY,
+    timerId,
+    activated: false,
+  };
+}
+
+function handleTouchMove(event: TouchEvent) {
+  const pending = pendingLongPressDrag.value;
+  if (pending) {
+    const touch = Array.from(event.touches).find((entry) => entry.identifier === pending.touchId);
+    if (!touch) {
+      clearPendingLongPressDrag();
+    } else {
+      const movedX = Math.abs(touch.clientX - pending.startClientX);
+      const movedY = Math.abs(touch.clientY - pending.startClientY);
+      if (!pending.activated && (movedX > MOBILE_DRAG_CANCEL_MOVE_PX || movedY > MOBILE_DRAG_CANCEL_MOVE_PX)) {
+        clearPendingLongPressDrag();
+      }
+      if (pending.activated) {
+        event.preventDefault();
+      }
+    }
+  }
+
+  if (dragState.value || enemyCommandDragState.value || cursorDragState.value || marqueeSelectionState.value) {
+    const activeTouch = event.touches[0];
+    if (!activeTouch) {
+      return;
+    }
+    event.preventDefault();
+    handleClientPointerMove(activeTouch.clientX, activeTouch.clientY);
+  }
+}
+
+function handleTouchEndOrCancel() {
+  const wasActivated = pendingLongPressDrag.value?.activated === true;
+  clearPendingLongPressDrag();
+  if (wasActivated) {
+    suppressTapUntilMs.value = Date.now() + 250;
+  }
+  stopBlockDrag();
 }
 
 function updateEnemyCommandPlacement(
@@ -3170,6 +3344,11 @@ function startMarqueeSelection(event: MouseEvent) {
 }
 
 function handleActionClick(event: MouseEvent, stepId: string) {
+  if (Date.now() < suppressTapUntilMs.value) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (event.shiftKey) {
     selectStep(stepId, "range");
     return;
@@ -3184,6 +3363,9 @@ function handleActionClick(event: MouseEvent, stepId: string) {
 }
 
 function selectEnemyCommand(commandPlacementId: string) {
+  if (Date.now() < suppressTapUntilMs.value) {
+    return;
+  }
   selectedEnemyCommandId.value = commandPlacementId;
   selectedStepIds.value = [];
   selectionAnchorId.value = null;
@@ -3196,6 +3378,9 @@ function isEnemyCommandSelected(commandPlacementId: string): boolean {
 onMounted(() => {
   window.addEventListener("mousemove", handlePointerMove);
   window.addEventListener("mouseup", stopBlockDrag);
+  window.addEventListener("touchmove", handleTouchMove, { passive: false });
+  window.addEventListener("touchend", handleTouchEndOrCancel);
+  window.addEventListener("touchcancel", handleTouchEndOrCancel);
   nextTick(() => {
     resetTimelineViewport();
   });
@@ -3204,6 +3389,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("mousemove", handlePointerMove);
   window.removeEventListener("mouseup", stopBlockDrag);
+  window.removeEventListener("touchmove", handleTouchMove);
+  window.removeEventListener("touchend", handleTouchEndOrCancel);
+  window.removeEventListener("touchcancel", handleTouchEndOrCancel);
+  clearPendingLongPressDrag();
   clearLibraryCommandDrag();
 });
 
@@ -3931,24 +4120,40 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
 
           <section v-if="sidebarMode === 'character' && controlPanelMode === 'simple'" class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-3">
             <div class="space-y-3">
-              <div class="grid grid-cols-[minmax(0,1fr)_44px_44px] gap-2">
+              <div class="grid grid-cols-4 grid-rows-2 gap-2">
                 <button
                   type="button"
-                  class="h-11 rounded-xl border border-[#dcdcdc] bg-white px-3 text-sm font-semibold text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                  class="col-span-2 row-span-2 h-24 rounded-xl border border-[#dcdcdc] bg-white px-3 text-sm font-semibold text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
                   @click="executeControlledBasicAttack"
                 >
                   {{ t("rotation.basicAttackSequence") }}
                 </button>
                 <button
                   type="button"
-                  class="h-11 rounded-xl border border-[#dcdcdc] bg-white text-xs font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                  class="col-span-1 row-span-2 h-24 rounded-xl border border-[#dcdcdc] bg-white px-1 text-xs font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2] disabled:cursor-not-allowed disabled:border-[#ececec] disabled:bg-[#f6f6f6] disabled:text-[#9a9a9a]"
+                  :disabled="selectedCharacterIsControlled || selectedCharacterSwitchLockRemaining > 0"
+                  @click="executeSwitchToSlot(selectedLibrarySlot)"
+                >
+                  <div class="flex h-full flex-col items-center justify-center gap-1">
+                    <span class="uppercase tracking-[0.08em]">{{ t("rotation.switch") }}</span>
+                    <span v-if="selectedCharacterIsControlled" class="rounded bg-[#ece81a] px-1.5 py-0.5 text-[10px] font-semibold text-[#1b1b1b]">
+                      Active
+                    </span>
+                    <span v-if="selectedCharacterSwitchLockRemaining > 0" class="text-[10px] text-[#6b6b6b]">
+                      {{ selectedCharacterSwitchLockRemaining.toFixed(1) }}s
+                    </span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="col-span-1 row-span-1 h-11 rounded-xl border border-[#dcdcdc] bg-white text-xs font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
                   @click="executeControlledGeneric('__dodge')"
                 >
                   {{ t("rotation.dodge") }}
                 </button>
                 <button
                   type="button"
-                  class="h-11 rounded-xl border border-[#dcdcdc] bg-white text-xs font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                  class="col-span-1 row-span-1 h-11 rounded-xl border border-[#dcdcdc] bg-white text-xs font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
                   @click="executeControlledGeneric('__jump')"
                 >
                   {{ t("rotation.jump") }}
@@ -3956,7 +4161,6 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </div>
 
               <div class="space-y-1">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#666]">{{ t("rotation.switch") }}</div>
                 <div class="grid grid-cols-4 gap-2 py-1 justify-items-center">
                   <button
                     v-for="slotView in partyDisplay"
@@ -3964,10 +4168,10 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     type="button"
                     class="relative h-14 w-14 overflow-hidden rounded-full border-2 bg-white transition"
                     :class="[
-                      currentControlState.controlledSlot === slotView.slot ? 'border-4 border-[#ece81a]' : 'border-[#d8d8d8]',
+                      selectedLibrarySlot === slotView.slot ? 'border-4 border-[#ece81a]' : 'border-[#d8d8d8]',
                       getSwitchCooldownRemaining(slotView.slot) > 0 ? 'opacity-45' : 'hover:scale-105',
                     ]"
-                    @click="executeSwitchToSlot(slotView.slot)"
+                    @click="selectedLibrarySlot = slotView.slot"
                   >
                     <img
                       v-if="getCharacterAvatarPath(slotView.actor?.characterId)"
@@ -4013,38 +4217,17 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </div>
 
               <div class="space-y-1">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#666]">{{ t("builder.ultimate") }}</div>
-                <div class="grid grid-cols-4 gap-2 py-1 justify-items-center">
-                  <button
-                    v-for="slotView in partyDisplay"
-                    :key="`simple-ult-${slotView.slot}`"
-                    type="button"
-                    class="h-14 w-14 overflow-hidden rounded-full border-2 border-[#d8d8d8] transition hover:scale-105"
-                    :style="getSimpleSkillButtonStyle(getPrimaryCommandForSlot(slotView.slot, 'ULTIMATE'), { includeBorderColor: false })"
-                    @click="executePrimarySkillForSlot(slotView.slot, 'ULTIMATE')"
-                  >
-                    <img
-                      v-if="getSimpleSkillIconPath(slotView.actor?.characterId, 'ULTIMATE')"
-                      :src="getSimpleSkillIconPath(slotView.actor?.characterId, 'ULTIMATE')!"
-                      :alt="getLocalizedCharacterName(slotView.actor?.characterId, slotView.actor?.characterName)"
-                      class="h-full w-full object-cover"
-                    >
-                    <span v-else class="text-[10px] font-semibold text-[#1b1b1b]">
-                      {{ getAvatarInitials(getLocalizedCharacterName(slotView.actor?.characterId, slotView.actor?.characterName)) }}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="space-y-1">
                 <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#666]">{{ t("builder.comboSkill") }}</div>
                 <div class="grid grid-cols-4 gap-2 py-1 justify-items-center">
                   <button
                     v-for="slotView in partyDisplay"
                     :key="`simple-combo-${slotView.slot}`"
                     type="button"
-                    class="h-14 w-14 overflow-hidden rounded-full border-2 transition hover:scale-105"
-                    :class="getActiveTriggeredComboWindowForSlot(slotView.slot, cursorTime) ? 'border-4 border-[#ece81a]' : 'border-[#d8d8d8]'"
+                    class="relative h-14 w-14 overflow-hidden rounded-full border-2 transition hover:scale-105"
+                    :class="[
+                      getActiveTriggeredComboWindowForSlot(slotView.slot, cursorTime) ? 'border-4 border-[#ece81a]' : 'border-[#d8d8d8]',
+                      isSimpleComboOnCooldown(slotView.slot) ? 'opacity-45' : '',
+                    ]"
                     :style="getSimpleSkillButtonStyle(getSimpleComboCommandForSlot(slotView.slot), { includeBorderColor: false })"
                     @click="executeComboForSlot(slotView.slot)"
                   >
@@ -4057,6 +4240,50 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     <span v-else class="text-[10px] font-semibold text-[#1b1b1b]">
                       {{ getAvatarInitials(getLocalizedCharacterName(slotView.actor?.characterId, slotView.actor?.characterName)) }}
                     </span>
+                    <span
+                      v-if="isSimpleComboOnCooldown(slotView.slot)"
+                      class="absolute inset-0 flex items-center justify-center bg-black/20 text-[10px] font-semibold text-[#1b1b1b]"
+                    >
+                      {{ getSimpleComboCooldownLabel(slotView.slot) }}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="space-y-1">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#666]">{{ t("builder.ultimate") }}</div>
+                <div class="grid grid-cols-4 gap-2 py-1 justify-items-center">
+                  <button
+                    v-for="slotView in partyDisplay"
+                    :key="`simple-ult-${slotView.slot}`"
+                    type="button"
+                    class="relative h-14 w-14 overflow-hidden rounded-full border-2 border-[#d8d8d8] transition hover:scale-105"
+                    :class="isSimpleUltimateReady(slotView.slot) ? '' : 'opacity-45'"
+                    :style="getSimpleSkillButtonStyle(getPrimaryCommandForSlot(slotView.slot, 'ULTIMATE'), { includeBorderColor: false })"
+                    @click="executePrimarySkillForSlot(slotView.slot, 'ULTIMATE')"
+                  >
+                    <img
+                      v-if="getSimpleSkillIconPath(slotView.actor?.characterId, 'ULTIMATE')"
+                      :src="getSimpleSkillIconPath(slotView.actor?.characterId, 'ULTIMATE')!"
+                      :alt="getLocalizedCharacterName(slotView.actor?.characterId, slotView.actor?.characterName)"
+                      class="h-full w-full object-cover"
+                    >
+                    <span v-else class="text-[10px] font-semibold text-[#1b1b1b]">
+                      {{ getAvatarInitials(getLocalizedCharacterName(slotView.actor?.characterId, slotView.actor?.characterName)) }}
+                    </span>
+                    <svg viewBox="0 0 36 36" class="pointer-events-none absolute inset-0 h-full w-full -rotate-90">
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2.5" />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.5"
+                        fill="none"
+                        stroke="#ece81a"
+                        stroke-width="2.8"
+                        stroke-linecap="round"
+                        :stroke-dasharray="`${getSimpleUltimateEnergyRatio(slotView.slot) * 97.4} 97.4`"
+                      />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -4546,6 +4773,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   }"
                   @click.stop.prevent="handleActionClick($event, action.stepId)"
                   @mousedown.stop="startBlockDrag($event, action.stepId)"
+                  @touchstart.stop="startStepTouchPress($event, action.stepId)"
                   @dragstart.prevent
                 >
                   <div
@@ -4791,6 +5019,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   width: `${Math.max(44, (command.endTime - command.startTime) * AXIS_SCALE)}px`,
                 }"
                 @mousedown.stop="startEnemyCommandBlockDrag($event, command.id)"
+                @touchstart.stop="startEnemyTouchPress($event, command.id)"
                 @click.stop="
                   selectEnemyCommand(command.id);
                   cursorTime = clampCursorTime(command.startTime);
@@ -5100,7 +5329,12 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
     <aside class="rounded-2xl border border-[#d6d6d6] bg-white shadow-sm">
       <div class="border-b border-[#ececec] px-5 py-4">
         <div class="text-xs uppercase tracking-[0.24em] text-[#777]">{{ t("rotation.rotationSummary") }}</div>
-        <div class="mt-1 text-lg font-semibold">{{ t("rotation.outputAndStep") }}</div>
+        <div class="mt-1 flex items-center justify-between gap-3">
+          <div class="text-lg font-semibold">{{ t("rotation.outputAndStep") }}</div>
+          <div class="text-xs font-medium text-[#666]">
+            Total Steps: {{ validStepCount }}/256
+          </div>
+        </div>
       </div>
 
       <div class="space-y-6 px-5 py-4">

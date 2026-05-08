@@ -525,6 +525,12 @@ export function simulateRotation(args: {
     runtimeStatuses.some((status) =>
       status.scope === "enemy" && status.kind === ENEMY_STATUS_KIND && status.id === statusId,
     );
+  const hasTeamStatusById = (statusId: string) =>
+    runtimeStatuses.some((status) =>
+      status.scope === "team" && status.kind === "team_status" && status.id === statusId,
+    );
+  const hasCharacterPotentialAtLeast = (characterId: string, level: number) =>
+    party.some((member) => member.characterId === characterId && member.potentialLevel >= level);
 
   const addEnemyStatusById = (args: {
     statusId: string;
@@ -5517,6 +5523,16 @@ export function simulateRotation(args: {
       spReturned: effectiveHitSpReturned,
       energyReturn: effectiveHitEnergyReturn,
     };
+    const shouldApplyLastRitePot1FinalStrikeMutation =
+      occurrence.actor.slot === controlledOperatorSlot
+      && occurrence.command.attackType === "BASIC_ATTACK"
+      && occurrence.command.basicAttackVariant === "final_strike"
+      && hasTeamStatusById("lastrite_hypothermic_perfusion")
+      && hasCharacterPotentialAtLeast("lastrite", 1);
+    if (shouldApplyLastRitePot1FinalStrikeMutation) {
+      effectiveHit.multiplier *= 1.2;
+      effectiveHit.stagger += 5;
+    }
     const effectiveEnemyMods = getEffectiveEnemyMods(
       occurrence.actor,
       occurrence.time,

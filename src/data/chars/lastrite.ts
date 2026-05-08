@@ -7,7 +7,6 @@ const LASTRITE_TALENT_1_2 = "lastrite_talent_cryo_sus_2";
 const LASTRITE_TALENT_2_1 = "lastrite_talent_ult_sus_scale_1";
 const LASTRITE_TALENT_2_2 = "lastrite_talent_ult_sus_scale_2";
 const LASTRITE_HYPOTHERMIC_STATUS = "lastrite_hypothermic_perfusion";
-const LASTRITE_POT1_EXECUTE_HIT_ID = "lastrite_potential_1_followup";
 const LASTRITE_BATTLE_SKILL_TRIGGER_HIT_ID = "lastrite_battle_skill_trigger_hit";
 
 const LASTRITE_COMMANDS: CommandDefinition[] = [
@@ -172,18 +171,6 @@ const LASTRITE_EXECUTE_HITS: ExecuteHitDefinition[] = [
       { type: "APPLY_ARTS_INFLICTION", element: "Cryo", stacks: 1 },
     ],
   },
-  {
-    id: LASTRITE_POT1_EXECUTE_HIT_ID,
-    name: "Hypothermic Perfusion Follow-up",
-    skill: "basic",
-    attackType: "GENERIC",
-    damageType: "Cryo",
-    commandId: "__lastrite_potential_1",
-    commandName: "Hypothermic Perfusion",
-    multiplier: pct([20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20]),
-    stagger: flat12(5),
-    offsetFrames: flat12(0),
-  },
 ];
 
 const LASTRITE_HOOKS: CharacterCombatHooks = {
@@ -202,14 +189,6 @@ const LASTRITE_HOOKS: CharacterCombatHooks = {
       const effects: NonNullable<Parameters<typeof ctx.state.applyEffects>[0]["effects"]> = [
         { type: "EXECUTE_HIT", hitRefId: LASTRITE_BATTLE_SKILL_TRIGGER_HIT_ID, executeDelayFrames: 30 },
       ];
-      if (ctx.state.isSelfPotentialActive(1)) {
-        effects.push({
-          type: "EXECUTE_HIT",
-          hitRefId: LASTRITE_POT1_EXECUTE_HIT_ID,
-          inheritSourceBonuses: false,
-          executeDelayFrames: 30,
-        });
-      }
       effects.push({
         type: "CONSUME_TEAM_STATUS",
         statusId: LASTRITE_HYPOTHERMIC_STATUS,
