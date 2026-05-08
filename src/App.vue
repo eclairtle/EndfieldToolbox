@@ -743,9 +743,6 @@ function resetGuestUser() {
   buildListStore.resetAll();
   buildStore.resetGuestUser();
   resetRotationSchemes();
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(ROTATION_SP_STORAGE_KEY);
-  }
   plannerMode.value = "current";
   currentBuildSnapshot.value = null;
   plannedBuildSnapshot.value = null;

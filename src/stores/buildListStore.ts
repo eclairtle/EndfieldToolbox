@@ -229,7 +229,7 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
       [activeSchemeId]: {
         initialSp: 200,
         spRegenRate: 8,
-        startingEnergyBySlot: [0, 0, 0, 0],
+        startingEnergyBySlot: [100, 100, 100, 100],
         consumableBySlot: [null, null, null, null],
       },
     },

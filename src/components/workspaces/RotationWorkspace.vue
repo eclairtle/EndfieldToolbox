@@ -118,7 +118,7 @@ type TeamSpConfig = {
 type EnemyCommandLayoutsByScheme = Record<string, Record<string, EnemyCommandPlacement[]>>;
 
 function makeDefaultTeamSpConfig(): TeamSpConfig {
-  return { initialSp: 200, spRegenRate: 8, startingEnergyBySlot: [0, 0, 0, 0], consumableBySlot: [null, null, null, null] };
+  return { initialSp: 200, spRegenRate: 8, startingEnergyBySlot: [100, 100, 100, 100], consumableBySlot: [null, null, null, null] };
 }
 
 const BUILD_STORAGE_SCOPE_DEFAULT = "__default__";
@@ -135,7 +135,7 @@ function normalizeTeamSpConfig(value: Partial<TeamSpConfig> | null | undefined):
     spRegenRate: value?.spRegenRate ?? 8,
     startingEnergyBySlot: Array.isArray(value?.startingEnergyBySlot)
       ? [0, 1, 2, 3].map((index) => Math.max(0, Math.min(100, value?.startingEnergyBySlot?.[index] ?? 0)))
-      : [0, 0, 0, 0],
+      : [100, 100, 100, 100],
     consumableBySlot: Array.isArray(value?.consumableBySlot)
       ? [0, 1, 2, 3].map((index) => {
         const id = value?.consumableBySlot?.[index];
