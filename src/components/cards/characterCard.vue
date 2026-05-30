@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type { CharacterBase } from "@/data/characters";
 import {
   ASCENSION_LEVEL_CAPS,
@@ -31,11 +31,15 @@ const props = defineProps<{
   level: number;
   ascensionStage: AscensionStage;
   potential: PotentialLevel;
+  compareLevel?: number;
+  compareAscensionStage?: AscensionStage;
+  comparePotential?: PotentialLevel;
   talentToggles: CharacterTalentToggles;
   uniqueTalentToggles: Record<string, boolean>;
   skillLevels: CharacterSkillLevels;
+  compareSkillLevels?: Partial<CharacterSkillLevels>;
   buildCostTitle?: string;
-  buildCostLines?: { name: string; amount: number }[];
+  buildCostLines?: { name: string; amount: number; iconPath?: string }[];
   buildCostNote?: string | null;
 }>();
 
@@ -62,6 +66,7 @@ const isPickerOpen = ref(false);
 const rarityFilter = ref<number | "all">("all");
 const elementFilter = ref<string>("all");
 const weaponTypeFilter = ref<string>("all");
+const levelInput = ref<HTMLInputElement | null>(null);
 
 const rarityOptions = computed(() =>
   [...new Set(props.characters.map((character) => character.rarity))].sort((a, b) => b - a),
@@ -92,6 +97,32 @@ const formatSkillLevel = (value: number) => {
   if (value === 12) return "M3";
   return `${t("ui.levelShort")} ${value}`;
 };
+
+function formatCompareValue(currentValue: string | number, compareValue?: string | number) {
+  if (compareValue == null || compareValue === currentValue) {
+    return String(currentValue);
+  }
+  return `${currentValue} -> ${compareValue}`;
+}
+
+function syncLevelInput() {
+  const input = levelInput.value;
+  if (!input) {
+    return;
+  }
+  const nextValue = String(props.level);
+  if (input.value !== nextValue) {
+    input.value = nextValue;
+  }
+}
+
+watch(
+  () => [props.selectedCharId, props.ascensionStage, props.level] as const,
+  () => {
+    void nextTick(syncLevelInput);
+  },
+  { immediate: true, flush: "post" },
+);
 
 function isUniqueTalentAvailable(key: string): boolean {
   const talent = props.selectedCharacter?.uniqueTalentDefs?.[key];
@@ -174,7 +205,7 @@ function pickCharacter(id: string) {
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-[#555]">{{ t("builder.eliteStage") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold">
-            {{ t("builder.eliteStage") }} {{ ascensionStage }}
+            {{ formatCompareValue(ascensionStage, compareAscensionStage) }}
           </span>
         </div>
 
@@ -198,11 +229,12 @@ function pickCharacter(id: string) {
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-[#555]">{{ t("builder.level") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold tabular-nums">
-            {{ level }}
+            {{ formatCompareValue(level, compareLevel) }}
           </span>
         </div>
 
         <input
+          ref="levelInput"
           :value="level"
           @input="emit('update:level', Number(($event.target as HTMLInputElement).value))"
           type="range"
@@ -222,7 +254,7 @@ function pickCharacter(id: string) {
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-[#555]">{{ t("builder.potential") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold">
-            P{{ potential }}
+            {{ formatCompareValue(`P${potential}`, comparePotential != null ? `P${comparePotential}` : undefined) }}
           </span>
         </div>
 
@@ -310,7 +342,7 @@ function pickCharacter(id: string) {
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium">{{ t(row.label) }}</span>
             <span class="rounded-md bg-white px-2 py-1 text-sm font-semibold tabular-nums">
-              {{ formatSkillLevel(skillLevels[row.key]) }}
+              {{ formatCompareValue(formatSkillLevel(skillLevels[row.key]), compareSkillLevels?.[row.key] != null ? formatSkillLevel(compareSkillLevels[row.key]!) : undefined) }}
             </span>
           </div>
 
@@ -339,6 +371,12 @@ function pickCharacter(id: string) {
           {{ buildCostTitle ?? t("builder.buildCost") }}
         </div>
         <div
+          v-if="buildCostNote"
+          class="mb-2 text-xs text-[#777]"
+        >
+          {{ buildCostNote }}
+        </div>
+        <div
           v-if="buildCostLines && buildCostLines.length > 0"
           class="space-y-1.5"
         >
@@ -347,7 +385,16 @@ function pickCharacter(id: string) {
             :key="line.name"
             class="flex items-center justify-between gap-3"
           >
-            <span class="text-[#666]">{{ line.name }}</span>
+            <span class="flex min-w-0 items-center gap-2 text-[#666]">
+              <img
+                v-if="line.iconPath"
+                :src="line.iconPath"
+                :alt="line.name"
+                class="h-4 w-4 shrink-0 rounded object-contain"
+                loading="lazy"
+              >
+              <span class="truncate">{{ line.name }}</span>
+            </span>
             <span class="font-semibold tabular-nums">{{ line.amount.toLocaleString() }}</span>
           </div>
         </div>
@@ -355,7 +402,7 @@ function pickCharacter(id: string) {
           v-else
           class="text-[#777]"
         >
-          {{ buildCostNote ?? t("ui.noAdditionalCost") }}
+          {{ t("ui.noAdditionalCost") }}
         </div>
       </div>
       </template>

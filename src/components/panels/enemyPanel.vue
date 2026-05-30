@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { EnemyBase } from "@/data/enemies";
+import { getEnemyDisplayName } from "@/data/enemyCustomNames";
+import { toAssetUrl } from "@/lib/assets/imagePaths";
 import { useLocale } from "@/i18n/useLocale";
 
 const props = defineProps<{
@@ -34,7 +37,17 @@ const resistRows = [
   ["Nature", "enemy.resistanceNature"],
   ["Aether", "enemy.resistanceAether"],
 ] as const;
-const { t } = useLocale();
+const { t, locale } = useLocale();
+
+const selectedEnemy = computed(() => props.enemies.find((enemy) => enemy.id === props.selectedEnemyId) ?? null);
+const selectedEnemyName = computed(() =>
+  selectedEnemy.value
+    ? getEnemyDisplayName(selectedEnemy.value.id, selectedEnemy.value.name, locale.value as "en" | "zh-CN")
+    : "",
+);
+const selectedEnemyIcon = computed(() =>
+  selectedEnemy.value ? toAssetUrl(`/item-icons/enemies/${selectedEnemy.value.id}.webp`) : "",
+);
 </script>
 
 <template>
@@ -46,6 +59,18 @@ const { t } = useLocale();
 
     <div class="grid grid-cols-2 gap-6">
       <div class="grid gap-4">
+        <div
+          v-if="selectedEnemy"
+          class="flex items-center gap-3 rounded-xl border border-[#dddddd] bg-[#f7f7f7] px-3 py-2"
+        >
+          <img
+            :src="selectedEnemyIcon"
+            :alt="selectedEnemyName"
+            class="h-8 w-8 rounded-md border border-[#dddddd] object-cover"
+          />
+          <div class="text-sm font-semibold text-[#1b1b1b]">{{ selectedEnemyName }}</div>
+        </div>
+
         <label class="grid gap-2">
           <select
             :value="selectedEnemyId"

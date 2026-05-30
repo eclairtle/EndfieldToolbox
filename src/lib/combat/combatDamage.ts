@@ -7,6 +7,11 @@ import type {
 import type { ElementType } from "@/data/characters";
 import type { EnemyResolvedStats } from "../enemy/enemyScaling";
 
+const MIN_DAMAGE_MULTIPLIER = 0.05;
+function floorDamageMultiplier(value: number): number {
+  return Math.max(MIN_DAMAGE_MULTIPLIER, value);
+}
+
 function getAttackTypeBonus(attackType: AttackType, mods: ModifierStats): number {
   switch (attackType) {
     case "BASIC_ATTACK":
@@ -222,16 +227,17 @@ export function calculateResolvedHitDamage(args: {
     getAttackTypeBonus(attackType, attackerMods) +
     getFinalStrikeBonus(attackType, args.basicAttackVariant, attackerMods) +
     getDamageTypeBonus(damageType, attackerMods);
-  const dmgAmpMultiplier = 1 + getDamageAmpBonus(damageType, attackerMods);
+  const dmgBonusMultiplier = floorDamageMultiplier(1 + dmgBonus);
+  const dmgAmpMultiplier = floorDamageMultiplier(1 + getDamageAmpBonus(damageType, attackerMods));
 
   const critRate = args.noCrit ? 0 : attackerMods.CRIT_RATE_PCT;
   const critDamageBonus = attackerMods.CRIT_DMG_PCT;
 
-  const damageTakenMultiplier = 1 + getEnemyDamageTakenBonus(damageType, enemyMods);
+  const damageTakenMultiplier = floorDamageMultiplier(1 + getEnemyDamageTakenBonus(damageType, enemyMods));
   const effectiveResistance = getEnemyResistance(damageType, enemyMods) - getResistanceIgnore(damageType, attackerMods);
-  const resistMultiplier = 1 - effectiveResistance;
-  const susceptibilityMultiplier = 1 + getEnemySusceptibility(damageType, enemyMods, attackerMods);
-  const defenseMultiplier = (() => {
+  const resistMultiplier = floorDamageMultiplier(1 - effectiveResistance);
+  const susceptibilityMultiplier = floorDamageMultiplier(1 + getEnemySusceptibility(damageType, enemyMods, attackerMods));
+  const defenseMultiplier = floorDamageMultiplier((() => {
     if (damageType === "Healing") {
       return 1;
     }
@@ -244,12 +250,12 @@ export function calculateResolvedHitDamage(args: {
       return 1 + (1 - Math.pow(0.99, -defense));
     }
     return 1;
-  })();
+  })());
 
   const preCritBase =
     finalAtk *
     hit.multiplier *
-    (1 + dmgBonus) *
+    dmgBonusMultiplier *
     dmgAmpMultiplier *
     damageTakenMultiplier *
     resistMultiplier *
@@ -284,13 +290,14 @@ export function calculateReactionDamage(args: {
   const critDamageBonus = args.attackerMods.CRIT_DMG_PCT;
   const artsIntensity = Math.max(0, args.attackerMods.ARTS_INTENSITY);
   const dmgBonus = args.attackerMods.ALL_DMG_PCT + getDamageTypeBonus(args.damageType, args.attackerMods);
-  const dmgAmpMultiplier = 1 + getDamageAmpBonus(args.damageType, args.attackerMods);
+  const dmgBonusMultiplier = floorDamageMultiplier(1 + dmgBonus);
+  const dmgAmpMultiplier = floorDamageMultiplier(1 + getDamageAmpBonus(args.damageType, args.attackerMods));
 
-  const damageTakenMultiplier = 1 + getEnemyDamageTakenBonus(args.damageType, args.enemyMods);
+  const damageTakenMultiplier = floorDamageMultiplier(1 + getEnemyDamageTakenBonus(args.damageType, args.enemyMods));
   const effectiveResistance = getEnemyResistance(args.damageType, args.enemyMods) - getResistanceIgnore(args.damageType, args.attackerMods);
-  const resistMultiplier = 1 - effectiveResistance;
-  const susceptibilityMultiplier = 1 + getEnemySusceptibility(args.damageType, args.enemyMods, args.attackerMods);
-  const defenseMultiplier = (() => {
+  const resistMultiplier = floorDamageMultiplier(1 - effectiveResistance);
+  const susceptibilityMultiplier = floorDamageMultiplier(1 + getEnemySusceptibility(args.damageType, args.enemyMods, args.attackerMods));
+  const defenseMultiplier = floorDamageMultiplier((() => {
     const defense = args.enemyStats.def;
     if (defense > 0) {
       return 1 - defense / (defense + 100);
@@ -299,7 +306,7 @@ export function calculateReactionDamage(args: {
       return 1 + (1 - Math.pow(0.99, -defense));
     }
     return 1;
-  })();
+  })());
   const levelMultiplier = (args.reactionCategory ?? "arts") === "physical"
     ? 1 + (Math.max(1, args.applierLevel) - 1) / 392
     : 1 + (Math.max(1, args.applierLevel) - 1) / 196;
@@ -308,7 +315,7 @@ export function calculateReactionDamage(args: {
   const preCritBase =
     args.finalAtk *
     args.baseMultiplier *
-    (1 + dmgBonus) *
+    dmgBonusMultiplier *
     dmgAmpMultiplier *
     damageTakenMultiplier *
     resistMultiplier *

@@ -43,6 +43,12 @@ export const apiSkillTextByLocale = {
         "battleSkill": "Thermite Tracers",
         "ultimate": "Wolven Fury"
       },
+      "pogranichnik": {
+        "comboSkill": "Full Moon Slash",
+        "basic": "Basic Attack Sequence",
+        "battleSkill": "The Pulverizing Front",
+        "ultimate": "Shieldguard Banner, Forward"
+      },
       "arclight": {
         "comboSkill": "Peal of Thunder",
         "basic": "Seek and Hunt",
@@ -176,6 +182,12 @@ export const apiSkillTextByLocale = {
         "basic": "多重连射",
         "battleSkill": "灼热弹痕",
         "ultimate": "狼之怒"
+      },
+      "pogranichnik": {
+        "comboSkill": "满月斩",
+        "basic": "普攻序列",
+        "battleSkill": "碾压前线",
+        "ultimate": "持盾卫，前进"
       },
       "arclight": {
         "comboSkill": "鸣雷",
@@ -600,6 +612,21 @@ export const apiSkillTextByLocale = {
         "Medicant: Blight Fervor",
         "Will Boost [L]",
         "HP Boost [L]"
+      ],
+      "exemplar": [
+        "Suppression: Stacked Hew",
+        "Main Attribute Boost [L]",
+        "Attack Boost [L]"
+      ],
+      "mountain_bearer": [
+        "Efficacy: Weight of Mountain",
+        "Strength Boost [L]",
+        "Physical DMG Boost [L]"
+      ],
+      "grand_vision": [
+        "Infliction: Long Time Wish",
+        "Agility Boost [L]",
+        "Attack Boost [L]"
       ]
     },
     "zh-CN": {
@@ -662,6 +689,21 @@ export const apiSkillTextByLocale = {
         "医疗·侵蚀性狂热",
         "意志提升·大",
         "生命提升·大"
+      ],
+      "exemplar": [
+        "压制·叠落斩",
+        "主能力提升·大",
+        "攻击提升·大"
+      ],
+      "mountain_bearer": [
+        "效能·负山之重",
+        "力量提升·大",
+        "物理伤害提升·大"
+      ],
+      "grand_vision": [
+        "附术·长时宏愿",
+        "敏捷提升·大",
+        "攻击提升·大"
       ]
     }
   },
@@ -726,6 +768,21 @@ export const apiSkillTextByLocale = {
         "Treatment Efficiency +28%>.\nAfter the wielder's skill provides HP treatment, the entire team gains ATK +25.2%> for 15s.\nEffects of the same name cannot stack.>",
         "Will +156>",
         "Max HP +78%>"
+      ],
+      "exemplar": [
+        "Physical DMG Dealt +44.8%>.\nWhen the wielder's battle skill or ultimate scores a hit, the wielder gains Physical DMG Dealt +44.8%> for 30s.\nMax stacks for effects of the same name: 3. Duration of each stack is counted separately. Effect only triggers once every 0.1s.>",
+        "Main attribute +132>",
+        "Attack +39%>"
+      ],
+      "mountain_bearer": [
+        "Against Vulnerable> enemies, the wielder gains DMG Dealt +20%>.\nWhen the wielder's battle skill applies Vulnerability>, the wielder gains All Attributes +8%> for 15s. When the wielder's battle skill applies Physical Susceptibility>, the wielder gains All Attributes +8%> for 15s.\nThe two effects apply separately and do not stack with themselves.>",
+        "Strength +156>",
+        "Physical DMG +43.3%>"
+      ],
+      "grand_vision": [
+        "Arts Intensity +78>.\nWhen the wielder applies Originium Crystals> or Solidification>, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +93.6%>.\nEffects of the same name cannot stack.>",
+        "Agility +156>",
+        "Attack +39%>"
       ]
     },
     "zh-CN": {
@@ -788,6 +845,21 @@ export const apiSkillTextByLocale = {
         "治疗效率+28%>。\n装备者通过自身技能治疗后，全队攻击力+25.2%>，持续15秒。\n同名效果无法叠加。>",
         "意志+156>",
         "最大生命值+78%>"
+      ],
+      "exemplar": [
+        "物理伤害+44.8%>。\n装备者通过战技或终结技造成命中后，获得物理伤害+44.8%>，持续30秒。\n同名效果最多叠加3层，每层单独计算持续时间，每0.1秒最多触发一次。>",
+        "主能力值+132>",
+        "攻击力+39%>"
+      ],
+      "mountain_bearer": [
+        "对破防>敌人造成的伤害+20%>。\n装备者通过战技施加破防>时，获得全属性+8%>，持续15秒。装备者通过战技施加物理脆弱>时，获得全属性+8%>，持续15秒。\n两种效果独立生效，且均无法叠加。>",
+        "力量+156>",
+        "物理伤害+43.3%>"
+      ],
+      "grand_vision": [
+        "源石技艺强度+78>。\n装备者施加源石结晶>或冻结>时，接下来20秒内施放的下一次战技或终结技使装备者获得物理伤害+93.6%>。\n同名效果无法叠加。>",
+        "敏捷+156>",
+        "攻击力+39%>"
       ]
     }
   }

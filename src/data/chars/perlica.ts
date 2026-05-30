@@ -174,20 +174,20 @@ export const PERLICA: CharacterBase = {
   executeHits: PERLICA_EXECUTE_HITS,
   uniqueTalentDefs: {
     [PERLICA_TALENT_1_1]: {
-      name: "Overload I",
+      name: "Obliteration Protocol I",
       condition: {
         minEliteStage: 1,
       },
     },
     [PERLICA_TALENT_1_2]: {
-      name: "Overload II",
+      name: "Obliteration Protocol II",
       condition: {
         minEliteStage: 2,
         requiresUniqueTalentsEnabled: [PERLICA_TALENT_1_1],
       },
     },
     [PERLICA_TALENT_2_1]: {
-      name: "Instant Protocol I",
+      name: "Cycle Protocol I",
       condition: {
         minEliteStage: 2,
       },
@@ -196,7 +196,7 @@ export const PERLICA: CharacterBase = {
   conditionalModifiers: [
     {
       id: "perlica_talent_staggered_damage_1",
-      label: "Overload I",
+      label: "Obliteration Protocol I",
       condition: {
         requiresUniqueTalentsEnabled: [PERLICA_TALENT_1_1],
         requiresUniqueTalentsDisabled: [PERLICA_TALENT_1_2],
@@ -208,7 +208,7 @@ export const PERLICA: CharacterBase = {
     },
     {
       id: "perlica_talent_staggered_damage_2",
-      label: "Overload II",
+      label: "Obliteration Protocol II",
       condition: {
         requiresUniqueTalentsEnabled: [PERLICA_TALENT_1_2],
         enemyStatusIdsAny: ["enemy_staggered"],

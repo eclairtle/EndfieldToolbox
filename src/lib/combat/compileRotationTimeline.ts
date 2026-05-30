@@ -14,6 +14,7 @@ type TimelineActionInput = {
   realStartTime: number;
   missed?: boolean;
   interrupted?: boolean;
+  buildSwapMap?: [number, number, number, number];
 };
 
 type CancelCategory =
@@ -26,6 +27,7 @@ type CancelCategory =
   | "switch"
   | "dodge"
   | "jump"
+  | "switch_build"
   | "other";
 
 type PreparedTimelineAction = TimelineActionInput & {
@@ -112,6 +114,7 @@ function getCancelCategory(command: ResolvedCommandAtLevel): CancelCategory {
   if (command.genericActionType === "switch") return "switch";
   if (command.genericActionType === "dodge") return "dodge";
   if (command.genericActionType === "jump") return "jump";
+  if (command.genericActionType === "switch_build") return "switch_build";
   if (command.attackType === "ULTIMATE") return "ultimate";
   if (command.basicAttackVariant === "dive_attack") return "dive_attack";
   if (command.basicAttackVariant === "finisher") return "finisher";
@@ -128,7 +131,8 @@ function isUncancellable(command: ResolvedCommandAtLevel): boolean {
     category === "dive_attack" ||
     category === "ultimate" ||
     category === "finisher" ||
-    category === "switch"
+    category === "switch" ||
+    category === "switch_build"
   );
 }
 
@@ -216,6 +220,7 @@ function buildTimelineInputs(rotation: Rotation, party: CharacterCombatSnapshot[
       realStartTime: round(realStartTime),
       missed: step.missed === true,
       interrupted: step.interrupted === true,
+      buildSwapMap: step.buildSwapMap,
     });
 
     currentRealTimeBySlot.set(step.slot, round(Math.max(slotCursor, realStartTime) + command.durationFrames / 60));
@@ -381,6 +386,7 @@ function resolveAction(
     cutscene: action.command.cutscene,
     missed: action.missed,
     interrupted: action.interrupted,
+    buildSwapMap: action.buildSwapMap,
   };
 }
 

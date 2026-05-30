@@ -145,9 +145,8 @@ export const SWORDMANCER: GearBase[] = [
       },
       {
         "stat": "ULTIMATE_DMG_PCT",
-        "value": 0.431
+        "value": 0.4312
       }
     ],
   }
 ];
-

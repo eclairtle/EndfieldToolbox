@@ -16,26 +16,39 @@ import { WEAPONS, type WeaponBase } from "@/data/weapons";
 import { GEARS, type GearBase } from "@/data/gears";
 import RotationWorkspace from "@/components/workspaces/RotationWorkspace.vue";
 import { useRotationSchemes } from "@/lib/combat/rotationSchemes";
-import { buildPartySnapshots } from "@/lib/combat/buildSnapshots";
+import { buildPartySnapshots, buildPartySnapshotsByVariant } from "@/lib/combat/buildSnapshots";
 import { makeEnemyModifierSnapshot, simulateRotation } from "@/lib/combat/simulateRotation";
+import type { CharacterCombatSnapshot } from "@/lib/combat/rotation";
 import {
   buildEnemyActionWindows,
   getDefaultEnemyCommandPlacements,
   type EnemyCommandPlacement,
 } from "@/lib/enemy/enemyActionWindows";
-import { computeFinalStats, type FinalStats } from "@/lib/build/stats";
+import { computeFinalStats, makeBaseModifierStats, MODIFIER_STAT_KEYS, type FinalStats, type ModifierStatKey } from "@/lib/build/stats";
 import { combineModifierPartials, getWeaponUniqueStaticModifiers } from "@/lib/combat/weaponEffects";
 import { getActiveGearSetInfo } from "@/lib/combat/gearSetEffects";
-import { ROTATION_ENEMY_COMMANDS_STORAGE_KEY, ROTATION_SP_STORAGE_KEY } from "@/lib/storageKeys";
+import { applyGears } from "@/lib/build/gearsApply";
 import { computeCharacterPlannerCost, computeWeaponPlannerCost } from "@/lib/progression/plannerCosts";
+import { buildDeltaCostLines, hasMismatchedWeaponEssence } from "@/lib/progression/buildCostDiff";
+import {
+  ROTATION_CONTRACTS_STORAGE_KEY,
+  ROTATION_ENEMY_COMMANDS_STORAGE_KEY,
+  ROTATION_SP_STORAGE_KEY,
+} from "@/lib/storageKeys";
 import { useLocale } from "@/i18n/useLocale";
 import { getCharacterDisplayNameByCharacter, getWeaponDisplayNameByWeapon } from "@/i18n/domain/displayNames";
-import { getCharacterImagePath, getWeaponImagePath, getGearImagePath } from "@/lib/assets/imagePaths";
+import { getCharacterImagePath, getWeaponImagePath, getGearImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
+import { getEnemyDisplayName } from "@/data/enemyCustomNames";
+import type { ActiveContingencyContract } from "@/lib/combat/contracts";
 
-const plannerMode = ref<"current" | "planner">("current");
 const currentBuildSnapshot = ref<BuildStoreStateSnapshot | null>(null);
-const plannedBuildSnapshot = ref<BuildStoreStateSnapshot | null>(null);
 const isHydratingBuildDetail = ref(false);
+const compareBuildsEnabled = ref(false);
+const compareTargetVariantIndex = ref(1);
+const setToSourceVariantIndex = ref(0);
+const debugModeEnabled = ref(false);
+const mobileSummaryOpen = ref(false);
+const confirmResetGuestOpen = ref(false);
 
 const buildStore = useBuildStore();
 const buildListStore = useBuildListStore();
@@ -53,6 +66,7 @@ const {
   activeGearSet,
   benchmarkResults,
   out,
+  activeVariantIndex,
 } = storeToRefs(buildStore);
 const { builds, activeBuildId } = storeToRefs(buildListStore);
 const { t, locale, setLocale } = useLocale();
@@ -92,30 +106,6 @@ const workspace = computed<"builder" | "rotation">({
   },
 });
 
-const COST_NAME_KEY_MAP: Record<string, string> = {
-  "T-Creds": "cost.itemTCreds",
-  "Character EXP": "cost.itemCharacterExp",
-  "Weapon EXP": "cost.itemWeaponExp",
-  "Protoprism": "cost.itemProtoprism",
-  "Protohedron": "cost.itemProtohedron",
-  "Protodisk": "cost.itemProtodisk",
-  "Protoset": "cost.itemProtoset",
-  "Cast Die": "cost.itemCastDie",
-  "Heavy Cast Die": "cost.itemHeavyCastDie",
-  "D96 Steel Sample 4": "cost.itemD96SteelSample4",
-  "Metadiastima Photoemission Tube": "cost.itemMetadiastimaPhotoemissionTube",
-};
-
-function localizeCostName(name: string) {
-  const key = COST_NAME_KEY_MAP[name];
-  if (!key) {
-    return name;
-  }
-  const localized = t(key as never);
-  return localized === key ? name : localized;
-}
-
-
 const {
   ENEMIES,
   selectedEnemyId,
@@ -123,6 +113,10 @@ const {
   enemyLevel,
   resolvedEnemyStats,
 } = useEnemyState();
+const selectedEnemyDisplayName = computed(() =>
+  getEnemyDisplayName(selectedEnemy.value.id, selectedEnemy.value.name, locale.value as "en" | "zh-CN"),
+);
+const selectedEnemyIconPath = computed(() => toAssetUrl(`/item-icons/enemies/${selectedEnemy.value.id}.webp`));
 
 const {
   rotationSchemes,
@@ -215,6 +209,38 @@ watch(enemyLevel, (value) => {
 });
 
 const partySnapshots = computed(() => buildPartySnapshots(slots.value));
+const buildCostReactivityStamp = computed(() =>
+  JSON.stringify(
+    slots.value.map((slot) => ({
+      selectedCharId: slot.selectedCharId,
+      level: slot.level,
+      characterAscension: slot.characterAscension,
+      characterPotential: slot.characterPotential,
+      characterTalentToggles: slot.characterTalentToggles,
+      uniqueTalentToggles: slot.uniqueTalentToggles,
+      characterSkillLevels: slot.characterSkillLevels,
+      selectedWeaponId: slot.selectedWeaponId,
+      weaponLevel: slot.weaponLevel,
+      weaponAscension: slot.weaponAscension,
+      weaponPotential: slot.weaponPotential,
+      weaponSkillLevels: slot.weaponSkillLevels,
+    })),
+  ),
+);
+
+const partyVariantsBySlot = computed(() => {
+  const out: Partial<Record<0 | 1 | 2 | 3, CharacterCombatSnapshot[]>> = {};
+  for (const variantIndex of [0, 1, 2, 3] as const) {
+    const snapshots = buildPartySnapshotsByVariant(slots.value, variantIndex, activeVariantIndex.value);
+    for (const snapshot of snapshots) {
+      if (!out[snapshot.slot]) {
+        out[snapshot.slot] = [null, null, null, null] as unknown as CharacterCombatSnapshot[];
+      }
+      out[snapshot.slot]![variantIndex] = snapshot;
+    }
+  }
+  return out;
+});
 function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null | undefined) {
   if (partySnapshots.value.length === 0 || !rotation) {
     return null;
@@ -223,6 +249,8 @@ function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null |
   return simulateRotation({
     rotation,
     party: partySnapshots.value,
+    partyVariantsBySlot: partyVariantsBySlot.value,
+    initialVariantIndex: activeVariantIndex.value,
     enemyStats: resolvedEnemyStats.value,
     enemyMods: makeEnemyModifierSnapshot({
       resistances: {
@@ -239,27 +267,78 @@ function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null |
     enemyStaggerRecoverySeconds: selectedEnemy.value.staggerRecoverySeconds,
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
+    contingencyContracts: getActiveContractsForActiveScheme(),
     battleStartConsumableIdsBySlot: getBattleStartConsumableIdsForActiveScheme(),
     enemyActionWindows: buildEnemyActionWindows(selectedEnemyId.value, getEnemyCommandPlacementsForActiveScheme()),
   });
 }
 
-function simulateForBuildSnapshot(
-  snapshot: BuildStoreStateSnapshot | null,
+function snapshotForVariant(snapshot: BuildStoreStateSnapshot, variantIndex: number): BuildStoreStateSnapshot {
+  const next = cloneBuildSnapshot(snapshot);
+  next.activeVariantIndex = variantIndex;
+  next.slots = next.slots.map((slot) => {
+    const clonedSlot = JSON.parse(JSON.stringify(slot)) as CharacterBuildSlot;
+    const sourceActiveVariantIndex = snapshot.activeVariantIndex ?? 0;
+    if (variantIndex === sourceActiveVariantIndex) {
+      return clonedSlot;
+    }
+    const selectedCharId = clonedSlot.selectedCharId;
+    if (!selectedCharId) {
+      return clonedSlot;
+    }
+    const variants = clonedSlot.characterBuilds[selectedCharId];
+    const variant = Array.isArray(variants) ? variants[variantIndex] : null;
+    if (!variant) {
+      return clonedSlot;
+    }
+    return {
+      ...clonedSlot,
+      characterAscension: variant.characterAscension,
+      characterPotential: variant.characterPotential,
+      level: variant.level,
+      characterTalentToggles: { ...variant.characterTalentToggles },
+      uniqueTalentToggles: { ...variant.uniqueTalentToggles },
+      characterSkillLevels: { ...variant.characterSkillLevels },
+      selectedWeaponId: variant.selectedWeaponId,
+      weaponAscension: variant.weaponAscension,
+      weaponPotential: variant.weaponPotential,
+      weaponLevel: variant.weaponLevel,
+      weaponSkillLevels: [...variant.weaponSkillLevels],
+      armor: variant.armor ? JSON.parse(JSON.stringify(variant.armor)) : null,
+      gloves: variant.gloves ? JSON.parse(JSON.stringify(variant.gloves)) : null,
+      kit1: variant.kit1 ? JSON.parse(JSON.stringify(variant.kit1)) : null,
+      kit2: variant.kit2 ? JSON.parse(JSON.stringify(variant.kit2)) : null,
+    };
+  });
+  return next;
+}
+
+function simulateForSnapshot(
+  snapshot: BuildStoreStateSnapshot | null | undefined,
   rotation: { steps: any[]; groups?: any[] } | null | undefined,
 ) {
   if (!snapshot || !rotation) {
     return null;
   }
-
   const snapshotParty = buildPartySnapshots(snapshot.slots);
+  const snapshotVariantsBySlot: Partial<Record<0 | 1 | 2 | 3, CharacterCombatSnapshot[]>> = {};
+  for (const variantIndex of [0, 1, 2, 3] as const) {
+    const snapshots = buildPartySnapshotsByVariant(snapshot.slots, variantIndex, snapshot.activeVariantIndex ?? 0);
+    for (const variantSnapshot of snapshots) {
+      if (!snapshotVariantsBySlot[variantSnapshot.slot]) {
+        snapshotVariantsBySlot[variantSnapshot.slot] = [null, null, null, null] as unknown as CharacterCombatSnapshot[];
+      }
+      snapshotVariantsBySlot[variantSnapshot.slot]![variantIndex] = variantSnapshot;
+    }
+  }
   if (snapshotParty.length === 0) {
     return null;
   }
-
   return simulateRotation({
     rotation,
     party: snapshotParty,
+    partyVariantsBySlot: snapshotVariantsBySlot,
+    initialVariantIndex: snapshot.activeVariantIndex ?? 0,
     enemyStats: resolvedEnemyStats.value,
     enemyMods: makeEnemyModifierSnapshot({
       resistances: {
@@ -276,10 +355,39 @@ function simulateForBuildSnapshot(
     enemyStaggerRecoverySeconds: selectedEnemy.value.staggerRecoverySeconds,
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
+    contingencyContracts: getActiveContractsForActiveScheme(),
     battleStartConsumableIdsBySlot: getBattleStartConsumableIdsForActiveScheme(),
     enemyActionWindows: buildEnemyActionWindows(selectedEnemyId.value, getEnemyCommandPlacementsForActiveScheme()),
   });
 }
+
+function getActiveContractsForActiveScheme(): ActiveContingencyContract[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  const raw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      byBuild?: Record<string, { byScheme?: Record<string, ActiveContingencyContract[]> }>;
+      byScheme?: Record<string, ActiveContingencyContract[]>;
+    };
+    const fromByBuild = parsed.byBuild?.[getBuildStorageScopeId()]?.byScheme?.[activeScheme.value.id];
+    const fromLegacy = parsed.byScheme?.[activeScheme.value.id];
+    const source = fromByBuild ?? fromLegacy ?? [];
+    if (!Array.isArray(source)) {
+      return [];
+    }
+    return source
+      .filter((entry) => entry && typeof entry.id === "string" && Number.isFinite(entry.level))
+      .map((entry) => ({ id: entry.id, level: Math.max(1, Math.floor(entry.level)) }));
+  } catch {
+    return [];
+  }
+}
+
 
 function getTallyWindowSummary(
   simulation: ReturnType<typeof simulateRotation> | null | undefined,
@@ -336,22 +444,6 @@ const builderRotationDps = computed(() => {
   return builderTallySummary.value.dps;
 });
 
-const currentPlannerRotationSimulation = computed(() =>
-  simulateForBuildSnapshot(currentBuildSnapshot.value, activeScheme.value.rotation),
-);
-
-const plannedPlannerRotationSimulation = computed(() =>
-  simulateForBuildSnapshot(plannedBuildSnapshot.value, activeScheme.value.rotation),
-);
-
-const currentPlannerRotationDps = computed(() => {
-  return getTallyWindowSummary(currentPlannerRotationSimulation.value, activeDamageTallyTiming.value).dps;
-});
-
-const plannedPlannerRotationDps = computed(() => {
-  return getTallyWindowSummary(plannedPlannerRotationSimulation.value, activeDamageTallyTiming.value).dps;
-});
-
 const firstSchemeSimulation = computed(() => {
   const firstScheme = rotationSchemes.value.schemes[0];
   return simulateForRotation(firstScheme?.rotation);
@@ -398,89 +490,90 @@ function cloneBuildSnapshot(snapshot: BuildStoreStateSnapshot): BuildStoreStateS
   return JSON.parse(JSON.stringify(snapshot)) as BuildStoreStateSnapshot;
 }
 
-function syncModeSnapshotFromEditor() {
-  const exported = cloneBuildSnapshot(buildStore.exportStateSnapshot());
-  if (plannerMode.value === "current") {
-    currentBuildSnapshot.value = exported;
-  } else {
-    plannedBuildSnapshot.value = exported;
-  }
-}
-
-function setPlannerMode(mode: "current" | "planner") {
-  if (plannerMode.value === mode) {
-    return;
-  }
-
-  const selectedSlotIndex = activeSlotIndex.value;
-  syncModeSnapshotFromEditor();
-  plannerMode.value = mode;
-  const targetSnapshot = mode === "current" ? currentBuildSnapshot.value : plannedBuildSnapshot.value;
-  if (targetSnapshot) {
-    const hydratedSnapshot = cloneBuildSnapshot(targetSnapshot);
-    hydratedSnapshot.activeSlotIndex = selectedSlotIndex;
-    buildStore.hydrateStateSnapshot(hydratedSnapshot);
-    buildStore.setActiveSlot(selectedSlotIndex);
-  }
-  persistCurrentBuild();
-}
-
-function resetPlannerSlotToCurrent() {
-  if (plannerMode.value !== "planner") {
-    return;
-  }
-
-  syncModeSnapshotFromEditor();
-  if (!currentBuildSnapshot.value || !plannedBuildSnapshot.value) {
-    return;
-  }
-
-  const slotIndex = activeSlotIndex.value;
-  const currentSnapshot = cloneBuildSnapshot(currentBuildSnapshot.value);
-  const nextPlannedSnapshot = cloneBuildSnapshot(plannedBuildSnapshot.value);
-  const currentSlot = currentSnapshot.slots[slotIndex];
-  if (!currentSlot) {
-    return;
-  }
-
-  nextPlannedSnapshot.slots[slotIndex] = JSON.parse(JSON.stringify(currentSlot)) as CharacterBuildSlot;
-  plannedBuildSnapshot.value = nextPlannedSnapshot;
-  buildStore.hydrateStateSnapshot(cloneBuildSnapshot(nextPlannedSnapshot));
-  persistCurrentBuild();
-}
-
-function applyCharacterToSnapshot(
-  snapshot: BuildStoreStateSnapshot,
-  charId: string,
-  slotIndex: number,
-): BuildStoreStateSnapshot {
-  const hydratedSnapshot = cloneBuildSnapshot(snapshot);
-  hydratedSnapshot.activeSlotIndex = slotIndex;
-  buildStore.hydrateStateSnapshot(hydratedSnapshot);
-  buildStore.setActiveSlot(slotIndex);
-  buildStore.setCharacter(charId);
-  return cloneBuildSnapshot(buildStore.exportStateSnapshot());
-}
-
 function updateSharedCharacter(charId: string) {
-  syncModeSnapshotFromEditor();
-  if (!currentBuildSnapshot.value || !plannedBuildSnapshot.value) {
+  buildStore.setCharacter(charId);
+  persistCurrentBuild();
+}
+
+function setActiveBuildVariant(index: number) {
+  buildStore.setActiveVariantIndex(index);
+  if (setToSourceVariantIndex.value === index) {
+    setToSourceVariantIndex.value = (index + 1) % 4;
+  }
+  persistCurrentBuild();
+}
+
+function setCurrentVariantToSelectedSource() {
+  const targetVariant = activeVariantIndex.value;
+  const sourceVariant = setToSourceVariantIndex.value;
+  if (targetVariant === sourceVariant) {
     return;
   }
 
-  const selectedSlotIndex = activeSlotIndex.value;
-  const nextCurrent = applyCharacterToSnapshot(currentBuildSnapshot.value, charId, selectedSlotIndex);
-  const nextPlanned = applyCharacterToSnapshot(plannedBuildSnapshot.value, charId, selectedSlotIndex);
+  const snapshot = cloneBuildSnapshot(buildStore.exportStateSnapshot());
+  const sourceMaterialized = snapshotForVariant(snapshot, sourceVariant);
+  const selectedIndex = activeSlotIndex.value;
+  const sourceSlot = sourceMaterialized.slots[selectedIndex];
+  const targetSlot = snapshot.slots[selectedIndex];
 
-  nextCurrent.activeSlotIndex = selectedSlotIndex;
-  nextPlanned.activeSlotIndex = selectedSlotIndex;
+  if (!sourceSlot || !targetSlot) {
+    return;
+  }
+  const selectedCharId = targetSlot.selectedCharId;
+  if (!selectedCharId) {
+    return;
+  }
 
-  currentBuildSnapshot.value = nextCurrent;
-  plannedBuildSnapshot.value = nextPlanned;
+  const variants = (Array.isArray(targetSlot.characterBuilds[selectedCharId])
+    ? [...targetSlot.characterBuilds[selectedCharId]]
+    : []) as any[];
+  variants[targetVariant] = {
+    characterAscension: sourceSlot.characterAscension,
+    characterPotential: sourceSlot.characterPotential,
+    level: sourceSlot.level,
+    characterTalentToggles: { ...sourceSlot.characterTalentToggles },
+    uniqueTalentToggles: { ...sourceSlot.uniqueTalentToggles },
+    characterSkillLevels: { ...sourceSlot.characterSkillLevels },
+    selectedWeaponId: sourceSlot.selectedWeaponId,
+    weaponAscension: sourceSlot.weaponAscension,
+    weaponPotential: sourceSlot.weaponPotential,
+    weaponLevel: sourceSlot.weaponLevel,
+    weaponSkillLevels: [...sourceSlot.weaponSkillLevels],
+    armor: sourceSlot.armor ? JSON.parse(JSON.stringify(sourceSlot.armor)) : null,
+    gloves: sourceSlot.gloves ? JSON.parse(JSON.stringify(sourceSlot.gloves)) : null,
+    kit1: sourceSlot.kit1 ? JSON.parse(JSON.stringify(sourceSlot.kit1)) : null,
+    kit2: sourceSlot.kit2 ? JSON.parse(JSON.stringify(sourceSlot.kit2)) : null,
+  };
+  targetSlot.characterBuilds[selectedCharId] = variants;
 
-  const targetSnapshot = plannerMode.value === "current" ? nextCurrent : nextPlanned;
-  buildStore.hydrateStateSnapshot(cloneBuildSnapshot(targetSnapshot));
-  buildStore.setActiveSlot(selectedSlotIndex);
+  targetSlot.characterAscension = sourceSlot.characterAscension;
+  targetSlot.characterPotential = sourceSlot.characterPotential;
+  targetSlot.level = sourceSlot.level;
+  targetSlot.characterTalentToggles = { ...sourceSlot.characterTalentToggles };
+  targetSlot.uniqueTalentToggles = { ...sourceSlot.uniqueTalentToggles };
+  targetSlot.characterSkillLevels = { ...sourceSlot.characterSkillLevels };
+  targetSlot.selectedWeaponId = sourceSlot.selectedWeaponId;
+  targetSlot.armor = sourceSlot.armor ? JSON.parse(JSON.stringify(sourceSlot.armor)) : null;
+  targetSlot.gloves = sourceSlot.gloves ? JSON.parse(JSON.stringify(sourceSlot.gloves)) : null;
+  targetSlot.kit1 = sourceSlot.kit1 ? JSON.parse(JSON.stringify(sourceSlot.kit1)) : null;
+  targetSlot.kit2 = sourceSlot.kit2 ? JSON.parse(JSON.stringify(sourceSlot.kit2)) : null;
+  targetSlot.weaponAscension = sourceSlot.weaponAscension;
+  targetSlot.weaponPotential = sourceSlot.weaponPotential;
+  targetSlot.weaponLevel = sourceSlot.weaponLevel;
+  targetSlot.weaponSkillLevels = [...sourceSlot.weaponSkillLevels];
+
+  if (sourceSlot.selectedWeaponId) {
+    const key = `${selectedCharId}::${sourceSlot.selectedWeaponId}`;
+    targetSlot.weaponBuilds[key] = {
+      weaponAscension: sourceSlot.weaponAscension,
+      weaponPotential: sourceSlot.weaponPotential,
+      weaponLevel: sourceSlot.weaponLevel,
+      weaponSkillLevels: [...sourceSlot.weaponSkillLevels],
+    };
+  }
+
+  snapshot.activeVariantIndex = targetVariant;
+  buildStore.hydrateStateSnapshot(snapshot);
   persistCurrentBuild();
 }
 
@@ -556,186 +649,219 @@ function computeSlotFinalStats(slot: CharacterBuildSlot): { out: FinalStats } | 
 }
 
 const baselineOut = computed(() => {
-  if (plannerMode.value !== "planner" || !currentBuildSnapshot.value) {
+  if (!compareBuildsEnabled.value || !currentBuildSnapshot.value) {
     return null;
   }
-  const slot = currentBuildSnapshot.value.slots[activeSlotIndex.value];
+  const sourceSnapshot = snapshotForVariant(currentBuildSnapshot.value, compareTargetVariantIndex.value);
+  const slot = sourceSnapshot.slots[activeSlotIndex.value];
   return slot ? computeSlotFinalStats(slot)?.out ?? null : null;
 });
 
-const plannerDamageComparison = computed(() => {
-  if (plannerMode.value !== "planner") {
+const activeGearContribution = computed(() => {
+  if (!selectedChar.value || !activeSlot.value) {
     return null;
   }
 
-  const currentDamage = getTallyWindowSummary(currentPlannerRotationSimulation.value, activeDamageTallyTiming.value).totalDamage;
-  const plannedDamage = getTallyWindowSummary(plannedPlannerRotationSimulation.value, activeDamageTallyTiming.value).totalDamage;
-  return { current: currentDamage, planned: plannedDamage };
+  const zeroMods = makeBaseModifierStats();
+  for (const key of MODIFIER_STAT_KEYS) {
+    zeroMods[key] = 0;
+  }
+
+  const gearResult = applyGears({
+    attrs: { STR: 0, AGI: 0, INT: 0, WIL: 0 },
+    gearBases: [
+      selectedGearObjects.value.armor,
+      selectedGearObjects.value.gloves,
+      selectedGearObjects.value.kit1,
+      selectedGearObjects.value.kit2,
+    ],
+    gearInstances: [
+      activeSlot.value.armor,
+      activeSlot.value.gloves,
+      activeSlot.value.kit1,
+      activeSlot.value.kit2,
+    ],
+    mods: zeroMods,
+  });
+
+  const attributes = (["STR", "AGI", "INT", "WIL"] as const)
+    .map((key) => ({ key, value: gearResult.attrs[key] }))
+    .filter((entry) => entry.value !== 0);
+
+  const modifiers = (MODIFIER_STAT_KEYS as readonly ModifierStatKey[])
+    .map((key) => ({ key, value: gearResult.mods[key] }))
+    .filter((entry) => entry.value !== 0);
+
+  return { attributes, modifiers };
 });
 
-const plannerDpsComparison = computed(() => {
-  if (plannerMode.value !== "planner") {
+const compareTargetActiveSlot = computed(() => {
+  if (!compareBuildsEnabled.value || !activeSlot.value) {
     return null;
   }
+  const liveSnapshot = buildStore.exportStateSnapshot();
+  const targetSnapshot = snapshotForVariant(liveSnapshot, compareTargetVariantIndex.value);
+  return targetSnapshot.slots[activeSlotIndex.value] ?? null;
+});
 
+const comparisonSummaries = computed(() => {
+  if (!compareBuildsEnabled.value || !currentBuildSnapshot.value) {
+    return null;
+  }
+  const leftSnapshot = snapshotForVariant(currentBuildSnapshot.value, activeVariantIndex.value);
+  const rightSnapshot = snapshotForVariant(currentBuildSnapshot.value, compareTargetVariantIndex.value);
+  const leftSimulation = simulateForSnapshot(leftSnapshot, activeScheme.value.rotation);
+  const rightSimulation = simulateForSnapshot(rightSnapshot, activeScheme.value.rotation);
   return {
-    current: currentPlannerRotationDps.value,
-    planned: plannedPlannerRotationDps.value,
+    left: getTallyWindowSummary(leftSimulation, activeDamageTallyTiming.value),
+    right: getTallyWindowSummary(rightSimulation, activeDamageTallyTiming.value),
   };
 });
 
+function updateCompareEnabled(value: boolean) {
+  compareBuildsEnabled.value = value;
+  persistCurrentBuild();
+}
+
+function updateCompareTargetVariant(index: number) {
+  compareTargetVariantIndex.value = Math.max(0, Math.min(3, index));
+  persistCurrentBuild();
+}
+
 const characterBuildCost = computed(() => {
-  if (plannerMode.value !== "planner") {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.switchToPlannerForCost") };
+  void buildCostReactivityStamp.value;
+  if (!activeSlot.value) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: null as string | null };
   }
-  const currentSlot = currentBuildSnapshot.value?.slots[activeSlotIndex.value];
-  const plannedSlot = plannedBuildSnapshot.value?.slots[activeSlotIndex.value];
-  if (!currentSlot || !plannedSlot || !currentSlot.selectedCharId || !plannedSlot.selectedCharId) {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.selectCharacterInBoth") };
-  }
-  if (currentSlot.selectedCharId !== plannedSlot.selectedCharId) {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.plannerCharacterMustMatch") };
+  if (!compareBuildsEnabled.value) {
+    return {
+      lines: [] as { name: string; amount: number; iconPath?: string }[],
+      note: t("planner.enableCompareModeToSeeCostDifference"),
+    };
   }
 
-  const plannedNotLower =
-    plannedSlot.level >= currentSlot.level
-    && plannedSlot.characterAscension >= currentSlot.characterAscension
-    && plannedSlot.characterPotential >= currentSlot.characterPotential
-    && plannedSlot.characterSkillLevels.basic >= currentSlot.characterSkillLevels.basic
-    && plannedSlot.characterSkillLevels.battleSkill >= currentSlot.characterSkillLevels.battleSkill
-    && plannedSlot.characterSkillLevels.comboSkill >= currentSlot.characterSkillLevels.comboSkill
-    && plannedSlot.characterSkillLevels.ultimate >= currentSlot.characterSkillLevels.ultimate
-    && Object.keys(currentSlot.characterTalentToggles).every(
-      (key) =>
-        !currentSlot.characterTalentToggles[key as keyof typeof currentSlot.characterTalentToggles]
-        || plannedSlot.characterTalentToggles[key as keyof typeof plannedSlot.characterTalentToggles],
-    )
-    && Object.keys({ ...currentSlot.uniqueTalentToggles, ...plannedSlot.uniqueTalentToggles }).every(
-      (key) => !currentSlot.uniqueTalentToggles[key] || plannedSlot.uniqueTalentToggles[key],
-    );
-
-  if (!plannedNotLower) {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.valuesMustBeNotLower") };
+  const liveSnapshot = buildStore.exportStateSnapshot();
+  const currentSnapshot = snapshotForVariant(liveSnapshot, activeVariantIndex.value);
+  const targetSnapshot = snapshotForVariant(liveSnapshot, compareTargetVariantIndex.value);
+  const currentSlot = currentSnapshot.slots[activeSlotIndex.value];
+  const targetSlot = targetSnapshot.slots[activeSlotIndex.value];
+  if (!currentSlot || !targetSlot) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: null as string | null };
+  }
+  if (!currentSlot.selectedCharId || !targetSlot.selectedCharId) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: t("planner.selectCharacterInBoth") };
+  }
+  if (currentSlot.selectedCharId !== targetSlot.selectedCharId) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: t("planner.plannerCharacterMustMatch") };
   }
 
   const character = getCharacterById(currentSlot.selectedCharId);
   if (!character) {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.characterCostUnavailable") };
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: t("planner.characterCostUnavailable") };
   }
 
-  const result = computeCharacterPlannerCost({
+  const plannerCostLocale: "en" | "zh-CN" = locale.value === "zh-CN" ? "zh-CN" : "en";
+
+  const forward = computeCharacterPlannerCost({
     character,
     currentSlot,
-    plannedSlot,
+    plannedSlot: targetSlot,
+    locale: plannerCostLocale,
   });
+  const backward = computeCharacterPlannerCost({
+    character,
+    currentSlot: targetSlot,
+    plannedSlot: currentSlot,
+    locale: plannerCostLocale,
+  });
+  const { lines, missingParts, warnings } = buildDeltaCostLines({
+    forward,
+    backward,
+    sanityLabel: t("builder.totalSanityEquivalent"),
+  });
+  const warningNote = warnings.length > 0 ? warnings.join(" ") : null;
+  const missingNote = missingParts.length > 0
+    ? t("planner.partialMissingApiData", { parts: missingParts.join(", ") })
+    : null;
+  const note = [warningNote, missingNote].filter((value) => Boolean(value)).join(" ").trim() || null;
 
-  const hasAnyUpgrade =
-    plannedSlot.level > currentSlot.level
-    || plannedSlot.characterAscension > currentSlot.characterAscension
-    || plannedSlot.characterPotential > currentSlot.characterPotential
-    || plannedSlot.characterSkillLevels.basic > currentSlot.characterSkillLevels.basic
-    || plannedSlot.characterSkillLevels.battleSkill > currentSlot.characterSkillLevels.battleSkill
-    || plannedSlot.characterSkillLevels.comboSkill > currentSlot.characterSkillLevels.comboSkill
-    || plannedSlot.characterSkillLevels.ultimate > currentSlot.characterSkillLevels.ultimate
-    || Object.keys({ ...currentSlot.characterTalentToggles, ...plannedSlot.characterTalentToggles }).some(
-      (key) =>
-        !currentSlot.characterTalentToggles[key as keyof typeof currentSlot.characterTalentToggles]
-        && plannedSlot.characterTalentToggles[key as keyof typeof plannedSlot.characterTalentToggles],
-    )
-    || Object.keys({ ...currentSlot.uniqueTalentToggles, ...plannedSlot.uniqueTalentToggles }).some(
-      (key) => !currentSlot.uniqueTalentToggles[key] && plannedSlot.uniqueTalentToggles[key],
-    );
-
-  if (!hasAnyUpgrade) {
-    return { lines: [] as { name: string; amount: number }[], note: t("ui.noAdditionalCost") };
-  }
-
-  return {
-    lines: result.lines.map((line) => ({
-      ...line,
-      name: localizeCostName(line.name),
-    })),
-    note: result.missingParts.length > 0
-      ? t("planner.partialMissingApiData", {
-        parts: `${result.missingParts.slice(0, 2).join(", ")}${result.missingParts.length > 2 ? ", ..." : ""}`,
-      })
-      : null,
-  };
+  return { lines, note };
 });
 
 const weaponBuildCost = computed(() => {
-  if (plannerMode.value !== "planner") {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.switchToPlannerForCost") };
+  void buildCostReactivityStamp.value;
+  if (!activeSlot.value) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: null as string | null };
   }
-  const currentSlot = currentBuildSnapshot.value?.slots[activeSlotIndex.value];
-  const plannedSlot = plannedBuildSnapshot.value?.slots[activeSlotIndex.value];
-  if (!currentSlot || !plannedSlot || !currentSlot.selectedWeaponId || !plannedSlot.selectedWeaponId) {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.selectWeaponInBoth") };
-  }
-  if (currentSlot.selectedWeaponId !== plannedSlot.selectedWeaponId) {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.plannerWeaponMustMatch") };
-  }
-
-  const plannedNotLower =
-    plannedSlot.weaponLevel >= currentSlot.weaponLevel
-    && plannedSlot.weaponAscension >= currentSlot.weaponAscension
-    && plannedSlot.weaponPotential >= currentSlot.weaponPotential
-    && (plannedSlot.weaponSkillLevels[0] ?? 1) >= (currentSlot.weaponSkillLevels[0] ?? 1)
-    && (plannedSlot.weaponSkillLevels[1] ?? 1) >= (currentSlot.weaponSkillLevels[1] ?? 1)
-    && (plannedSlot.weaponSkillLevels[2] ?? 1) >= (currentSlot.weaponSkillLevels[2] ?? 1);
-
-  if (!plannedNotLower) {
-    return { lines: [] as { name: string; amount: number }[], note: t("planner.valuesMustBeNotLower") };
+  if (!compareBuildsEnabled.value) {
+    return {
+      lines: [] as { name: string; amount: number; iconPath?: string }[],
+      note: t("planner.enableCompareModeToSeeCostDifference"),
+    };
   }
 
-  const hasAnyUpgrade =
-    plannedSlot.weaponLevel > currentSlot.weaponLevel
-    || plannedSlot.weaponAscension > currentSlot.weaponAscension
-    || plannedSlot.weaponPotential > currentSlot.weaponPotential
-    || (plannedSlot.weaponSkillLevels[0] ?? 1) > (currentSlot.weaponSkillLevels[0] ?? 1)
-    || (plannedSlot.weaponSkillLevels[1] ?? 1) > (currentSlot.weaponSkillLevels[1] ?? 1)
-    || (plannedSlot.weaponSkillLevels[2] ?? 1) > (currentSlot.weaponSkillLevels[2] ?? 1);
-
-  if (!hasAnyUpgrade) {
-    return { lines: [] as { name: string; amount: number }[], note: t("ui.noAdditionalCost") };
+  const liveSnapshot = buildStore.exportStateSnapshot();
+  const currentSnapshot = snapshotForVariant(liveSnapshot, activeVariantIndex.value);
+  const targetSnapshot = snapshotForVariant(liveSnapshot, compareTargetVariantIndex.value);
+  const currentSlot = currentSnapshot.slots[activeSlotIndex.value];
+  const targetSlot = targetSnapshot.slots[activeSlotIndex.value];
+  if (!currentSlot || !targetSlot) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: null as string | null };
+  }
+  if (!currentSlot.selectedWeaponId || !targetSlot.selectedWeaponId) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: t("planner.selectWeaponInBoth") };
+  }
+  if (currentSlot.selectedWeaponId !== targetSlot.selectedWeaponId) {
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: t("planner.plannerWeaponMustMatch") };
   }
 
   const weapon = getWeaponById(currentSlot.selectedWeaponId);
   if (!weapon) {
-    return {
-      lines: [] as { name: string; amount: number }[],
-      note: t("planner.weaponCostUnavailable"),
-    };
+    return { lines: [] as { name: string; amount: number; iconPath?: string }[], note: t("planner.weaponCostUnavailable") };
   }
 
-  const result = computeWeaponPlannerCost({
+  const plannerCostLocale: "en" | "zh-CN" = locale.value === "zh-CN" ? "zh-CN" : "en";
+  const currentHasMismatchedEssence = hasMismatchedWeaponEssence(currentSlot);
+  const targetHasMismatchedEssence = hasMismatchedWeaponEssence(targetSlot);
+
+  const forward = computeWeaponPlannerCost({
     weapon,
     currentSlot,
-    plannedSlot,
+    plannedSlot: targetSlot,
+    locale: plannerCostLocale,
   });
-
-  if (plannedSlot.weaponPotential > currentSlot.weaponPotential) {
-    result.missingParts.push("weapon potential");
+  const backward = computeWeaponPlannerCost({
+    weapon,
+    currentSlot: targetSlot,
+    plannedSlot: currentSlot,
+    locale: plannerCostLocale,
+  });
+  const { lines, missingParts } = buildDeltaCostLines({
+    forward,
+    backward,
+    skipIds: targetHasMismatchedEssence ? new Set(["item_weapon_etching_essence"]) : undefined,
+    sanityLabel: t("builder.totalSanityEquivalent"),
+  });
+  let mismatchWarning: string | null = null;
+  if (targetHasMismatchedEssence) {
+    mismatchWarning = plannerCostLocale === "zh-CN"
+      ? "目标构筑有非适配基质，已跳过基质蚀刻计算"
+      : "Target build uses mismatched essence; essence cost skipped";
+  } else if (currentHasMismatchedEssence) {
+    mismatchWarning = plannerCostLocale === "zh-CN"
+      ? "当前构筑有非适配基质，假设为切换至+1/+1/+1基质后蚀刻"
+      : "Starting build uses mismatched essence; cost assumes switching to +1/+1/+1 first";
   }
-  if (
-    (plannedSlot.weaponSkillLevels[0] ?? 1) > (currentSlot.weaponSkillLevels[0] ?? 1)
-    || (plannedSlot.weaponSkillLevels[1] ?? 1) > (currentSlot.weaponSkillLevels[1] ?? 1)
-    || (plannedSlot.weaponSkillLevels[2] ?? 1) > (currentSlot.weaponSkillLevels[2] ?? 1)
-  ) {
-    result.missingParts.push("weapon skills");
+  const noteParts: string[] = [];
+  if (mismatchWarning) {
+    noteParts.push(`__warn__:${mismatchWarning}`);
   }
+  if (missingParts.length > 0) {
+    noteParts.push(t("planner.partialMissingApiData", { parts: missingParts.join(", ") }));
+  }
+  const note = noteParts.join(" ").trim() || null;
 
-  return {
-    lines: result.lines.map((line) => ({
-      ...line,
-      name: localizeCostName(line.name),
-    })),
-    note: result.missingParts.length > 0
-      ? t("planner.partialMissingApiData", {
-        parts: `${[...new Set(result.missingParts)].slice(0, 2).join(", ")}${result.missingParts.length > 2 ? ", ..." : ""}`,
-      })
-      : null,
-  };
+  return { lines, note };
 });
 
 function resetGuestUser() {
@@ -743,10 +869,21 @@ function resetGuestUser() {
   buildListStore.resetAll();
   buildStore.resetGuestUser();
   resetRotationSchemes();
-  plannerMode.value = "current";
   currentBuildSnapshot.value = null;
-  plannedBuildSnapshot.value = null;
   void router.replace({ name: "build-list" });
+}
+
+function openResetGuestConfirm() {
+  confirmResetGuestOpen.value = true;
+}
+
+function closeResetGuestConfirm() {
+  confirmResetGuestOpen.value = false;
+}
+
+function confirmResetGuestUser() {
+  confirmResetGuestOpen.value = false;
+  resetGuestUser();
 }
 
 function persistCurrentBuild() {
@@ -762,21 +899,26 @@ function persistCurrentBuild() {
     return;
   }
 
-  if (!currentBuildSnapshot.value || !plannedBuildSnapshot.value) {
+  if (!currentBuildSnapshot.value) {
     return;
   }
-  syncModeSnapshotFromEditor();
+  currentBuildSnapshot.value = cloneBuildSnapshot(buildStore.exportStateSnapshot());
 
   buildListStore.updateBuildRuntime({
     buildId: activeBuildId.value,
     currentBuildState: currentBuildSnapshot.value,
-    plannedBuildState: plannedBuildSnapshot.value,
+    plannedBuildState: currentBuildSnapshot.value,
     rotationState: exportRotationSchemes(),
     summary: {
       totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
       dps: firstSchemeDps.value,
     },
     damageTallyTiming: activeDamageTallyTiming.value,
+    compareSettings: {
+      enabled: compareBuildsEnabled.value,
+      leftVariantIndex: activeVariantIndex.value,
+      rightVariantIndex: compareTargetVariantIndex.value,
+    },
   });
 }
 
@@ -790,9 +932,10 @@ function hydrateBuildDetail(buildId: string): boolean {
   try {
     buildListStore.setActiveBuild(buildId);
     currentBuildSnapshot.value = cloneBuildSnapshot(selected.currentBuildState);
-    plannedBuildSnapshot.value = cloneBuildSnapshot(selected.plannedBuildState);
-    plannerMode.value = "current";
+    buildStore.setActiveVariantIndex(selected.currentBuildState.activeVariantIndex ?? 0);
     buildStore.hydrateStateSnapshot(cloneBuildSnapshot(selected.currentBuildState));
+    compareBuildsEnabled.value = selected.compareSettings?.enabled === true;
+    compareTargetVariantIndex.value = selected.compareSettings?.rightVariantIndex ?? 1;
     hydrateRotationSchemes(selected.rotationState);
   } finally {
     isHydratingBuildDetail.value = false;
@@ -809,16 +952,21 @@ function openBuild(buildId: string) {
 }
 
 function updateActiveDamageTallyTiming(next: DamageTallyTiming) {
-  if (!activeBuildId.value || !currentBuildSnapshot.value || !plannedBuildSnapshot.value) {
+  if (!activeBuildId.value || !currentBuildSnapshot.value) {
     return;
   }
-  syncModeSnapshotFromEditor();
+  currentBuildSnapshot.value = cloneBuildSnapshot(buildStore.exportStateSnapshot());
   buildListStore.updateBuildRuntime({
     buildId: activeBuildId.value,
     currentBuildState: currentBuildSnapshot.value,
-    plannedBuildState: plannedBuildSnapshot.value,
+    plannedBuildState: currentBuildSnapshot.value,
     rotationState: exportRotationSchemes(),
     damageTallyTiming: next,
+    compareSettings: {
+      enabled: compareBuildsEnabled.value,
+      leftVariantIndex: activeVariantIndex.value,
+      rightVariantIndex: compareTargetVariantIndex.value,
+    },
   });
 }
 
@@ -827,11 +975,21 @@ function createBuild() {
   const id = buildListStore.createBuild();
   if (!id) {
     if (typeof window !== "undefined") {
-      window.alert("maximum builds reached");
+      window.alert(t("buildList.maximumBuildsReached"));
     }
     return;
   }
   void router.push({ name: "build-builder", params: { buildId: id } });
+}
+
+function copyBuild(buildId: string) {
+  persistCurrentBuild();
+  const id = buildListStore.copyBuild(buildId);
+  if (!id) {
+    if (typeof window !== "undefined") {
+      window.alert(t("buildList.maximumBuildsReached"));
+    }
+  }
 }
 
 function backToBuildList() {
@@ -848,7 +1006,7 @@ function deleteBuild(buildId: string) {
 }
 
 watch(
-  [slots, activeSlotIndex, rotationSchemes, firstSchemeSimulation, firstSchemeDps, page, activeBuildId, plannerMode],
+  [slots, activeSlotIndex, rotationSchemes, firstSchemeSimulation, firstSchemeDps, page, activeBuildId, activeVariantIndex],
   () => {
     persistCurrentBuild();
   },
@@ -879,7 +1037,7 @@ watch(
       return;
     }
 
-    if (activeBuildId.value !== nextBuildId || !currentBuildSnapshot.value || !plannedBuildSnapshot.value) {
+    if (activeBuildId.value !== nextBuildId || !currentBuildSnapshot.value) {
       hydrateBuildDetail(nextBuildId);
     }
   },
@@ -893,13 +1051,25 @@ watch(
       <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 py-3">
         <div class="flex flex-col">
           <div class="text-sm font-semibold uppercase tracking-[0.22em] text-[#2a2a2a]">
-            {{ t("ui.toolboxBrand") }} <span class="ml-1 text-[10px] font-bold tracking-[0.18em] text-[#b58f00]">ALPHA</span>
+            {{ t("ui.toolboxBrand") }} <span class="ml-1 text-[10px] font-bold tracking-[0.18em] text-[#b58f00]">{{ t("ui.alphaTag") }}</span>
           </div>
           <div class="text-[11px] text-[#6e6e6e]">
-            most of the character data are currently incomplete. You are likely to find bugs and inaccuracies
+            {{ t("ui.alphaDisclaimer") }}
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
+            :class="
+              debugModeEnabled
+                ? 'border-[#ece81a] bg-[#ece81a] text-[#1b1b1b]'
+                : 'border-[#d0d0d0] bg-white text-[#3a3a3a] hover:border-[#b9b9b9] hover:text-[#111]'
+            "
+            @click="debugModeEnabled = !debugModeEnabled"
+          >
+            {{ debugModeEnabled ? t("ui.debugOn") : t("ui.debugOff") }}
+          </button>
           <div class="flex rounded-full border border-[#d0d0d0] bg-white p-1 shadow-sm">
             <button
               type="button"
@@ -921,7 +1091,7 @@ watch(
           <button
             type="button"
             class="rounded-full border border-[#d0d0d0] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#3a3a3a] transition hover:border-[#b9b9b9] hover:text-[#111]"
-            @click="resetGuestUser"
+            @click="openResetGuestConfirm"
           >
             {{ t("ui.resetGuestUser") }}
           </button>
@@ -934,11 +1104,8 @@ watch(
           <div class="flex items-end gap-4">
             <div class="h-16 w-2 bg-[#ece81a]"></div>
             <div>
-              <div class="text-xs uppercase tracking-[0.28em] text-[#7d7d7d]">
+              <h1 class="text-3xl font-semibold uppercase tracking-[0.18em] text-[#1b1b1b]">
                 {{ t("ui.combatSimulator") }}
-              </div>
-              <h1 class="text-3xl font-semibold tracking-tight">
-                {{ t("ui.appTitle") }}
               </h1>
             </div>
           </div>
@@ -988,6 +1155,7 @@ watch(
         :active-build-id="activeBuildId"
         @open="openBuild"
         @create="createBuild"
+        @copy="copyBuild"
         @rename="renameBuild"
         @delete="deleteBuild"
       />
@@ -997,9 +1165,11 @@ watch(
           v-if="workspace === 'builder'"
           class="mb-6 rounded-2xl border border-[#d6d6d6] bg-white p-5 shadow-sm"
         >
-          <div class="mb-3 flex items-center gap-3">
-            <div class="h-6 w-1 bg-[#ece81a]"></div>
-            <h2 class="text-lg font-semibold">{{ t("builder.partySlots") }}</h2>
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="h-6 w-1 bg-[#ece81a]"></div>
+              <h2 class="text-lg font-semibold">{{ t("builder.partySlots") }}</h2>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -1056,6 +1226,7 @@ watch(
           <section class="min-w-0">
             <div class="grid gap-6 sm:grid-cols-2 2xl:grid-cols-2">
               <CharacterCard
+                :key="`character-${activeBuildId}-${activeSlot!.id}-${activeVariantIndex}-${activeSlot!.selectedCharId}-${activeSlot!.characterAscension}`"
                 :characters="CHARACTERS"
                 :selected-char-id="activeSlot!.selectedCharId"
                 :selected-character="selectedChar"
@@ -1063,9 +1234,13 @@ watch(
                 :level="activeSlot!.level"
                 :ascension-stage="activeSlot!.characterAscension"
                 :potential="activeSlot!.characterPotential"
+                :compare-level="compareTargetActiveSlot?.level"
+                :compare-ascension-stage="compareTargetActiveSlot?.characterAscension"
+                :compare-potential="compareTargetActiveSlot?.characterPotential"
                 :talent-toggles="activeSlot!.characterTalentToggles"
                 :unique-talent-toggles="activeSlot!.uniqueTalentToggles"
                 :skill-levels="activeSlot!.characterSkillLevels"
+                :compare-skill-levels="compareTargetActiveSlot?.characterSkillLevels"
                 :build-cost-title="t('builder.currentToPlannerCost')"
                 :build-cost-lines="characterBuildCost.lines"
                 :build-cost-note="characterBuildCost.note"
@@ -1080,6 +1255,7 @@ watch(
 
               <WeaponCard
                 v-if="activeSlot!.selectedCharId || activeSlot!.selectedWeaponId"
+                :key="`weapon-${activeBuildId}-${activeSlot!.id}-${activeVariantIndex}-${activeSlot!.selectedWeaponId}-${activeSlot!.weaponAscension}`"
                 :weapons="availableWeapons"
                 :selected-weapon-id="activeSlot!.selectedWeaponId"
                 :weapon-locked="false"
@@ -1087,6 +1263,10 @@ watch(
                 :weapon-ascension-stage="activeSlot!.weaponAscension"
                 :weapon-potential="activeSlot!.weaponPotential"
                 :weapon-skill-levels="activeSlot!.weaponSkillLevels"
+                :compare-weapon-level="compareTargetActiveSlot?.weaponLevel"
+                :compare-weapon-ascension-stage="compareTargetActiveSlot?.weaponAscension"
+                :compare-weapon-potential="compareTargetActiveSlot?.weaponPotential"
+                :compare-weapon-skill-levels="compareTargetActiveSlot?.weaponSkillLevels"
                 :character="selectedChar"
                 :build-cost-title="t('builder.currentToPlannerCost')"
                 :build-cost-lines="weaponBuildCost.lines"
@@ -1133,18 +1313,61 @@ watch(
           </section>
 
           <section class="min-w-0 space-y-6">
-            <SummaryPanel
+            <button
               v-if="selectedChar && selectedWeapon && out"
-              :character-name="getCharacterDisplayNameByCharacter(selectedChar)"
-              :weapon-name="getWeaponDisplayNameByWeapon(selectedWeapon)"
-              :out="out"
-              :baseline-out="baselineOut"
-              :planner-mode="plannerMode"
-              :active-gear-set="activeGearSet"
-              :benchmarks="benchmarkResults"
-              @update:planner-mode="setPlannerMode"
-              @reset:planner-to-current="resetPlannerSlotToCurrent"
-            />
+              type="button"
+              class="fixed right-3 top-20 z-40 h-9 w-9 rounded-full border border-[#d4d4d4] bg-white text-lg font-semibold text-[#444] shadow-md transition hover:bg-[#f5f5f5] lg:hidden"
+              :aria-label="mobileSummaryOpen ? 'Hide summary panel' : 'Show summary panel'"
+              @click="mobileSummaryOpen = !mobileSummaryOpen"
+            >
+              {{ mobileSummaryOpen ? ">" : "<" }}
+            </button>
+
+            <div
+              v-if="selectedChar && selectedWeapon && out && mobileSummaryOpen"
+              class="fixed inset-y-0 right-0 z-30 w-[min(92vw,460px)] overflow-y-auto border-l border-[#d4d4d4] bg-[#f3f3f3] p-3 pt-16 shadow-2xl lg:hidden"
+            >
+              <SummaryPanel
+                :character-name="getCharacterDisplayNameByCharacter(selectedChar)"
+                :weapon-name="getWeaponDisplayNameByWeapon(selectedWeapon)"
+                :out="out"
+                :baseline-out="baselineOut"
+                :active-variant-index="activeVariantIndex"
+                :compare-enabled="compareBuildsEnabled"
+                :compare-target-variant="compareTargetVariantIndex"
+                :set-to-source-variant="setToSourceVariantIndex"
+                :active-gear-set="activeGearSet"
+                :gear-contribution="activeGearContribution"
+                :benchmarks="benchmarkResults"
+                @update:active-variant-index="setActiveBuildVariant"
+                @update:compare-enabled="updateCompareEnabled"
+                @update:compare-target-variant="updateCompareTargetVariant"
+                @update:set-to-source-variant="setToSourceVariantIndex = $event"
+                @apply:set-to-build="setCurrentVariantToSelectedSource"
+              />
+            </div>
+
+            <div class="hidden lg:block">
+              <SummaryPanel
+                v-if="selectedChar && selectedWeapon && out"
+                :character-name="getCharacterDisplayNameByCharacter(selectedChar)"
+                :weapon-name="getWeaponDisplayNameByWeapon(selectedWeapon)"
+                :out="out"
+                :baseline-out="baselineOut"
+                :active-variant-index="activeVariantIndex"
+                :compare-enabled="compareBuildsEnabled"
+                :compare-target-variant="compareTargetVariantIndex"
+                :set-to-source-variant="setToSourceVariantIndex"
+                :active-gear-set="activeGearSet"
+                :gear-contribution="activeGearContribution"
+                :benchmarks="benchmarkResults"
+                @update:active-variant-index="setActiveBuildVariant"
+                @update:compare-enabled="updateCompareEnabled"
+                @update:compare-target-variant="updateCompareTargetVariant"
+                @update:set-to-source-variant="setToSourceVariantIndex = $event"
+                @apply:set-to-build="setCurrentVariantToSelectedSource"
+              />
+            </div>
 
             <section class="rounded-2xl border border-[#d6d6d6] bg-white p-5 shadow-sm">
               <div class="mb-4 flex items-center justify-between gap-4">
@@ -1177,15 +1400,15 @@ watch(
                   <div
                     class="mt-2 text-3xl font-semibold tabular-nums"
                     :class="
-                      plannerDamageComparison && plannerDamageComparison.planned > plannerDamageComparison.current
+                      comparisonSummaries && comparisonSummaries.right.totalDamage > comparisonSummaries.left.totalDamage
                         ? 'text-[#1b7f2a]'
-                        : plannerDamageComparison && plannerDamageComparison.planned < plannerDamageComparison.current
+                        : comparisonSummaries && comparisonSummaries.right.totalDamage < comparisonSummaries.left.totalDamage
                           ? 'text-[#b42323]'
                           : 'text-[#1b1b1b]'
                     "
                   >
-                    <template v-if="plannerDamageComparison">
-                      {{ `${Math.round(plannerDamageComparison.current).toLocaleString()} → ${Math.round(plannerDamageComparison.planned).toLocaleString()}` }}
+                    <template v-if="comparisonSummaries">
+                      {{ `${Math.round(comparisonSummaries.left.totalDamage).toLocaleString()} → ${Math.round(comparisonSummaries.right.totalDamage).toLocaleString()}` }}
                     </template>
                     <template v-else>
                       {{ Math.round(builderTallySummary.totalDamage).toLocaleString() }}
@@ -1197,15 +1420,15 @@ watch(
                   <div
                     class="mt-2 text-3xl font-semibold tabular-nums"
                     :class="
-                      plannerDpsComparison && plannerDpsComparison.planned > plannerDpsComparison.current
+                      comparisonSummaries && comparisonSummaries.right.dps > comparisonSummaries.left.dps
                         ? 'text-[#1b7f2a]'
-                        : plannerDpsComparison && plannerDpsComparison.planned < plannerDpsComparison.current
+                        : comparisonSummaries && comparisonSummaries.right.dps < comparisonSummaries.left.dps
                           ? 'text-[#b42323]'
                           : 'text-[#1b1b1b]'
                     "
                   >
-                    <template v-if="plannerDpsComparison">
-                      {{ `${Math.round(plannerDpsComparison.current).toLocaleString()} → ${Math.round(plannerDpsComparison.planned).toLocaleString()}` }}
+                    <template v-if="comparisonSummaries">
+                      {{ `${Math.round(comparisonSummaries.left.dps).toLocaleString()} → ${Math.round(comparisonSummaries.right.dps).toLocaleString()}` }}
                     </template>
                     <template v-else>
                       {{ Math.round(builderRotationDps).toLocaleString() }}
@@ -1247,8 +1470,15 @@ watch(
                 </div>
               </div>
 
-              <div class="mt-3 text-sm text-[#666]">
-                {{ selectedEnemy.name }} {{ t("enemy.level") }} {{ enemyLevel }} · {{ t("rotation.realTime") }} {{ (builderRotationSimulation?.totalTime ?? 0).toFixed(2) }}{{ t("enemy.seconds") }} · {{ t("rotation.gameTime") }} {{ (builderRotationSimulation?.totalGameTime ?? 0).toFixed(2) }}{{ t("enemy.seconds") }}
+              <div class="mt-3 flex items-center gap-2 text-sm text-[#666]">
+                <img
+                  :src="selectedEnemyIconPath"
+                  :alt="selectedEnemyDisplayName"
+                  class="h-5 w-5 rounded-sm border border-[#d8d8d8] object-cover"
+                />
+                <span>
+                  {{ selectedEnemyDisplayName }} {{ t("enemy.level") }} {{ enemyLevel }} · {{ t("rotation.realTime") }} {{ (builderRotationSimulation?.totalTime ?? 0).toFixed(2) }}{{ t("enemy.seconds") }} · {{ t("rotation.gameTime") }} {{ (builderRotationSimulation?.totalGameTime ?? 0).toFixed(2) }}{{ t("enemy.seconds") }}
+                </span>
               </div>
             </section>
           </section>
@@ -1257,9 +1487,10 @@ watch(
         <RotationWorkspace
           v-else
           :build-id="activeBuildId ?? undefined"
+          :debug-mode="debugModeEnabled"
           :enemies="ENEMIES"
           :selected-enemy-id="selectedEnemyId"
-          :enemy-name="selectedEnemy.name"
+          :enemy-name="selectedEnemyDisplayName"
           :enemy-level="enemyLevel"
           :enemy-stats="resolvedEnemyStats"
           :enemy-stagger-gauge="selectedEnemy.staggerGauge"
@@ -1273,6 +1504,41 @@ watch(
           @update:damage-tally-timing="updateActiveDamageTallyTiming"
         />
       </template>
+    </div>
+
+    <div
+      v-if="confirmResetGuestOpen"
+      class="fixed inset-0 z-[160] flex items-center justify-center bg-black/35 px-4"
+      @click.self="closeResetGuestConfirm"
+    >
+      <div class="w-full max-w-md rounded-2xl border border-[#d6d6d6] bg-white p-5 shadow-2xl">
+        <div class="text-lg font-semibold text-[#1b1b1b]">
+          {{ locale === "zh-CN" ? "确认重置游客数据？" : "Reset guest data?" }}
+        </div>
+        <div class="mt-2 text-sm text-[#666]">
+          {{
+            locale === "zh-CN"
+              ? "这将清空当前游客用户构筑与轮换数据，且无法撤销。"
+              : "This will clear current guest builds and rotation data. This cannot be undone."
+          }}
+        </div>
+        <div class="mt-5 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-md border border-[#d7d7d7] bg-white px-3 py-2 text-sm text-[#444] transition hover:bg-[#f5f5f5]"
+            @click="closeResetGuestConfirm"
+          >
+            {{ t("ui.cancel") }}
+          </button>
+          <button
+            type="button"
+            class="rounded-md border border-[#f0d0d0] bg-[#fff5f5] px-3 py-2 text-sm font-semibold text-[#9a3131] transition hover:bg-[#ffeaea]"
+            @click="confirmResetGuestUser"
+          >
+            {{ locale === "zh-CN" ? "确认重置" : "Yes, reset" }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

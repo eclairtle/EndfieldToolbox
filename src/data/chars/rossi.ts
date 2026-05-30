@@ -605,7 +605,7 @@ const ROSSI_COMBAT_HOOKS: CharacterCombatHooks = {
       && ctx.state.markTriggerOnce(`${ctx.stepId}:rossi_combo_segment_2`)
     ) {
       ctx.state.triggerSelfCombo({
-        sourceEventType: "BATTLE_OR_COMBO_HIT",
+        sourceEventType: "COMBO_SKILL_HIT",
         label: "Rossi Combo Segment II Triggered",
         comboCommandId: ROSSI_COMBO_SEGMENT_2_ID,
       });

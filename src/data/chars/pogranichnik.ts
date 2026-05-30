@@ -1,5 +1,19 @@
 import type { CharacterBase } from "@/data/characters";
-import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
+import { flat12, pct, type CommandDefinition, type ExecuteHitDefinition } from "@/lib/commands";
+
+const POGRANICHNIK_FULL_MOON_COUNTER_BUFF_ID = "pogranichnik_full_moon_counter";
+const POGRANICHNIK_STEEL_OATH_BUFF_ID = "pogranichnik_steel_oath";
+const POGRANICHNIK_FERVENT_MORALE_BUFF_ID = "pogranichnik_fervent_morale";
+const POGRANICHNIK_STEEL_OATH_HARASS_HIT_ID = "pogranichnik_steel_oath_harass";
+const POGRANICHNIK_STEEL_OATH_DECISIVE_HIT_ID = "pogranichnik_steel_oath_decisive";
+const POGRANICHNIK_TALENT_LIVING_BANNER_1 = "pogranichnik_the_living_banner_1";
+const POGRANICHNIK_TALENT_LIVING_BANNER_2 = "pogranichnik_the_living_banner_2";
+const POGRANICHNIK_TALENT_TACTICAL_INSTRUCTION_1 = "pogranichnik_tactical_instruction_1";
+const POGRANICHNIK_TALENT_TACTICAL_INSTRUCTION_2 = "pogranichnik_tactical_instruction_2";
+
+const steelOathSourceStepBySlot = new Map<number, string>();
+const livingBannerSpRecoveredBySlot = new Map<number, number>();
 
 const POGRANICHNIK_COMMANDS: CommandDefinition[] = [
   {
@@ -154,7 +168,22 @@ const POGRANICHNIK_COMMANDS: CommandDefinition[] = [
     energyGain: flat12(6.5),
     hits: [
       { multiplier: pct([86, 94, 103, 111, 120, 128, 137, 145, 154, 165, 177, 192]), stagger: flat12(5), offsetFrames: flat12(55.8) },
-      { multiplier: pct([106, 116, 127, 137, 148, 158, 169, 180, 190, 203, 219, 238]), stagger: flat12(5), offsetFrames: flat12(76.2) },
+      {
+        multiplier: pct([106, 116, 127, 137, 148, 158, 169, 180, 190, 203, 219, 238]),
+        stagger: flat12(5),
+        offsetFrames: flat12(76.2),
+        effects: [
+          {
+            type: "GRANT_SP_FROM_VULNERABILITY_STACKS",
+            amountAt1Scaling: flat12(5),
+            amountAt2Scaling: [10, 10, 10, 10, 10, 10, 10, 10, 10, 15, 15, 15],
+            amountAt3Scaling: [20, 20, 20, 20, 20, 20, 20, 20, 20, 25, 25, 25],
+            amountAt4Scaling: [30, 30, 30, 30, 30, 30, 30, 30, 30, 35, 35, 35],
+            label: "The Pulverizing Front SP Recovery",
+          },
+          { type: "APPLY_REACTION", reaction: "Breach", forceApply: false },
+        ],
+      },
     ],
   },
   {
@@ -165,13 +194,45 @@ const POGRANICHNIK_COMMANDS: CommandDefinition[] = [
     damageType: "Physical",
     mode: "single",
     durationFrames: flat12(132),
+    comboCooldownSeconds: [18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17],
     spCost: flat12(0),
     energyGain: flat12(10),
     timeFreezeSeconds: flat12(32 / 60),
     hits: [
       { name: "Slash I", multiplier: pct([42, 46, 50, 55, 59, 63, 67, 71, 76, 81, 87, 95]), stagger: flat12(3), spGenerated: flat12(5), offsetFrames: flat12(46.2) },
-      { name: "Slash II", multiplier: pct([54, 59, 65, 70, 76, 81, 86, 92, 97, 104, 112, 122]), stagger: flat12(3), spGenerated: flat12(7), offsetFrames: flat12(73.8) },
-      { name: "Slash III", multiplier: pct([66, 73, 79, 86, 92, 99, 106, 112, 119, 127, 137, 149]), stagger: flat12(4), spGenerated: flat12(13), offsetFrames: flat12(121.8) },
+      {
+        name: "Slash II",
+        multiplier: pct([54, 59, 65, 70, 76, 81, 86, 92, 97, 104, 112, 122]),
+        stagger: flat12(3),
+        spGenerated: flat12(7),
+        offsetFrames: flat12(73.8),
+        executeCondition: {
+          requiresSelfBuffId: POGRANICHNIK_FULL_MOON_COUNTER_BUFF_ID,
+          requiresStacksAtLeast: 2,
+        },
+      },
+      {
+        name: "Slash III",
+        multiplier: pct([66, 73, 79, 86, 92, 99, 106, 112, 119, 127, 137, 149]),
+        stagger: flat12(4),
+        spGenerated: flat12(13),
+        offsetFrames: flat12(121.8),
+        executeCondition: {
+          requiresSelfBuffId: POGRANICHNIK_FULL_MOON_COUNTER_BUFF_ID,
+          requiresStacksExact: 3,
+        },
+      },
+      {
+        name: "Slash III Enhanced",
+        multiplier: pct([132, 145, 158, 172, 185, 198, 211, 224, 238, 254, 274, 297]),
+        stagger: flat12(9),
+        spGenerated: flat12(23),
+        offsetFrames: flat12(121.8),
+        executeCondition: {
+          requiresSelfBuffId: POGRANICHNIK_FULL_MOON_COUNTER_BUFF_ID,
+          requiresStacksExact: 4,
+        },
+      },
     ],
   },
   {
@@ -184,17 +245,221 @@ const POGRANICHNIK_COMMANDS: CommandDefinition[] = [
     durationFrames: flat12(180),
     spCost: flat12(0),
     energyCost: flat12(90),
-    timeFreezeSeconds: flat12(30 / 60),
+    timeFreezeSeconds: flat12(140 / 60),
     hits: [
-      { name: "Advance", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), stagger: flat12(10), offsetFrames: flat12(148.2) },
-      { name: "Shieldguard Harass I", multiplier: pct([45, 49, 53, 58, 62, 67, 71, 76, 80, 86, 92, 100]), spGenerated: flat12(7.5), offsetFrames: flat12(151.8) },
-      { name: "Shieldguard Harass II", multiplier: pct([45, 49, 53, 58, 62, 67, 71, 76, 80, 86, 92, 100]), spGenerated: flat12(7.5), offsetFrames: flat12(151.8) },
-      { name: "Shieldguard Harass III", multiplier: pct([45, 49, 53, 58, 62, 67, 71, 76, 80, 86, 92, 100]), spGenerated: flat12(7.5), offsetFrames: flat12(151.8) },
-      { name: "Shieldguard Harass IV", multiplier: pct([45, 49, 53, 58, 62, 67, 71, 76, 80, 86, 92, 100]), spGenerated: flat12(7.5), offsetFrames: flat12(151.8) },
-      { name: "Decisive Assault", multiplier: pct([200, 220, 240, 260, 280, 300, 320, 340, 360, 385, 415, 450]), stagger: flat12(15), spGenerated: flat12(30), offsetFrames: flat12(151.8) },
+      {
+        name: "Advance",
+        multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]),
+        stagger: flat12(10),
+        offsetFrames: flat12(148.2),
+        effects: [
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: POGRANICHNIK_STEEL_OATH_BUFF_ID,
+            label: "Steel Oath",
+            stacks: 5,
+            stackGroup: POGRANICHNIK_STEEL_OATH_BUFF_ID,
+            maxStacks: 5,
+            refreshExistingStacks: true,
+            durationSeconds: 30,
+            timeScale: "game",
+            hidden: true,
+          },
+        ],
+      },
     ],
   },
 ];
+
+const POGRANICHNIK_EXECUTE_HITS: ExecuteHitDefinition[] = [
+  {
+    id: POGRANICHNIK_STEEL_OATH_HARASS_HIT_ID,
+    name: "Shieldguard Harass",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Physical",
+    commandId: "pogranichnik_ultimate",
+    commandName: "Shieldguard Banner, Forward",
+    multiplier: pct([45, 49, 53, 58, 62, 67, 71, 76, 80, 86, 92, 100]),
+    spGenerated: flat12(7.5),
+    offsetFrames: flat12(0),
+  },
+  {
+    id: POGRANICHNIK_STEEL_OATH_DECISIVE_HIT_ID,
+    name: "Decisive Assault",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Physical",
+    commandId: "pogranichnik_ultimate",
+    commandName: "Shieldguard Banner, Forward",
+    multiplier: pct([200, 220, 240, 260, 280, 300, 320, 340, 360, 385, 415, 450]),
+    stagger: flat12(15),
+    spGenerated: flat12(30),
+    offsetFrames: flat12(0),
+  },
+];
+
+const POGRANICHNIK_HOOKS: CharacterCombatHooks = {
+  onEvent: (ctx) => {
+    if (ctx.event.type === "SNAPSHOT_INITIALIZED" && ctx.event.sourceSlot === ctx.self.slot) {
+      livingBannerSpRecoveredBySlot.set(ctx.self.slot, 0);
+      return;
+    }
+
+    const hasLivingBanner2 = ctx.state.isSelfUniqueTalentEnabled(POGRANICHNIK_TALENT_LIVING_BANNER_2);
+    const hasLivingBanner1 = hasLivingBanner2 || ctx.state.isSelfUniqueTalentEnabled(POGRANICHNIK_TALENT_LIVING_BANNER_1);
+    const ferventMoraleAtkPct = hasLivingBanner2 ? 0.08 : hasLivingBanner1 ? 0.04 : 0;
+    const ferventMoraleArtsIntensity = hasLivingBanner2 ? 8 : hasLivingBanner1 ? 4 : 0;
+    const ferventMoraleStackCap = ctx.state.isSelfPotentialActive(3) ? 5 : 3;
+    const livingBannerSpThreshold = ctx.state.isSelfPotentialActive(3) ? 60 : 80;
+
+    if (
+      hasLivingBanner1
+      && ctx.event.type === "SKILL_SP_RECOVERED"
+      && ctx.event.sourceSlot === ctx.self.slot
+      && ctx.event.amount != null
+      && ctx.event.amount > 0
+    ) {
+      const commandAttackType = ctx.event.commandAttackType;
+      const countsAsSkillRecovery =
+        commandAttackType == null
+        || commandAttackType === "BATTLE_SKILL"
+        || commandAttackType === "COMBO_SKILL"
+        || commandAttackType === "ULTIMATE";
+      if (countsAsSkillRecovery) {
+        const current = livingBannerSpRecoveredBySlot.get(ctx.self.slot) ?? 0;
+        const next = current + ctx.event.amount;
+        const stacksToGain = Math.floor(next / livingBannerSpThreshold);
+        livingBannerSpRecoveredBySlot.set(
+          ctx.self.slot,
+          next - stacksToGain * livingBannerSpThreshold,
+        );
+        if (stacksToGain > 0) {
+          for (let index = 0; index < stacksToGain; index += 1) {
+            ctx.state.applySelfBuff({
+              buffId: POGRANICHNIK_FERVENT_MORALE_BUFF_ID,
+              label: "Fervent Morale",
+              durationSeconds: 20,
+              timeScale: "game",
+              effects: {
+                ATK_PCT: ferventMoraleAtkPct,
+                ARTS_INTENSITY: ferventMoraleArtsIntensity,
+              },
+              stackGroup: POGRANICHNIK_FERVENT_MORALE_BUFF_ID,
+              maxStacks: ferventMoraleStackCap,
+              refreshExistingStacks: false,
+            });
+          }
+        }
+      }
+    }
+
+    if (
+      ctx.event.type === "PHYSICAL_REACTION_APPLIED"
+      && ctx.event.sourceSlot === ctx.self.slot
+      && (ctx.event.label.startsWith("Crush") || ctx.event.label.startsWith("Breach"))
+    ) {
+      const consumedStacks = Math.max(1, Math.min(4, Math.floor(ctx.event.amount ?? 1)));
+      ctx.state.applyEffects({
+        effects: [
+          {
+            type: "REMOVE_BUFF",
+            target: "self",
+            buffId: POGRANICHNIK_FULL_MOON_COUNTER_BUFF_ID,
+          },
+          {
+            type: "APPLY_BUFF",
+            target: "self",
+            buffId: POGRANICHNIK_FULL_MOON_COUNTER_BUFF_ID,
+            label: "Full Moon Counter",
+            hidden: true,
+            durationSeconds: 10,
+            timeScale: "game",
+            stacks: consumedStacks,
+            stackGroup: POGRANICHNIK_FULL_MOON_COUNTER_BUFF_ID,
+            maxStacks: 4,
+            refreshExistingStacks: true,
+          },
+        ],
+        stepId: `${ctx.event.stepId ?? "event"}:pogranichnik_combo_counter`,
+      });
+      ctx.state.triggerSelfCombo({
+        sourceEventType: "PHYSICAL_REACTION_APPLIED",
+        label: "Pogranichnik Combo Triggered",
+      });
+
+    }
+
+    const steelOathTriggerFromReaction = ctx.event.type === "PHYSICAL_REACTION_APPLIED";
+    const steelOathTriggerFromComboHit =
+      ctx.event.type === "COMBO_SKILL_HIT"
+      && ctx.event.sourceSlot === ctx.self.slot;
+    if (!steelOathTriggerFromReaction && !steelOathTriggerFromComboHit) {
+      return;
+    }
+    const steelOathStacks = ctx.state.getSelfBuffStackCount(POGRANICHNIK_STEEL_OATH_BUFF_ID);
+    if (steelOathStacks <= 0) {
+      return;
+    }
+    const sourceStepId = steelOathSourceStepBySlot.get(ctx.self.slot) ?? ctx.event.stepId ?? "event";
+    const isLastStack = steelOathStacks === 1;
+    const triggerSlot = ctx.event.sourceSlot ?? ctx.event.slot ?? ctx.self.slot;
+    const steelOathEffects = [
+      {
+        type: "REMOVE_BUFF" as const,
+        target: "self" as const,
+        buffId: POGRANICHNIK_STEEL_OATH_BUFF_ID,
+        stacks: 1,
+      },
+      ...(isLastStack
+        ? [
+          {
+            type: "ADD_TIME_FREEZE" as const,
+            durationSeconds: 0.4,
+          },
+        ]
+        : []),
+      {
+        type: "EXECUTE_HIT" as const,
+        hitRefId: isLastStack
+          ? POGRANICHNIK_STEEL_OATH_DECISIVE_HIT_ID
+          : POGRANICHNIK_STEEL_OATH_HARASS_HIT_ID,
+        executeDelayFrames: isLastStack ? 6 : 0,
+        executeDelayTimeScale: "game" as const,
+      },
+    ];
+    ctx.state.applyEffects({
+      effects: steelOathEffects,
+      stepId: sourceStepId,
+    });
+
+    const hasTacticalInstruction2 = ctx.state.isSelfUniqueTalentEnabled(POGRANICHNIK_TALENT_TACTICAL_INSTRUCTION_2);
+    const hasTacticalInstruction1 = hasTacticalInstruction2 || ctx.state.isSelfUniqueTalentEnabled(POGRANICHNIK_TALENT_TACTICAL_INSTRUCTION_1);
+    if (hasLivingBanner1 && hasTacticalInstruction1) {
+      ctx.state.applyBuffToSlot({
+        slot: triggerSlot,
+        buffId: POGRANICHNIK_FERVENT_MORALE_BUFF_ID,
+        label: "Fervent Morale",
+        durationSeconds: hasTacticalInstruction2 ? 10 : 5,
+        timeScale: "game",
+        effects: {
+          ATK_PCT: ferventMoraleAtkPct,
+          ARTS_INTENSITY: ferventMoraleArtsIntensity,
+        },
+        stackGroup: POGRANICHNIK_FERVENT_MORALE_BUFF_ID,
+        maxStacks: ferventMoraleStackCap,
+        refreshExistingStacks: false,
+      });
+    }
+  },
+  onResolvedHit: (ctx) => {
+    if (ctx.source.slot !== ctx.self.slot || ctx.source.commandId !== "pogranichnik_ultimate" || ctx.source.hitIndex !== 0) {
+      return;
+    }
+    steelOathSourceStepBySlot.set(ctx.self.slot, ctx.stepId);
+  },
+};
 
 export const POGRANICHNIK: CharacterBase = {
   id: "pogranichnik",
@@ -213,6 +478,82 @@ export const POGRANICHNIK: CharacterBase = {
   secondaryAttr: "AGI",
   weaponType: "SWORD",
   commands: POGRANICHNIK_COMMANDS,
+  executeHits: POGRANICHNIK_EXECUTE_HITS,
+  combatHooks: POGRANICHNIK_HOOKS,
+  uniqueTalentDefs: {
+    [POGRANICHNIK_TALENT_LIVING_BANNER_1]: {
+      name: "The Living Banner I",
+      condition: {
+        minEliteStage: 1,
+      },
+    },
+    [POGRANICHNIK_TALENT_LIVING_BANNER_2]: {
+      name: "The Living Banner II",
+      condition: {
+        minEliteStage: 2,
+        requiresUniqueTalentsEnabled: [POGRANICHNIK_TALENT_LIVING_BANNER_1],
+      },
+    },
+    [POGRANICHNIK_TALENT_TACTICAL_INSTRUCTION_1]: {
+      name: "Tactical Instruction I",
+      condition: {
+        minEliteStage: 2,
+        requiresUniqueTalentsEnabled: [POGRANICHNIK_TALENT_LIVING_BANNER_1],
+      },
+    },
+    [POGRANICHNIK_TALENT_TACTICAL_INSTRUCTION_2]: {
+      name: "Tactical Instruction II",
+      condition: {
+        minEliteStage: 3,
+        requiresUniqueTalentsEnabled: [
+          POGRANICHNIK_TALENT_LIVING_BANNER_1,
+          POGRANICHNIK_TALENT_TACTICAL_INSTRUCTION_1,
+        ],
+      },
+    },
+  },
+  potentialEffects: {
+    2: {
+      apply: () => ({
+        attrsDelta: {
+          WIL: 20,
+        },
+        modsDelta: {
+          PHYSICAL_DMG_PCT: 0.1,
+        },
+      }),
+    },
+  },
+  mutateResolvedCommands: (commands, ctx) => {
+    const potentialLevel = ctx.buildState.potentialLevel ?? 0;
+    if (potentialLevel < 4) {
+      return commands;
+    }
+    return commands.map((command) => {
+      if (command.id === "pogranichnik_ultimate") {
+        return {
+          ...command,
+          energyCost: Math.max(0, command.energyCost * 0.85),
+        };
+      }
+
+      if (potentialLevel >= 5 && command.id === "pogranichnik_combo_skill") {
+        return {
+          ...command,
+          comboCooldownSeconds: Math.max(0, command.comboCooldownSeconds - 2),
+          hits: command.hits.map((hit) => ({
+            ...hit,
+            spGenerated: hit.spGenerated * 1.2,
+            spReturned: hit.spReturned * 1.2,
+          })),
+          spGeneratedOnEnd: command.spGeneratedOnEnd * 1.2,
+          spReturnedOnEnd: command.spReturnedOnEnd * 1.2,
+        };
+      }
+
+      return command;
+    });
+  },
   levels: {
     STR: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101],
     AGI: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 102, 103, 104, 105, 106, 107, 108, 109, 110],

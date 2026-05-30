@@ -3,6 +3,7 @@ export type ResourceId =
   | "CHARACTER_EXP_BASIC"
   | "CHARACTER_EXP_ADVANCED"
   | "WEAPON_EXP"
+  | "WEAPON_ETCHING_ESSENCE"
   | "PROTODISK"
   | "PROTOSET"
   | "CAST_DIE"
@@ -55,6 +56,12 @@ export const RESOURCE_DEFINITIONS: ResourceDefinition[] = [
     label: "Weapon EXP",
     category: "weapon_leveling",
     amountPerTrip: 170000,
+  },
+  {
+    id: "WEAPON_ETCHING_ESSENCE",
+    label: "Flawless Essence",
+    category: "weapon_leveling",
+    amountPerTrip: 3,
   },
   {
     id: "PROTODISK",

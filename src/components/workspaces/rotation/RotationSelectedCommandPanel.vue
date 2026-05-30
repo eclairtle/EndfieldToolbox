@@ -31,7 +31,7 @@ const props = defineProps<{
   selectedStepCommand: CharacterCombatSnapshot["commands"][number] | null;
   selectedStepValidation: string | null;
   selectedStepCritRigRules: CritRiggingRule[];
-  selectedStepHitRigOptions: Array<{ hitIndex: number; repeatIndex: number; label: string }>;
+  selectedStepHitRigOptions: Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute" }>;
   timeExtensions: RotationTimeExtension[];
   getEnemyCommandValidation: (commandPlacementId: string) => string | null;
   getLocalizedCommandBelongsType: (command: CharacterCombatSnapshot["commands"][number] | null | undefined) => string;
@@ -61,6 +61,18 @@ const critRiggingExpanded = ref(false);
 function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_crit" | "force_non_crit" {
   const rule = props.selectedStepCritRigRules.find((entry) => entry.hitIndex === hitIndex && entry.repeatIndex === repeatIndex);
   return rule?.mode ?? "none";
+}
+
+function getSwapBuildTarget(fromVariant: number): number {
+  const map = props.selectedStep?.buildSwapMap ?? [1, 2, 3, 0];
+  const target = map[fromVariant];
+  return typeof target === "number" ? target : ((fromVariant + 1) % 4);
+}
+
+function updateSwapBuildTarget(fromVariant: number, toVariant: number) {
+  const current = [...(props.selectedStep?.buildSwapMap ?? [1, 2, 3, 0])] as [number, number, number, number];
+  current[fromVariant] = Math.max(0, Math.min(3, toVariant));
+  props.onUpdateSelectedStep({ buildSwapMap: current });
 }
 </script>
 
@@ -126,7 +138,7 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
     <div v-else-if="selectedEnemyCommand" class="space-y-3">
       <div class="rounded-xl border border-[#ececec] bg-white px-4 py-3">
         <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">
-          Enemy Command
+          {{ t("rotation.enemyCommand") }}
         </div>
         <div class="mt-1 text-lg font-medium text-[#1b1b1b]">
           {{ selectedEnemyCommand.label }}
@@ -185,16 +197,16 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
               })
             "
           >
-          <span :class="selectedEnemyCommand.interruptible ? '' : 'text-[#999]'">Interrupted (nullify hits)</span>
+          <span :class="selectedEnemyCommand.interruptible ? '' : 'text-[#999]'">{{ t("rotation.interruptedNullifyHits") }}</span>
           <span
             v-if="!selectedEnemyCommand.interruptible"
             class="rounded bg-[#efefef] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-[#777]"
           >
-            Uninterruptible
+            {{ t("rotation.uninterruptible") }}
           </span>
         </label>
         <label class="block" :class="selectedEnemyCommand.interrupted && selectedEnemyCommand.interruptible ? '' : 'opacity-60'">
-          <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">SP Gain On Interrupt</div>
+          <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.spGainOnInterrupt") }}</div>
           <input
             :value="selectedEnemyCommand.interruptedSpGain"
             type="number"
@@ -210,7 +222,7 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
           >
         </label>
         <label class="block" :class="selectedEnemyCommand.interrupted && selectedEnemyCommand.interruptible ? '' : 'opacity-60'">
-          <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">Stagger On Interrupt</div>
+          <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.staggerOnInterrupt") }}</div>
           <input
             :value="selectedEnemyCommand.interruptedStagger"
             type="number"
@@ -292,7 +304,7 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
               })
             "
           >
-          <span>Missed (nullify hits)</span>
+          <span>{{ t("rotation.missedNullifyHits") }}</span>
         </label>
         <label class="inline-flex items-center gap-2 rounded-lg border border-[#ececec] bg-white px-3 py-2">
           <input
@@ -305,13 +317,36 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
               })
             "
           >
-          <span>Interrupted (nullify hits)</span>
+          <span>{{ t("rotation.interruptedNullifyHits") }}</span>
         </label>
+      </div>
+
+      <div
+        v-if="selectedStep?.commandId === '__switch_build'"
+        class="space-y-2 rounded-xl border border-[#ececec] bg-white px-3 py-3"
+      >
+        <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.buildSwapMapping") }}</div>
+        <div
+          v-for="fromVariant in [0, 1, 2, 3]"
+          :key="`swap-map-${fromVariant}`"
+          class="flex items-center justify-between gap-2"
+        >
+          <span class="text-xs text-[#555]">{{ t("rotation.buildLabel") }} {{ fromVariant + 1 }}</span>
+          <select
+            :value="getSwapBuildTarget(fromVariant)"
+            class="rounded-lg border border-[#d7d7d7] bg-white px-2 py-1 text-sm"
+            @change="updateSwapBuildTarget(fromVariant, Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="toVariant in [0, 1, 2, 3]" :key="`swap-to-${fromVariant}-${toVariant}`" :value="toVariant">
+              {{ t("rotation.buildLabel") }} {{ toVariant + 1 }}
+            </option>
+          </select>
+        </div>
       </div>
 
       <div v-if="selectedStepHitRigOptions.length > 0" class="rounded-xl border border-[#ececec] bg-white px-3 py-3">
         <div class="mb-2 flex items-center justify-between gap-3">
-          <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">Crit Rigging</div>
+          <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.critRigging") }}</div>
           <button
             type="button"
             class="rounded-lg border border-[#d4d4d4] bg-white px-2.5 py-1 text-xs text-[#333] transition hover:bg-[#f5f5f5]"
@@ -321,12 +356,12 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
           </button>
         </div>
         <div v-if="!critRiggingExpanded" class="text-xs text-[#8a8a8a]">
-          Crit rigging hidden.
+          {{ t("rotation.critRiggingHidden") }}
         </div>
         <div v-else class="space-y-2">
           <label
             v-for="hitOption in selectedStepHitRigOptions"
-            :key="`crit-rig-${hitOption.hitIndex}-${hitOption.repeatIndex}`"
+            :key="`crit-rig-${hitOption.rigType ?? 'normal'}-${hitOption.hitIndex}-${hitOption.repeatIndex}`"
             class="flex items-center justify-between gap-3 text-sm"
           >
             <span class="text-[#333]">{{ hitOption.label }}</span>
@@ -341,9 +376,9 @@ function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_
                 })
               "
             >
-              <option value="none">Default</option>
-              <option value="force_crit">Rigged Crit</option>
-              <option value="force_non_crit">Rigged Non-Crit</option>
+              <option value="none">{{ t("rotation.critRigDefault") }}</option>
+              <option value="force_crit">{{ t("rotation.critRigCrit") }}</option>
+              <option value="force_non_crit">{{ t("rotation.critRigNonCrit") }}</option>
             </select>
           </label>
         </div>

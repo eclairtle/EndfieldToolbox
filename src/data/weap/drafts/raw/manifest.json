@@ -1,5 +1,19 @@
 [
   {
+    "file": "aggeloslayer.json",
+    "slug": "aggeloslayer",
+    "name": "Aggeloslayer",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "ancient-canal.json",
+    "slug": "ancient-canal",
+    "name": "Ancient Canal",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "artzy-tyrannical.json",
     "slug": "artzy-tyrannical",
     "name": "Artzy Tyrannical",
@@ -7,9 +21,23 @@
     "type": "weapon"
   },
   {
+    "file": "aspirant.json",
+    "slug": "aspirant",
+    "name": "Aspirant",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "brigands-calling.json",
     "slug": "brigands-calling",
     "name": "Brigand's Calling",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "chimeric-justice.json",
+    "slug": "chimeric-justice",
+    "name": "Chimeric Justice",
     "lang": "en",
     "type": "weapon"
   },
@@ -24,6 +52,20 @@
     "file": "clannibal.json",
     "slug": "clannibal",
     "name": "Clannibal",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "cohesive-traction.json",
+    "slug": "cohesive-traction",
+    "name": "Cohesive Traction",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "darhoff-7.json",
+    "slug": "darhoff-7",
+    "name": "Darhoff 7",
     "lang": "en",
     "type": "weapon"
   },
@@ -63,6 +105,34 @@
     "type": "weapon"
   },
   {
+    "file": "finchaser-30.json",
+    "slug": "finchaser-30",
+    "name": "Finchaser 3.0",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "finishing-call.json",
+    "slug": "finishing-call",
+    "name": "Finishing Call",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "flickers-in-the-mist.json",
+    "slug": "flickers-in-the-mist",
+    "name": "Flickers in the Mist",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "fluorescent-roc.json",
+    "slug": "fluorescent-roc",
+    "name": "Fluorescent Roc",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "forgeborn-scathe.json",
     "slug": "forgeborn-scathe",
     "name": "Forgeborn Scathe",
@@ -73,6 +143,20 @@
     "file": "former-finery.json",
     "slug": "former-finery",
     "name": "Former Finery",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "fortmaker.json",
+    "slug": "fortmaker",
+    "name": "Fortmaker",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "freedom-to-proselytize.json",
+    "slug": "freedom-to-proselytize",
+    "name": "Freedom to Proselytize",
     "lang": "en",
     "type": "weapon"
   },
@@ -98,9 +182,37 @@
     "type": "weapon"
   },
   {
+    "file": "howling-guard.json",
+    "slug": "howling-guard",
+    "name": "Howling Guard",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "hypernova-auto.json",
+    "slug": "hypernova-auto",
+    "name": "Hypernova Auto",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "industry-01.json",
+    "slug": "industry-01",
+    "name": "Industry 0.1",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "jet.json",
     "slug": "jet",
     "name": "JET",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "jiminy-12.json",
+    "slug": "jiminy-12",
+    "name": "Jiminy 12",
     "lang": "en",
     "type": "weapon"
   },
@@ -112,9 +224,30 @@
     "type": "weapon"
   },
   {
+    "file": "lone-barge.json",
+    "slug": "lone-barge",
+    "name": "Lone Barge",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "long-road.json",
+    "slug": "long-road",
+    "name": "Long Road",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "lupine-scarlet.json",
     "slug": "lupine-scarlet",
     "name": "Lupine Scarlet",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "monaihe.json",
+    "slug": "monaihe",
+    "name": "Monaihe",
     "lang": "en",
     "type": "weapon"
   },
@@ -140,9 +273,51 @@
     "type": "weapon"
   },
   {
+    "file": "obj-arts-identifier.json",
+    "slug": "obj-arts-identifier",
+    "name": "OBJ Arts Identifier",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "obj-edge-of-lightness.json",
+    "slug": "obj-edge-of-lightness",
+    "name": "OBJ Edge of Lightness",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "obj-heavy-burden.json",
+    "slug": "obj-heavy-burden",
+    "name": "OBJ Heavy Burden",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "obj-razorhorn.json",
+    "slug": "obj-razorhorn",
+    "name": "OBJ Razorhorn",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "obj-velocitous.json",
+    "slug": "obj-velocitous",
+    "name": "OBJ Velocitous",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "oblivion.json",
     "slug": "oblivion",
     "name": "Oblivion",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "opero-77.json",
+    "slug": "opero-77",
+    "name": "Opero 77",
     "lang": "en",
     "type": "weapon"
   },
@@ -154,6 +329,41 @@
     "type": "weapon"
   },
   {
+    "file": "opus-the-living.json",
+    "slug": "opus-the-living",
+    "name": "Opus: The Living",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "pathfinders-beacon.json",
+    "slug": "pathfinders-beacon",
+    "name": "Pathfinder's Beacon",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "peco-5.json",
+    "slug": "peco-5",
+    "name": "Peco 5",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "prominent-edge.json",
+    "slug": "prominent-edge",
+    "name": "Prominent Edge",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "quencher.json",
+    "slug": "quencher",
+    "name": "Quencher",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "rapid-ascent.json",
     "slug": "rapid-ascent",
     "name": "Rapid Ascent",
@@ -161,9 +371,44 @@
     "type": "weapon"
   },
   {
+    "file": "rational-farewell.json",
+    "slug": "rational-farewell",
+    "name": "Rational Farewell",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "seeker-of-dark-lung.json",
+    "slug": "seeker-of-dark-lung",
+    "name": "Seeker of Dark Lung",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "stanza-of-memorials.json",
+    "slug": "stanza-of-memorials",
+    "name": "Stanza of Memorials",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "sundered-prince.json",
     "slug": "sundered-prince",
     "name": "Sundered Prince",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "sundering-steel.json",
+    "slug": "sundering-steel",
+    "name": "Sundering Steel",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "tarr-11.json",
+    "slug": "tarr-11",
+    "name": "Tarr 11",
     "lang": "en",
     "type": "weapon"
   },
@@ -182,6 +427,13 @@
     "type": "weapon"
   },
   {
+    "file": "twelve-questions.json",
+    "slug": "twelve-questions",
+    "name": "Twelve Questions",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "umbral-torch.json",
     "slug": "umbral-torch",
     "name": "Umbral Torch",
@@ -196,6 +448,13 @@
     "type": "weapon"
   },
   {
+    "file": "wave-tide.json",
+    "slug": "wave-tide",
+    "name": "Wave Tide",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
     "file": "wedge.json",
     "slug": "wedge",
     "name": "Wedge",
@@ -206,6 +465,13 @@
     "file": "white-night-nova.json",
     "slug": "white-night-nova",
     "name": "White Night Nova",
+    "lang": "en",
+    "type": "weapon"
+  },
+  {
+    "file": "wild-wanderer.json",
+    "slug": "wild-wanderer",
+    "name": "Wild Wanderer",
     "lang": "en",
     "type": "weapon"
   }

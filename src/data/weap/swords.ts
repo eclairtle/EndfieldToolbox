@@ -1,6 +1,6 @@
 import { skillY } from "@/lib/build/weaponSkills";
 import type { WeaponBase } from "@/data/weapons";
-import { ATK_TABLE_50_490, ATK_TABLE_50_495, ATK_TABLE_51_505, ATK_TABLE_52_510 } from "@/data/weap/baseAtkTables";
+import { ATK_TABLE_50_490, ATK_TABLE_51_505, ATK_TABLE_52_510 } from "@/data/weap/baseAtkTables";
 
 function percent(value: number) {
   return `${value.toFixed(1)}%`;
@@ -8,6 +8,10 @@ function percent(value: number) {
 
 function scaledPercentFromRank1(rank1Percent: number, y: number): number {
   return rank1Percent * (0.8 + 0.2 * y);
+}
+
+function scaledFlatFromRank1(rank1Value: number, y: number): number {
+  return rank1Value * (0.8 + 0.2 * y);
 }
 
 export const FORGEBORN_SCATHE: WeaponBase = {
@@ -115,37 +119,6 @@ export const WHITE_NIGHT_NOVA: WeaponBase = {
   },
 };
 
-export const FORMER_FINERY: WeaponBase = {
-  id: "former_finery",
-  name: "Former Finery",
-  rarity: 6,
-  imagePath: "/weapons/claym/wpn_claym_0006.webp",
-  weaponType: "GREATSWORD",
-  baseAtkTable: ATK_TABLE_50_495,
-  tuningMaterials: ["Metadiastima Photoemission Tube ×16", "Wulingstone ×8"],
-  skills: [
-    { id: "WIL_UP", name: "Will Boost [L]", rank: 3, implemented: true },
-    { id: "UNIQUE", name: "HP Boost [L]", rank: 1, implemented: true },
-    { id: "UNIQUE", name: "Efficacy: Mincing Therapy", rank: 1, implemented: false },
-  ],
-  getUniqueStaticModifiers: (uniqueSkillLevel) => {
-    const y = skillY(uniqueSkillLevel);
-    return {
-      HP_PCT: scaledPercentFromRank1(10, y) / 100,
-      HEALING_PCT: scaledPercentFromRank1(10, y) / 100,
-    };
-  },
-  getUniqueSkillDescription: (uniqueSkillLevel) => {
-    const y = skillY(uniqueSkillLevel);
-    return [
-      `Max HP +${percent(scaledPercentFromRank1(10, y))}.`,
-      `Treatment Efficiency +${percent(scaledPercentFromRank1(10, y))}.`,
-      `After a Protected operator takes DMG, the wielder restores HP by [${(84 * (0.8 + 0.2 * y)).toFixed(0)} + Will × ${((0.8 + 0.2 * y)).toFixed(1)}].`,
-      "Effect only triggers once every 15s.",
-    ].join("\n");
-  },
-};
-
 export const THERMITE_CUTTER: WeaponBase = {
   id: "thermite_cutter",
   name: "Thermite Cutter",
@@ -194,68 +167,6 @@ export const THERMITE_CUTTER: WeaponBase = {
       maxStacks: 2,
       eventType: "WEAPON_BUFF_APPLIED",
     });
-  },
-};
-
-export const KHRAVENGGER: WeaponBase = {
-  id: "khravengger",
-  name: "Khravengger",
-  rarity: 6,
-  imagePath: "/weapons/claym/wpn_claym_0013.webp",
-  weaponType: "GREATSWORD",
-  baseAtkTable: ATK_TABLE_51_505,
-  tuningMaterials: ["Triphasic Nanoflake ×16", "Wulingstone ×8"],
-  skills: [
-    { id: "STR_UP", name: "Strength Boost [L]", rank: 3, implemented: true },
-    { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
-    { id: "UNIQUE", name: "Detonate: Bonechilling", rank: 1, implemented: true },
-  ],
-  getUniqueStaticModifiers: (uniqueSkillLevel) => {
-    const y = skillY(uniqueSkillLevel);
-    return {
-      SKILL_DMG_PCT: (16 + 4 * y) / 100,
-    };
-  },
-  getUniqueSkillDescription: (uniqueSkillLevel) => {
-    const y = skillY(uniqueSkillLevel);
-    return [
-      `Skill DMG Dealt +${percent(16 + 4 * y)}.`,
-      `When the wielder's battle skill applies Cryo Infliction, gain Cryo DMG Dealt +${percent(8 + 2 * y)} for 15s.`,
-      `When the wielder deals combo skill DMG to an enemy with Cryo Infliction, gain Cryo DMG Dealt +${percent(16 + 4 * y)} for 15s.`,
-      "The two effects apply separately and do not stack with themselves.",
-    ].join("\n");
-  },
-  onCombatEvent: (ctx) => {
-    const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
-    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "BATTLE_OR_COMBO_HIT") {
-      return;
-    }
-
-    const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
-    if (ctx.event.commandAttackType === "BATTLE_SKILL") {
-      ctx.helpers.applySelfBuff({
-        buffId: "weapon_khravengger_battle_skill_cryo_damage",
-        label: "Khravengger",
-        durationSeconds: 15,
-        effects: {
-          CRYO_DMG_PCT: (8 + 2 * y) / 100,
-        },
-        eventType: "WEAPON_BUFF_APPLIED",
-      });
-      return;
-    }
-
-    if (ctx.event.commandAttackType === "COMBO_SKILL") {
-      ctx.helpers.applySelfBuff({
-        buffId: "weapon_khravengger_combo_skill_cryo_damage",
-        label: "Khravengger",
-        durationSeconds: 15,
-        effects: {
-          CRYO_DMG_PCT: (16 + 4 * y) / 100,
-        },
-        eventType: "WEAPON_BUFF_APPLIED",
-      });
-    }
   },
 };
 
@@ -331,5 +242,98 @@ export const LUPINE_SCARLET: WeaponBase = {
         eventType: "WEAPON_BUFF_APPLIED",
       });
     }
+  },
+};
+
+const GRAND_VISION_UNIQUE_DESCRIPTIONS = [
+  "Arts Intensity +30.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +36.0%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +36.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +43.2%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +42.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +50.4%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +48.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +57.6%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +54.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +64.8%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +60.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +72.0%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +66.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +79.2%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +72.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +86.4%.\nEffects of the same name cannot stack.",
+  "Arts Intensity +78.\nWhen the wielder applies Originium Crystals or Solidification, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +93.6%.\nEffects of the same name cannot stack.",
+] as const;
+
+export const GRAND_VISION: WeaponBase = {
+  id: "grand_vision",
+  name: "Grand Vision",
+  rarity: 6,
+  imagePath: "/weapons/sword/wpn_sword_0021.webp",
+  weaponType: "SWORD",
+  baseAtkTable: ATK_TABLE_51_505,
+  tuningMaterials: ["item_weapon_break_high ×30", "item_char_skill_specialize_1 ×16"],
+  skills: [
+    { id: "AGI_UP", name: "Agility Boost [L]", rank: 3, implemented: true },
+    { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
+    { id: "UNIQUE", name: "Infliction: Long Time Wish", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return {
+      ARTS_INTENSITY: scaledFlatFromRank1(30, y),
+    };
+  },
+  getUniqueSkillDescription: (uniqueSkillLevel) => {
+    const index = Math.max(0, Math.min(GRAND_VISION_UNIQUE_DESCRIPTIONS.length - 1, uniqueSkillLevel - 1));
+    return GRAND_VISION_UNIQUE_DESCRIPTIONS[index] ?? null;
+  },
+  onCombatEvent: (ctx) => {
+    const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
+    if (sourceSlot !== ctx.wearer.slot) {
+      return;
+    }
+
+    const level = ctx.wearer.weaponSkillLevels[2] ?? 1;
+    const y = skillY(level);
+    const triggerLabel = ctx.event.label ?? "";
+    const isSolidificationTrigger =
+      ctx.event.type === "ARTS_REACTION_APPLIED"
+      && triggerLabel.includes("Solidification Applied");
+    const isOriginiumTrigger =
+      ctx.event.type === "ENEMY_DEBUFF_APPLIED"
+      && triggerLabel === "Originium Crystal";
+
+    if (isSolidificationTrigger || isOriginiumTrigger) {
+      ctx.helpers.applySelfBuff({
+        buffId: "weapon_grand_vision_long_wish",
+        label: "Long Wish",
+        durationSeconds: 20,
+        timeScale: "game",
+        effects: {},
+        stackGroup: "weapon_grand_vision_long_wish",
+        maxStacks: 1,
+        refreshExistingStacks: true,
+        eventType: "WEAPON_BUFF_APPLIED",
+      });
+      return;
+    }
+
+    if (ctx.event.type === "BATTLE_SKILL_END" || ctx.event.type === "ULTIMATE_END") {
+      ctx.helpers.removeSelfBuff("weapon_grand_vision_physical_boost");
+      return;
+    }
+
+    const isCast = ctx.event.type === "BATTLE_SKILL_CAST" || ctx.event.type === "ULTIMATE_CAST";
+    if (!isCast || ctx.helpers.getSelfBuffStackCount("weapon_grand_vision_long_wish") <= 0) {
+      return;
+    }
+
+    ctx.helpers.removeSelfBuff("weapon_grand_vision_long_wish");
+    ctx.helpers.applySelfBuff({
+      buffId: "weapon_grand_vision_physical_boost",
+      label: "Grand Vision",
+      durationSeconds: 120,
+      timeScale: "game",
+      effects: {
+        PHYSICAL_DMG_PCT: scaledPercentFromRank1(36, y) / 100,
+      },
+      stackGroup: "weapon_grand_vision_physical_boost",
+      maxStacks: 1,
+      refreshExistingStacks: true,
+      eventType: "WEAPON_BUFF_APPLIED",
+    });
   },
 };

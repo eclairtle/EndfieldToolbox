@@ -1,6 +1,10 @@
 import type { ElementType } from "@/data/characters";
 import type { ModifierStats } from "@/lib/build/stats";
+import * as Aggeloi from "./enemies/aggeloi";
+import * as Cangzei from "./enemies/cangzei";
 import * as Landbreakers from "./enemies/landbreakers";
+import * as RuanYi from "./enemies/ruanyi";
+import * as Wildlife from "./enemies/wildlife";
 
 export type EnemyAppliedStatus = {
   id: string;
@@ -48,5 +52,9 @@ export type EnemyInstance = {
 };
 
 export const ENEMIES: EnemyBase[] = [
+  ...Aggeloi.AGGELOI,
+  ...Cangzei.CANGZEI,
   ...Landbreakers.LANDBREAKERS,
+  ...RuanYi.RUAN_YI_ENEMIES,
+  ...Wildlife.WILDLIFE,
 ];

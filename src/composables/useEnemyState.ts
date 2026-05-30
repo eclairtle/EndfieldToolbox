@@ -9,7 +9,8 @@ function firstOrThrow<T>(arr: T[], name: string): T {
 }
 
 export function useEnemyState() {
-  const defaultEnemy = firstOrThrow(ENEMIES, "ENEMIES");
+  const firstEnemy = firstOrThrow(ENEMIES, "ENEMIES");
+  const defaultEnemy = ENEMIES.find((enemy) => enemy.id === "rhodagn") ?? firstEnemy;
 
   const selectedEnemyId = ref<string>(defaultEnemy.id);
   const enemyLevel = ref<number>(90);

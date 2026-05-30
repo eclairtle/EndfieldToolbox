@@ -20,6 +20,18 @@ function scaledPercentFromRank1(rank1Percent: number, y: number): number {
   return rank1Percent * (0.8 + 0.2 * y);
 }
 
+function cleanTemplatedDescription(raw: string): string {
+  return raw
+    .replace(/<image="[^"]*"[^>]*>/g, "")
+    .replace(/<\/>/g, "")
+    .replace(/<#[^>]+>/g, "")
+    .replace(/<@[^>]+>/g, "")
+    .replace(/\{[^}]+\}/g, "...")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function localizedUniqueSkillDescriptionZhCN(weaponId: string, level: number): string | null {
   const y = skillY(level);
   switch (weaponId) {
@@ -101,6 +113,12 @@ function localizedUniqueSkillDescriptionZhCN(weaponId: string, level: number): s
         "装备者消耗脆弱层数后，自身获得攻击力提升，并使队伍中其他干员获得该增益效果一半数值的提升，持续20秒。",
         "同名效果无法叠加。",
       ].join("\n");
+    case "grand_vision":
+      return [
+        `源石技艺强度+${scaledPercentFromRank1(30, y).toFixed(0)}。`,
+        `装备者施加源石结晶或冻结后，在${(20).toFixed(0)}秒内下一次施放战技或终结技时，获得物理伤害+${percent(scaledPercentFromRank1(36, y))}。`,
+        "同名效果无法叠加。",
+      ].join("\n");
     case "white_night_nova":
       return [
         `法术伤害+${percent(scaledPercentFromRank1(12, y))}。`,
@@ -133,6 +151,8 @@ function getLabels(locale: SupportedLocale) {
       ATK: "攻击力",
       critRate: "暴击率",
       artsDmg: "法术伤害",
+      physicalDmg: "物理伤害",
+      cryoDmg: "寒冷伤害",
       artsIntensity: "源石技艺强度",
       healing: "治疗效率",
       ultGain: "终结技充能效率",
@@ -152,6 +172,8 @@ function getLabels(locale: SupportedLocale) {
     ATK: "ATK",
     critRate: "Crit Rate",
     artsDmg: "Arts DMG",
+    physicalDmg: "Physical DMG",
+    cryoDmg: "Cryo DMG",
     artsIntensity: "Arts Intensity",
     healing: "Treatment Efficiency",
     ultGain: "Ultimate Gain Efficiency",
@@ -195,7 +217,7 @@ export function getWeaponSkillLiveBonus(
     if (!description) {
       return labels.uniqueFallback(level);
     }
-    return description;
+    return cleanTemplatedDescription(description);
   }
 
   const x = skillX(level);
@@ -219,6 +241,8 @@ export function getWeaponSkillLiveBonus(
       return `+${(Math.floor((5 + 20 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.critRate}`;
     case "ARTS_DMG_UP":
       return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.artsDmg}`;
+    case "PHYSICAL_DMG_UP":
+      return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.physicalDmg}`;
     case "ARTS_INTENSITY_UP":
       return `+${Math.floor((2 + 8 * x) * rankMultiplier)} ${labels.artsIntensity}`;
     case "HEALING_UP":
@@ -228,7 +252,7 @@ export function getWeaponSkillLiveBonus(
     case "HP_UP":
       return `+${(Math.floor((20 + 80 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.maxHp}`;
     case "CRYO_DMG_UP":
-      return labels.notAppliedYet;
+      return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.cryoDmg}`;
     default:
       return labels.notApplied;
   }

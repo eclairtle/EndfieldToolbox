@@ -38,6 +38,12 @@ const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
       ATK_PCT: 0.15,
     },
   },
+  "Type 50 Yinglung": {
+    ...GEAR_SET_BONUSES["Type 50 Yinglung"]!,
+    staticModifiers: {
+      ATK_PCT: 0.15,
+    },
+  },
   Swordmancer: {
     ...GEAR_SET_BONUSES.Swordmancer!,
     staticModifiers: {
@@ -54,6 +60,12 @@ const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
     ...GEAR_SET_BONUSES["Tide Surge"]!,
     staticModifiers: {
       SKILL_DMG_PCT: 0.2,
+    },
+  },
+  Æthertech: {
+    ...GEAR_SET_BONUSES.Æthertech!,
+    staticModifiers: {
+      ATK_PCT: 0.08,
     },
   },
 };
@@ -114,11 +126,16 @@ export type GearSetListenerContext = {
     hasSelfBuff(buffId: string): boolean;
     removeSelfBuff(buffId: string): void;
     getSelfBuffStackCount(buffId: string): number;
+    getEnemyVulnerabilityStacks(): number;
     consumeThreshold(args: {
       key: string;
       amount: number;
       threshold?: number;
     }): number;
+    applyCommandModifierToStep(args: {
+      stepId: string;
+      effects: Partial<ModifierStats>;
+    }): void;
     applyEffects(args: {
       effects: CommandHitEffectDefinition[];
       stepId?: string;
@@ -195,22 +212,35 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
   }
 
   if (activeSetName === "Catastrophe") {
-    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "BATTLE_SKILL_CAST") {
+    if (sourceSlot !== ctx.wearer.slot) {
       return;
     }
 
-    if (ctx.helpers.hasSelfBuff("set_catastrophe_used")) {
+    if (ctx.event.type === "SNAPSHOT_INITIALIZED") {
+      if (ctx.helpers.hasSelfBuff("set_catastrophe_ready")) {
+        return;
+      }
+      ctx.helpers.applySelfBuff({
+        buffId: "set_catastrophe_ready",
+        label: "Catastrophe Ready",
+        hidden: true,
+        durationSeconds: 0,
+        infiniteDuration: true,
+        effects: {},
+      });
+      ctx.helpers.removeSelfBuff("set_catastrophe_used");
       return;
     }
 
-    ctx.helpers.applySelfBuff({
-      buffId: "set_catastrophe_used",
-      label: "Catastrophe Used",
-      hidden: true,
-      durationSeconds: 0,
-      infiniteDuration: true,
-      effects: {},
-    });
+    if (ctx.event.type !== "BATTLE_SKILL_CAST") {
+      return;
+    }
+
+    if (!ctx.helpers.hasSelfBuff("set_catastrophe_ready")) {
+      return;
+    }
+
+    ctx.helpers.removeSelfBuff("set_catastrophe_ready");
 
     ctx.helpers.grantReturnedSp({
       amount: 50,
@@ -285,10 +315,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
       return;
     }
 
-    if (
-      ctx.event.type === "BATTLE_OR_COMBO_HIT"
-      && ctx.event.commandAttackType === "COMBO_SKILL"
-    ) {
+    if (ctx.event.type === "COMBO_SKILL_CAST") {
       const onceKey = `set_bonekrusha_combo:${ctx.wearer.slot}:${ctx.event.stepId ?? `${ctx.event.time}`}`;
       if (!ctx.helpers.markOnce(onceKey)) {
         return;
@@ -311,21 +338,53 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
 
     if (ctx.event.type === "BATTLE_SKILL_CAST") {
       const stackCount = ctx.helpers.getSelfBuffStackCount("set_bonekrusha_smash_stack");
-      if (stackCount <= 0) {
+      if (stackCount <= 0 || !ctx.event.stepId) {
         return;
       }
 
       ctx.helpers.removeSelfBuff("set_bonekrusha_smash_stack");
-      ctx.helpers.applySelfBuff({
-        buffId: "set_bonekrusha_next_battle_skill",
-        label: "Bonekrusha",
-        hidden: true,
-        durationSeconds: 8,
+      ctx.helpers.applyCommandModifierToStep({
+        stepId: ctx.event.stepId,
         effects: {
           BATTLE_SKILL_DMG_PCT: 0.3 * stackCount,
         },
       });
     }
+    return;
+  }
+
+  if (activeSetName === "Type 50 Yinglung") {
+    if (ctx.event.type === "BATTLE_SKILL_CAST") {
+      ctx.helpers.applySelfBuff({
+        buffId: "set_yinglung_edge_stack",
+        label: "Yinglung's Edge",
+        hidden: true,
+        durationSeconds: 0,
+        infiniteDuration: true,
+        effects: {
+          COMBO_SKILL_DMG_PCT: 0.2,
+        },
+        stackGroup: "set_yinglung_edge_stack",
+        maxStacks: 3,
+      });
+      return;
+    }
+
+    if (sourceSlot === ctx.wearer.slot && ctx.event.type === "COMBO_SKILL_CAST") {
+      const stackCount = ctx.helpers.getSelfBuffStackCount("set_yinglung_edge_stack");
+      if (stackCount <= 0 || !ctx.event.stepId) {
+        return;
+      }
+
+      ctx.helpers.removeSelfBuff("set_yinglung_edge_stack");
+      ctx.helpers.applyCommandModifierToStep({
+        stepId: ctx.event.stepId,
+        effects: {
+          COMBO_SKILL_DMG_PCT: 0.2 * stackCount,
+        },
+      });
+    }
+    return;
   }
 
   if (activeSetName === "Pulser Labs") {
@@ -385,6 +444,40 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
       infiniteDuration: true,
       effects: {},
     });
+    return;
+  }
+
+  if (activeSetName === "Æthertech") {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ENEMY_DEBUFF_APPLIED") {
+      return;
+    }
+    if (!ctx.event.label.startsWith("Vulnerability Applied")) {
+      return;
+    }
+
+    ctx.helpers.applySelfBuff({
+      buffId: "set_aethertech_vulnerability",
+      label: "Æthertech",
+      durationSeconds: 15,
+      effects: {
+        PHYSICAL_DMG_PCT: 0.08,
+      },
+      stackGroup: "set_aethertech_vulnerability",
+      maxStacks: 4,
+      refreshExistingStacks: false,
+    });
+
+    // In-game behavior checks the stack count after this application resolves.
+    if (ctx.helpers.getEnemyVulnerabilityStacks() >= 4) {
+      ctx.helpers.applySelfBuff({
+        buffId: "set_aethertech_bonus",
+        label: "Æthertech Full Vulnerability Bonus",
+        durationSeconds: 10,
+        effects: {
+          PHYSICAL_DMG_PCT: 0.16,
+        },
+      });
+    }
     return;
   }
 

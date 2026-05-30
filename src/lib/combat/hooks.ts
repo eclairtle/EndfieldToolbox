@@ -37,10 +37,13 @@ export type CombatResolvedHitHookContext = {
   };
   state: {
     getEnemyArtsInfliction(): CombatHookEnemyArtsInflictionState | null;
+    getEnemyVulnerabilityStacks(): number;
     setEnemyArtsInfliction(value: CombatHookEnemyArtsInflictionState | null): void;
     hasEnemyStatus(statusId: string): boolean;
     hasStatus(args: { statusId: string; target?: "enemy" | "self" | "global" }): boolean;
+    getStatusSourceStepId(args: { statusId: string; target?: "enemy" | "self" | "global" }): string | null;
     hasSelfBuff(buffId: string): boolean;
+    getSelfBuffStackCount(buffId: string): number;
     getSelfMeltingFlameStacks(): number;
     gainSelfMeltingFlameStacks(stacks: number, label?: string): void;
     isSelfUniqueTalentEnabled(key: string): boolean;
@@ -123,6 +126,7 @@ export type CombatResolvedHitHookContext = {
       timeScale?: TimeScale;
     }): void;
     applyEffects(args: { effects: CommandHitEffectDefinition[]; stepId?: string }): void;
+    shortenSelfComboCooldownByRatio(ratio: number): void;
   };
 };
 
@@ -143,6 +147,7 @@ export type CombatActionStartHookContext = {
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
     resetSelfComboCooldown(): void;
+    shortenSelfComboCooldownByRatio(ratio: number): void;
   };
 };
 
@@ -159,12 +164,15 @@ export type CombatEventHookContext = {
     sourceSlot?: 0 | 1 | 2 | 3;
     label: string;
     commandAttackType?: "BASIC_ATTACK" | "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "TALENT" | "REACTION" | "GENERIC";
+    amount?: number;
     consumedElement?: "Heat" | "Cryo" | "Electric" | "Nature";
     consumedStacks?: number;
   };
   state: {
     getEnemyArtsInfliction(): CombatHookEnemyArtsInflictionState | null;
+    getEnemyVulnerabilityStacks(): number;
     hasSelfBuff(buffId: string): boolean;
+    getSelfBuffStackCount(buffId: string): number;
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
     getSelfCommandHit(commandId: string, hitIndex: number): ResolvedCommandHitAtLevel | null;
@@ -193,6 +201,19 @@ export type CombatEventHookContext = {
       refreshExistingStacks?: boolean;
       classes?: CharacterClass[];
     }): void;
+    applyBuffToSlot(args: {
+      slot: 0 | 1 | 2 | 3;
+      buffId: string;
+      label: string;
+      durationSeconds: number;
+      infiniteDuration?: boolean;
+      timeScale?: TimeScale;
+      effects?: Partial<ModifierStats>;
+      hidden?: boolean;
+      stackGroup?: string;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+    }): void;
     gainTeamLinkStacks(args: {
       stacks: number;
       durationSeconds: number;
@@ -219,6 +240,7 @@ export type CombatEventHookContext = {
       target?: "controlled" | "self";
       label?: string;
     }): number;
+    grantReturnedSp(amount: number, label: string): void;
     markTriggerOnce(key: string): boolean;
     triggerSelfCombo(args?: {
       label?: string;
@@ -226,7 +248,9 @@ export type CombatEventHookContext = {
       comboCommandId?: string;
     }): boolean;
     resetSelfComboCooldown(): void;
+    shortenSelfComboCooldownByRatio(ratio: number): void;
     hasStatus(args: { statusId: string; target?: "enemy" | "self" | "global" }): boolean;
+    getStatusSourceStepId(args: { statusId: string; target?: "enemy" | "self" | "global" }): string | null;
     emitEvent(event: {
       type: string;
       label: string;

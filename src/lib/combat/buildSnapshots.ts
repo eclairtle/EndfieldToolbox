@@ -62,10 +62,56 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       splitMultiplier: false,
       genericActionType: "switch",
       overlapMode: "normal",
+      delayedEnd: false,
       noFinisherTransform: false,
       requiresControlledOperator: false,
       showNameInHitTimeline: false,
+      showNameInTimeline: true,
       commandModifiers: {},
+      reactionHits: false,
+      executeHits: false,
+      initialEffects: [],
+      transforms: [],
+      hits: [],
+    },
+    {
+      id: "__switch_build",
+      name: "Swap Build",
+      skill: "basic",
+      attackType: "GENERIC",
+      damageType: "Physical",
+      mode: undefined,
+      durationFrames: 60,
+      spCost: 0,
+      energyCost: 0,
+      energyGain: 0,
+      timeFreezeSeconds: 0,
+      cutscene: false,
+      comboCooldownSeconds: 0,
+      comboCooldownTimeScale: "real",
+      comboCooldownStartsAt: "start",
+      comboWindowDelaySeconds: 0,
+      comboWindowDurationSeconds: 10,
+      perfectTimingDelaySeconds: 0,
+      perfectTimingDurationSeconds: 0,
+      spGeneratedOnEnd: 0,
+      spReturnedOnEnd: 0,
+      hiddenInLibrary: true,
+      expandsToCommandIds: [],
+      basicAttackVariant: undefined,
+      sequenceSegmentIndex: undefined,
+      sequenceSegmentTotal: undefined,
+      splitMultiplier: false,
+      genericActionType: "switch_build",
+      overlapMode: "transient",
+      delayedEnd: false,
+      noFinisherTransform: false,
+      requiresControlledOperator: false,
+      showNameInHitTimeline: true,
+      showNameInTimeline: true,
+      commandModifiers: {},
+      reactionHits: false,
+      executeHits: false,
       initialEffects: [],
       transforms: [],
       hits: [],
@@ -100,10 +146,14 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       splitMultiplier: false,
       genericActionType: "dodge",
       overlapMode: "normal",
+      delayedEnd: false,
       noFinisherTransform: false,
       requiresControlledOperator: true,
       showNameInHitTimeline: false,
+      showNameInTimeline: true,
       commandModifiers: {},
+      reactionHits: false,
+      executeHits: false,
       initialEffects: [],
       transforms: [],
       hits: [],
@@ -138,15 +188,56 @@ export function createGenericCommands(): ResolvedCommandAtLevel[] {
       splitMultiplier: false,
       genericActionType: "jump",
       overlapMode: "normal",
+      delayedEnd: false,
       noFinisherTransform: false,
       requiresControlledOperator: true,
       showNameInHitTimeline: false,
+      showNameInTimeline: true,
       commandModifiers: {},
+      reactionHits: false,
+      executeHits: false,
       initialEffects: [],
       transforms: [],
       hits: [],
     },
   ];
+}
+
+function buildSlotForVariant(
+  slot: CharacterBuildSlot,
+  variantIndex: number,
+  activeVariantIndex?: number,
+): CharacterBuildSlot {
+  if (activeVariantIndex != null && variantIndex === activeVariantIndex) {
+    return slot;
+  }
+  const characterId = slot.selectedCharId;
+  if (!characterId) {
+    return slot;
+  }
+  const variants = slot.characterBuilds[characterId];
+  const variant = Array.isArray(variants) ? variants[variantIndex] : null;
+  if (!variant) {
+    return slot;
+  }
+  return {
+    ...slot,
+    characterAscension: variant.characterAscension,
+    characterPotential: variant.characterPotential,
+    level: variant.level,
+    characterTalentToggles: { ...variant.characterTalentToggles },
+    uniqueTalentToggles: { ...variant.uniqueTalentToggles },
+    characterSkillLevels: { ...variant.characterSkillLevels },
+    selectedWeaponId: variant.selectedWeaponId,
+    weaponAscension: variant.weaponAscension,
+    weaponPotential: variant.weaponPotential,
+    weaponLevel: variant.weaponLevel,
+    weaponSkillLevels: [...variant.weaponSkillLevels],
+    armor: variant.armor ? { gearId: variant.armor.gearId, subLevels: [...variant.armor.subLevels] } : null,
+    gloves: variant.gloves ? { gearId: variant.gloves.gearId, subLevels: [...variant.gloves.subLevels] } : null,
+    kit1: variant.kit1 ? { gearId: variant.kit1.gearId, subLevels: [...variant.kit1.subLevels] } : null,
+    kit2: variant.kit2 ? { gearId: variant.kit2.gearId, subLevels: [...variant.kit2.subLevels] } : null,
+  };
 }
 
 function createGenericExecuteHits(): Record<string, ResolvedExecuteHitAtLevel> {
@@ -171,6 +262,7 @@ function createGenericExecuteHits(): Record<string, ResolvedExecuteHitAtLevel> {
         repeatIntervalFrames: 0,
         repeatRegisterOffsetWithInterval: true,
         energyReturn: 0,
+        ignoreUltimateGainEfficiency: false,
         attackType: "GENERIC",
         damageType: "Physical",
         noCrit: false,
@@ -219,6 +311,7 @@ export function buildCombatSnapshot(slot: CharacterBuildSlot, index: number): Ch
     characterAscensionStage: slot.characterAscension,
     characterPotential: slot.characterPotential,
     characterTalentToggles: slot.characterTalentToggles,
+    uniqueTalentToggles: slot.uniqueTalentToggles,
     weaponAscensionStage: slot.weaponAscension,
     weaponPotential: slot.weaponPotential,
   });
@@ -274,6 +367,7 @@ export function buildCombatSnapshot(slot: CharacterBuildSlot, index: number): Ch
     baseAtk: finalStats.baseATK,
     weaponAtk: finalStats.weaponATK,
     attributeBonus: finalStats.attributeBonus,
+    attributeScaling: { ...finalStats.attributeScaling },
     attrs: {
       STR: finalStats.statsCard.STR,
       AGI: finalStats.statsCard.AGI,
@@ -292,5 +386,15 @@ export function buildCombatSnapshot(slot: CharacterBuildSlot, index: number): Ch
 export function buildPartySnapshots(slots: CharacterBuildSlot[]): CharacterCombatSnapshot[] {
   return slots
     .map((slot, index) => buildCombatSnapshot(slot, index))
+    .filter((snapshot): snapshot is CharacterCombatSnapshot => snapshot != null);
+}
+
+export function buildPartySnapshotsByVariant(
+  slots: CharacterBuildSlot[],
+  variantIndex: number,
+  activeVariantIndex?: number,
+): CharacterCombatSnapshot[] {
+  return slots
+    .map((slot, index) => buildCombatSnapshot(buildSlotForVariant(slot, variantIndex, activeVariantIndex), index))
     .filter((snapshot): snapshot is CharacterCombatSnapshot => snapshot != null);
 }

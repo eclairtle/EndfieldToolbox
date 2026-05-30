@@ -17,6 +17,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "open", buildId: string): void;
   (e: "create"): void;
+  (e: "copy", buildId: string): void;
   (e: "rename", payload: { buildId: string; name: string }): void;
   (e: "delete", buildId: string): void;
 }>();
@@ -144,6 +145,14 @@ function confirmDelete() {
             <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-xs font-medium text-[#666]">
               {{ build.summary.updatedAt ? t("ui.updated") : t("ui.notSimulated") }}
             </span>
+            <button
+              v-if="canCreateBuild"
+              type="button"
+              class="rounded border border-[#d7d7d7] bg-white px-2 py-1 text-xs text-[#555] hover:bg-[#f4f4f4]"
+              @click="emit('copy', build.id)"
+            >
+              Copy
+            </button>
             <button
               v-if="editingBuildId !== build.id"
               type="button"

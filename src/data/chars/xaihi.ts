@@ -51,7 +51,7 @@ const XAIHI_COMBAT_HOOKS: CharacterCombatHooks = {
     // Execute Process (talent 1): Combo Skill hit on target with Cryo Infliction or
     // Solidification applies Cryo DMG Taken for 5s.
     if (
-      ctx.event.type === "BATTLE_OR_COMBO_HIT"
+      ctx.event.type === "COMBO_SKILL_HIT"
       && ctx.event.sourceSlot === ctx.self.slot
       && ctx.event.commandId === "xaihi_combo_skill"
       && (

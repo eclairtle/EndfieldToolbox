@@ -86,6 +86,7 @@ export type CharacterTalentEffect = {
   apply?: (ctx: CharacterRuntimeContext) => {
     attrsDelta?: Partial<Attrs>;
     modsDelta?: Partial<ModifierStats>;
+    attributeScalingDelta?: Partial<AttributeScaling>;
     extra?: Record<string, number>;
   };
 };
@@ -101,6 +102,7 @@ export type CharacterPotentialEffect = {
   apply?: (ctx: CharacterRuntimeContext) => {
     attrsDelta?: Partial<Attrs>;
     modsDelta?: Partial<ModifierStats>;
+    attributeScalingDelta?: Partial<AttributeScaling>;
     extra?: Record<string, number>;
   };
 };
@@ -182,6 +184,7 @@ export function applyCharacterRuntimeEffects(args: {
 }) {
   let attrs = { ...args.attrs };
   let mods = { ...args.mods };
+  let attributeScaling = { ...(args.char.scaling ?? {}) };
   const extra: Record<string, number> = {};
 
   const applyDelta = (result: ReturnType<NonNullable<CharacterTalentEffect["apply"]>> | ReturnType<NonNullable<CharacterPotentialEffect["apply"]>> | undefined) => {
@@ -195,6 +198,10 @@ export function applyCharacterRuntimeEffects(args: {
 
     for (const key of Object.keys(result.modsDelta ?? {}) as (keyof ModifierStats)[]) {
       mods[key] += result.modsDelta?.[key] ?? 0;
+    }
+
+    for (const key of Object.keys(result.attributeScalingDelta ?? {}) as AttrKey[]) {
+      attributeScaling[key] = (attributeScaling[key] ?? 0) + (result.attributeScalingDelta?.[key] ?? 0);
     }
 
     Object.assign(extra, result.extra ?? {});
@@ -220,7 +227,7 @@ export function applyCharacterRuntimeEffects(args: {
     applyDelta(args.char.potentialEffects?.[level]?.apply?.(runtimeContext));
   }
 
-  return { attrs, mods, extra };
+  return { attrs, mods, attributeScaling, extra };
 }
 
 export function benchmarkHealing(args: {

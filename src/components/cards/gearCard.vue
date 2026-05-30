@@ -186,6 +186,13 @@ function localizeSetName(setName: string | null | undefined) {
   }
   return getGearSetDisplayName({ setName, fallbackName: setName });
 }
+
+function getGearSubstatPreviewAtLevel0(gear: GearBase) {
+  return gear.subs.map((sub) => ({
+    label: subLabel(sub.stat),
+    value: formatGearSubValue(sub.stat, scaledGearSubValue(sub.stat, sub.value, 0)),
+  }));
+}
 </script>
 
 <template>
@@ -369,16 +376,29 @@ function localizeSetName(setName: string | null | undefined) {
             v-for="gear in filteredOptions"
             :key="gear.id"
             type="button"
-            class="overflow-hidden rounded-xl border border-[#dcdcdc] bg-[#fafafa] text-left transition hover:border-[#c9c9c9] hover:bg-white"
+            class="group relative overflow-visible rounded-xl border border-[#dcdcdc] bg-[#fafafa] text-left transition hover:border-[#c9c9c9] hover:bg-white"
             :class="gear.id === selectedGearId ? 'ring-2 ring-[#d7d334]' : ''"
             @click="pickGear(gear.id)"
           >
-            <img
-              :src="getGearImagePath(gear)"
-              :alt="gear.name"
-              class="aspect-[9/10] w-full bg-[#f0f0f0] object-cover"
-              @error="(($event.target as HTMLImageElement).src = '/icons/no_selection.svg')"
-            />
+            <div class="relative">
+              <img
+                :src="getGearImagePath(gear)"
+                :alt="gear.name"
+                class="aspect-[9/10] w-full bg-[#f0f0f0] object-cover transition-opacity duration-150 group-hover:opacity-40"
+                @error="(($event.target as HTMLImageElement).src = '/icons/no_selection.svg')"
+              />
+              <div class="pointer-events-none absolute inset-0 z-20 hidden bg-white/80 p-2 text-xs text-[#222] shadow-sm group-hover:block">
+                <div class="mb-1 font-semibold">Substats ({{ t("ui.levelShort") }} 0)</div>
+                <div
+                  v-for="(entry, idx) in getGearSubstatPreviewAtLevel0(gear)"
+                  :key="`${gear.id}-hover-sub-overlay-${idx}`"
+                  class="flex items-center justify-between gap-2 py-0.5"
+                >
+                  <span class="truncate">{{ entry.label }}</span>
+                  <span class="shrink-0 font-medium">{{ entry.value }}</span>
+                </div>
+              </div>
+            </div>
             <div class="p-2">
               <div class="truncate text-sm font-semibold text-[#222]">{{ getGearDisplayNameByGear(gear) }}</div>
               <div class="mt-0.5 truncate text-[11px] text-[#666]">

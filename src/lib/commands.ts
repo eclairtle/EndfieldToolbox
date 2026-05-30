@@ -3,6 +3,7 @@ import type { BuildCondition, BuildConditionState } from "@/lib/build/buildCondi
 import { isBuildConditionMet } from "@/lib/build/buildConditions";
 import type { ElementType } from "@/data/characters";
 import type { ModifierStatKey, ModifierStats } from "@/lib/build/stats";
+import type { RotationCombatEventType } from "@/lib/combat/rotation";
 
 const COMBO_READY_TIMEOUT_SECONDS_FALLBACK = 10;
 
@@ -15,7 +16,7 @@ export type AttackType =
   | "REACTION"
   | "GENERIC";
 
-export type GenericActionType = "switch" | "dodge" | "jump";
+export type GenericActionType = "switch" | "dodge" | "jump" | "switch_build";
 export type CommandVariantType = "enhanced_basic_attack" | "enhanced_battle_skill";
 export type CommandOverlapMode = "normal" | "transient";
 export type CommandTransformRule = {
@@ -54,6 +55,11 @@ export type CombatCondition =
     }
   | {
       type: "require_perfect_timing";
+    }
+  | {
+      type: "require_vulnerability_stacks";
+      min?: number;
+      max?: number;
     };
 
 export type ScalingTable = number[]; // length 12, index 0 = Lv1
@@ -124,10 +130,12 @@ type CommandHitEffectCore =
     }
   | {
       type: "APPLY_CUSTOM_REACTION";
-      reactionId: "YVONNE_BATTLE_SKILL_FREEZE";
+      reactionId: "YVONNE_BATTLE_SKILL_FREEZE" | "DAPAN_COMBO_CRUSH";
       durationSeconds?: number;
       baseMultiplier?: number;
       baseMultiplierScaling?: ScalingTable;
+      crushMultiplier?: number;
+      crushMultiplierScaling?: ScalingTable;
       bonusMultiplierPerConsumedStack?: number;
       bonusMultiplierPerConsumedStackScaling?: ScalingTable;
       baseEnergyReturn?: number;
@@ -148,6 +156,18 @@ type CommandHitEffectCore =
       fourStackSusPctScaling?: ScalingTable;
     }
   | {
+      type: "GRANT_SP_FROM_VULNERABILITY_STACKS";
+      amountAt1?: number;
+      amountAt2?: number;
+      amountAt3?: number;
+      amountAt4?: number;
+      amountAt1Scaling?: ScalingTable;
+      amountAt2Scaling?: ScalingTable;
+      amountAt3Scaling?: ScalingTable;
+      amountAt4Scaling?: ScalingTable;
+      label?: string;
+    }
+  | {
       type: "APPLY_STATUS";
       target: "enemy" | "self" | "global";
       statusId: string;
@@ -157,9 +177,19 @@ type CommandHitEffectCore =
       timeScale?: TimeScale;
       pauseStatusIds?: string[];
       periods?: number;
+      maxPeriods?: number;
       initialEffects?: CommandHitEffectDefinition[];
       periodicEffects?: CommandHitEffectDefinition[];
       expireEffects?: CommandHitEffectDefinition[];
+      removeEffects?: CommandHitEffectDefinition[];
+    }
+  | {
+      type: "EMIT_EVENT";
+      eventType: RotationCombatEventType;
+      label?: string;
+      amount?: number;
+      commandAttackType?: AttackType;
+      damageType?: ElementType;
     }
   | {
       type: "APPLY_TEAM_STATUS";
@@ -191,11 +221,17 @@ type CommandHitEffectCore =
       hitName?: string;
       inheritSourceBonuses?: boolean;
       executeDelayFrames?: number;
+      executeDelayTimeScale?: TimeScale;
       times?: number;
       repeatIntervalFrames?: number;
       registerOffsetFrames?: number;
       repeatRegisterOffsetWithInterval?: boolean;
       registerAtInitialTime?: boolean;
+    }
+  | {
+      type: "ADD_TIME_FREEZE";
+      durationSeconds: number;
+      cutscene?: boolean;
     }
   | {
       type: "APPLY_BUFF";
@@ -262,6 +298,7 @@ export type CommandHitDefinition = {
   repeatIntervalFrames?: ScalingTable; // used when times > 1
   repeatRegisterOffsetWithInterval?: boolean; // default true; false keeps same register frame for repeats
   energyReturn?: ScalingTable; //default 0
+  ignoreUltimateGainEfficiency?: boolean;
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
   noCrit?: boolean;
@@ -274,6 +311,7 @@ export type CommandHitDefinition = {
     requiresStacksAtLeast?: number;
     requiresStacksExact?: number;
     requiresEnemyStatusId?: string;
+    requiresConsumedLink?: boolean;
     condition?: CombatCondition;
   };
 };
@@ -323,10 +361,14 @@ export type CommandDefinition = {
   transforms?: CommandTransformRule[];
   requiresControlledOperator?: boolean;
   showNameInHitTimeline?: boolean;
+  showNameInTimeline?: boolean;
   overlapMode?: CommandOverlapMode;
+  delayedEnd?: boolean;
   noFinisherTransform?: boolean;
   condition?: BuildCondition;
   commandModifiers?: Partial<ModifierStats>;
+  reactionHits?: boolean;
+  executeHits?: boolean;
   initialEffects?: CommandHitEffectDefinition[];
   hits: CommandHitDefinition[];
 };
@@ -346,6 +388,7 @@ export type ResolvedCommandHit = {
   repeatIntervalFrames: ScalingTable;
   repeatRegisterOffsetWithInterval: boolean;
   energyReturn: ScalingTable;
+  ignoreUltimateGainEfficiency: boolean;
   attackType: AttackType;
   damageType: ElementType;
   noCrit: boolean;
@@ -358,6 +401,7 @@ export type ResolvedCommandHit = {
     requiresStacksAtLeast?: number;
     requiresStacksExact?: number;
     requiresEnemyStatusId?: string;
+    requiresConsumedLink?: boolean;
     condition?: CombatCondition;
   };
 };
@@ -396,10 +440,14 @@ export type ResolvedCommandDefinition = {
   transforms: CommandTransformRule[];
   requiresControlledOperator: boolean;
   showNameInHitTimeline: boolean;
+  showNameInTimeline: boolean;
   overlapMode: CommandOverlapMode;
+  delayedEnd: boolean;
   noFinisherTransform: boolean;
   condition?: BuildCondition;
   commandModifiers: Partial<ModifierStats>;
+  reactionHits: boolean;
+  executeHits: boolean;
   initialEffects: CommandHitEffectDefinition[];
   hits: ResolvedCommandHit[];
 };
@@ -442,10 +490,14 @@ export function resolveCommandDefinition(
     transforms: command.transforms ?? [],
     requiresControlledOperator: command.requiresControlledOperator ?? false,
     showNameInHitTimeline: command.showNameInHitTimeline ?? false,
+    showNameInTimeline: command.showNameInTimeline ?? false,
     overlapMode: command.overlapMode ?? "normal",
+    delayedEnd: command.delayedEnd ?? false,
     noFinisherTransform: command.noFinisherTransform ?? false,
     condition: command.condition,
     commandModifiers: command.commandModifiers ?? {},
+    reactionHits: command.reactionHits ?? inferReactionHitsFlag(command),
+    executeHits: command.executeHits ?? inferExecuteHitsFlag(command),
     initialEffects: command.initialEffects ?? [],
     hits: command.hits.map((hit) => ({
       name: hit.name,
@@ -462,6 +514,7 @@ export function resolveCommandDefinition(
       repeatIntervalFrames: hit.repeatIntervalFrames ?? flat12(0),
       repeatRegisterOffsetWithInterval: hit.repeatRegisterOffsetWithInterval ?? true,
       energyReturn: hit.energyReturn ?? flat12(0),
+      ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency ?? false,
       attackType: hit.attackType ?? command.attackType,
       damageType: hit.damageType ?? command.damageType,
       noCrit: hit.noCrit ?? false,
@@ -508,6 +561,7 @@ export type ResolvedCommandHitAtLevel = {
   repeatIntervalFrames: number;
   repeatRegisterOffsetWithInterval: boolean;
   energyReturn: number;
+  ignoreUltimateGainEfficiency: boolean;
   attackType: AttackType;
   damageType: ElementType;
   noCrit: boolean;
@@ -520,6 +574,7 @@ export type ResolvedCommandHitAtLevel = {
     requiresStacksAtLeast?: number;
     requiresStacksExact?: number;
     requiresEnemyStatusId?: string;
+    requiresConsumedLink?: boolean;
     condition?: CombatCondition;
   };
 };
@@ -558,10 +613,14 @@ export type ResolvedCommandAtLevel = {
   transforms: CommandTransformRule[];
   requiresControlledOperator: boolean;
   showNameInHitTimeline: boolean;
+  showNameInTimeline: boolean;
   overlapMode: CommandOverlapMode;
+  delayedEnd: boolean;
   noFinisherTransform: boolean;
   condition?: BuildCondition;
   commandModifiers: Partial<ModifierStats>;
+  reactionHits: boolean;
+  executeHits: boolean;
   initialEffects: CommandHitEffectDefinition[];
   hits: ResolvedCommandHitAtLevel[];
 };
@@ -581,6 +640,56 @@ function resolveTable(table: ScalingTable, level: number): number {
   return table[idx] ?? table[table.length - 1] ?? 0;
 }
 
+function hasEffectByPredicate(
+  effects: CommandHitEffectDefinition[] | undefined,
+  predicate: (effect: CommandHitEffectDefinition) => boolean,
+): boolean {
+  if (!effects || effects.length <= 0) {
+    return false;
+  }
+  for (const effect of effects) {
+    if (predicate(effect)) {
+      return true;
+    }
+    if (effect.type === "APPLY_STATUS") {
+      if (
+        hasEffectByPredicate(effect.initialEffects, predicate)
+        || hasEffectByPredicate(effect.periodicEffects, predicate)
+        || hasEffectByPredicate(effect.expireEffects, predicate)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function inferReactionHitsFlag(command: CommandDefinition): boolean {
+  const isReactionLikeEffect = (effect: CommandHitEffectDefinition) =>
+    effect.type === "APPLY_ARTS_INFLICTION"
+    || effect.type === "APPLY_REACTION"
+    || effect.type === "APPLY_PHYSICAL_INFLICTION"
+    || effect.type === "APPLY_CUSTOM_REACTION";
+  if (hasEffectByPredicate(command.initialEffects, isReactionLikeEffect)) {
+    return true;
+  }
+  return command.hits.some((hit) =>
+    hasEffectByPredicate(hit.effects, isReactionLikeEffect)
+    || hasEffectByPredicate(hit.postEffects, isReactionLikeEffect),
+  );
+}
+
+function inferExecuteHitsFlag(command: CommandDefinition): boolean {
+  const isExecuteEffect = (effect: CommandHitEffectDefinition) => effect.type === "EXECUTE_HIT";
+  if (hasEffectByPredicate(command.initialEffects, isExecuteEffect)) {
+    return true;
+  }
+  return command.hits.some((hit) =>
+    hasEffectByPredicate(hit.effects, isExecuteEffect)
+    || hasEffectByPredicate(hit.postEffects, isExecuteEffect),
+  );
+}
+
 function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: number): CommandHitEffectDefinition {
   if (effect.type === "APPLY_STATUS") {
     return {
@@ -588,6 +697,7 @@ function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: numb
       initialEffects: effect.initialEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
       periodicEffects: effect.periodicEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
       expireEffects: effect.expireEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
+      removeEffects: effect.removeEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
     };
   }
 
@@ -595,6 +705,7 @@ function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: numb
     return {
       ...effect,
       baseMultiplier: effect.baseMultiplierScaling ? resolveTable(effect.baseMultiplierScaling, level) : effect.baseMultiplier,
+      crushMultiplier: effect.crushMultiplierScaling ? resolveTable(effect.crushMultiplierScaling, level) : effect.crushMultiplier,
       bonusMultiplierPerConsumedStack: effect.bonusMultiplierPerConsumedStackScaling
         ? resolveTable(effect.bonusMultiplierPerConsumedStackScaling, level)
         : effect.bonusMultiplierPerConsumedStack,
@@ -604,6 +715,7 @@ function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: numb
         : effect.bonusEnergyReturnPerConsumedStack,
       stagger: effect.staggerScaling ? resolveTable(effect.staggerScaling, level) : effect.stagger,
       baseMultiplierScaling: undefined,
+      crushMultiplierScaling: undefined,
       bonusMultiplierPerConsumedStackScaling: undefined,
       baseEnergyReturnScaling: undefined,
       bonusEnergyReturnPerConsumedStackScaling: undefined,
@@ -620,6 +732,20 @@ function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: numb
       baseSusPctScaling: undefined,
       perStackSusPctScaling: undefined,
       fourStackSusPctScaling: undefined,
+    };
+  }
+
+  if (effect.type === "GRANT_SP_FROM_VULNERABILITY_STACKS") {
+    return {
+      ...effect,
+      amountAt1: effect.amountAt1Scaling ? resolveTable(effect.amountAt1Scaling, level) : effect.amountAt1,
+      amountAt2: effect.amountAt2Scaling ? resolveTable(effect.amountAt2Scaling, level) : effect.amountAt2,
+      amountAt3: effect.amountAt3Scaling ? resolveTable(effect.amountAt3Scaling, level) : effect.amountAt3,
+      amountAt4: effect.amountAt4Scaling ? resolveTable(effect.amountAt4Scaling, level) : effect.amountAt4,
+      amountAt1Scaling: undefined,
+      amountAt2Scaling: undefined,
+      amountAt3Scaling: undefined,
+      amountAt4Scaling: undefined,
     };
   }
 
@@ -732,10 +858,14 @@ export function resolveCommandAtLevel(
     transforms: command.transforms ?? [],
     requiresControlledOperator: command.requiresControlledOperator ?? false,
     showNameInHitTimeline: command.showNameInHitTimeline ?? false,
+    showNameInTimeline: command.showNameInTimeline ?? false,
     overlapMode: command.overlapMode ?? "normal",
+    delayedEnd: command.delayedEnd ?? false,
     noFinisherTransform: command.noFinisherTransform ?? false,
     condition: command.condition,
     commandModifiers: command.commandModifiers ?? {},
+    reactionHits: command.reactionHits ?? inferReactionHitsFlag(command),
+    executeHits: command.executeHits ?? inferExecuteHitsFlag(command),
     initialEffects: (command.initialEffects ?? []).map((effect) => resolveHitEffectAtLevel(effect, level)),
     hits: activeHits.map((hit) => ({
       name: hit.name,
@@ -752,6 +882,7 @@ export function resolveCommandAtLevel(
       repeatIntervalFrames: hit.repeatIntervalFrames ? resolveTable(hit.repeatIntervalFrames, level) : 0,
       repeatRegisterOffsetWithInterval: hit.repeatRegisterOffsetWithInterval ?? true,
       energyReturn: hit.energyReturn ? resolveTable(hit.energyReturn, level) : 0,
+      ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency ?? false,
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,
       noCrit: hit.noCrit ?? false,
@@ -810,6 +941,7 @@ export function resolveExecuteHitsAtLevel(
         repeatIntervalFrames: executeHit.repeatIntervalFrames ? resolveTable(executeHit.repeatIntervalFrames, level) : 0,
         repeatRegisterOffsetWithInterval: executeHit.repeatRegisterOffsetWithInterval ?? true,
         energyReturn: executeHit.energyReturn ? resolveTable(executeHit.energyReturn, level) : 0,
+        ignoreUltimateGainEfficiency: executeHit.ignoreUltimateGainEfficiency ?? false,
         attackType: executeHit.attackType,
         damageType: executeHit.damageType,
         noCrit: executeHit.noCrit ?? false,

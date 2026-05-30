@@ -18,6 +18,7 @@ export type WeaponSkillId =
   | "ULT_GAIN_UP"
   | "HP_UP"
   | "ARTS_DMG_UP"
+  | "PHYSICAL_DMG_UP"
   | "CRYO_DMG_UP"
   | "HEALING_UP"
   | "UNIQUE"
@@ -98,6 +99,7 @@ export type WeaponEventListenerContext = {
       threshold?: number;
     }): number;
     getSelfBuffStackCount(buffId: string): number;
+    removeSelfBuff(buffId: string): void;
   };
 };
 
@@ -117,21 +119,26 @@ export type WeaponBase = {
 
 import * as handcannon from "./weap/handcannons";
 import * as sword from "./weap/swords";
+import * as greatsword from "./weap/greatswords";
 import * as artsunit from "./weap/artsunits";
 import * as polearm from "./weap/polearms";
+import { GENERATED_MISSING_WEAPONS } from "./weap/generatedMissing";
 
 export const WEAPONS: WeaponBase[] = [
   sword.FORGEBORN_SCATHE,
   sword.THERMITE_CUTTER,
-  sword.KHRAVENGGER,
+  sword.GRAND_VISION,
+  greatsword.KHRAVENGGER,
+  greatsword.EXEMPLAR,
   sword.EMINENT_REPUTE,
   sword.WHITE_NIGHT_NOVA,
-  sword.FORMER_FINERY,
+  greatsword.FORMER_FINERY,
   sword.LUPINE_SCARLET,
   handcannon.ARTSY_TYRANNICAL,
   handcannon.CLANNIBAL,
   handcannon.BRIGANDS_CALLING,
   polearm.JET,
+  polearm.MOUNTAIN_BEARER,
   artsunit.DELIVERY_GUARANTEED,
   artsunit.STANZA_OF_MEMORIALS,
   artsunit.DETONATION_UNIT,
@@ -139,6 +146,7 @@ export const WEAPONS: WeaponBase[] = [
   artsunit.CHIVALRIC_VIRTUES,
   artsunit.MONAIHE,
   artsunit.WILD_WANDERER,
+  ...GENERATED_MISSING_WEAPONS,
 ];
 
 export function getWeaponById(id: string): WeaponBase | undefined {

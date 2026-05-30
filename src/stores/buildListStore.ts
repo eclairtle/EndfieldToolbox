@@ -32,6 +32,11 @@ export type SavedBuild = {
   rotationState: RotationSchemesState;
   summary: BuildSummarySnapshot;
   damageTallyTiming: DamageTallyTiming;
+  compareSettings?: {
+    enabled: boolean;
+    leftVariantIndex: number;
+    rightVariantIndex: number;
+  };
 };
 
 function makeBuildId() {
@@ -54,6 +59,11 @@ function makeDefaultBuild(index: number): SavedBuild {
       enabled: false,
       startTime: 0,
       endTime: 60,
+    },
+    compareSettings: {
+      enabled: false,
+      leftVariantIndex: 0,
+      rightVariantIndex: 1,
     },
   };
 }
@@ -389,6 +399,23 @@ export const useBuildListStore = defineStore("buildListStore", () => {
             ? raw.damageTallyTiming.endTime
             : 60,
       },
+      compareSettings: {
+        enabled: raw.compareSettings?.enabled === true,
+        leftVariantIndex:
+          typeof raw.compareSettings?.leftVariantIndex === "number"
+            && Number.isFinite(raw.compareSettings.leftVariantIndex)
+            && raw.compareSettings.leftVariantIndex >= 0
+            && raw.compareSettings.leftVariantIndex < 4
+            ? Math.trunc(raw.compareSettings.leftVariantIndex)
+            : 0,
+        rightVariantIndex:
+          typeof raw.compareSettings?.rightVariantIndex === "number"
+            && Number.isFinite(raw.compareSettings.rightVariantIndex)
+            && raw.compareSettings.rightVariantIndex >= 0
+            && raw.compareSettings.rightVariantIndex < 4
+            ? Math.trunc(raw.compareSettings.rightVariantIndex)
+            : 1,
+      },
     };
   }
 
@@ -472,6 +499,21 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     return next.id;
   }
 
+  function copyBuild(sourceBuildId: string): string | null {
+    if (builds.value.length >= MAX_BUILDS_PER_USER) {
+      return null;
+    }
+    const source = builds.value.find((build) => build.id === sourceBuildId);
+    if (!source) {
+      return null;
+    }
+    const next = cloneJson(source);
+    next.id = makeBuildId();
+    next.name = `${source.name} Copy`;
+    builds.value.push(next);
+    return next.id;
+  }
+
   function setActiveBuild(id: string) {
     if (builds.value.some((build) => build.id === id)) {
       activeBuildId.value = id;
@@ -485,6 +527,11 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     rotationState: RotationSchemesState;
     summary?: { totalDamage: number; dps: number };
     damageTallyTiming?: DamageTallyTiming;
+    compareSettings?: {
+      enabled: boolean;
+      leftVariantIndex: number;
+      rightVariantIndex: number;
+    };
   }) {
     const target = builds.value.find((build) => build.id === args.buildId);
     if (!target) {
@@ -503,6 +550,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     }
     if (args.damageTallyTiming) {
       target.damageTallyTiming = cloneJson(args.damageTallyTiming);
+    }
+    if (args.compareSettings) {
+      target.compareSettings = cloneJson(args.compareSettings);
     }
   }
 
@@ -546,6 +596,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     activeBuildId,
     activeBuild,
     createBuild,
+    copyBuild,
     setActiveBuild,
     updateBuildRuntime,
     renameBuild,

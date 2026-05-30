@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
+import { useRoute } from "vue-router";
 
 import { useBuildStore, type CharacterBuildSlot } from "@/stores/buildStore";
 import type { EnemyBase } from "@/data/enemies";
@@ -25,7 +26,8 @@ import type {
   RotationStep,
   RotationTimeExtension,
 } from "@/lib/combat/rotation";
-import { buildCombatSnapshot } from "@/lib/combat/buildSnapshots";
+import { CRIT_RIG_HIT_INDEX_EXECUTE, CRIT_RIG_HIT_INDEX_REACTION } from "@/lib/combat/rotation";
+import { buildCombatSnapshot, buildPartySnapshotsByVariant } from "@/lib/combat/buildSnapshots";
 import { useRotationSchemes } from "@/lib/combat/rotationSchemes";
 import {
   getActorStateAtTime,
@@ -43,17 +45,22 @@ import {
   type EnemyCommandPlacement,
 } from "@/lib/enemy/enemyActionWindows";
 import { ROTATION_ENEMY_COMMANDS_STORAGE_KEY, ROTATION_SP_STORAGE_KEY } from "@/lib/storageKeys";
-import { CONSUMABLES } from "@/data/consumables";
+import { ROTATION_CONTRACTS_STORAGE_KEY } from "@/lib/storageKeys";
+import { CONSUMABLES, CONSUMABLE_BY_ID, getConsumableDisplayName } from "@/data/consumables";
+import { getEnemyDisplayName } from "@/data/enemyCustomNames";
 import { useLocale } from "@/i18n/useLocale";
 import type { CharacterSkillKey } from "@/lib/build/characterSkills";
 import { getCharacterDisplayName } from "@/i18n/domain/displayNames";
 import { getCharacterSkillDisplayName } from "@/i18n/domain/skillNames";
+import { getLocalizedStatusBuffLabel } from "@/i18n/domain/statusBuffLabels";
 import RotationSelectedCommandPanel from "@/components/workspaces/rotation/RotationSelectedCommandPanel.vue";
 import RotationHitDetailsModal from "@/components/workspaces/rotation/RotationHitDetailsModal.vue";
-import { toAssetUrl } from "@/lib/assets/imagePaths";
+import { EMPTY_SELECTION_ICON_PATH, getCharacterImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
+import { CONTINGENCY_CONTRACTS, resolveContingencyContracts, type ActiveContingencyContract } from "@/lib/combat/contracts";
 
 const props = defineProps<{
   buildId?: string;
+  debugMode?: boolean;
   enemies: EnemyBase[];
   selectedEnemyId: string;
   enemyName: string;
@@ -78,7 +85,8 @@ const emit = defineEmits<{
 }>();
 
 const buildStore = useBuildStore();
-const { slots } = storeToRefs(buildStore);
+const route = useRoute();
+const { slots, activeVariantIndex } = storeToRefs(buildStore);
 const { t, locale } = useLocale();
 
 const AXIS_SCALE = 116;
@@ -87,7 +95,7 @@ const TRACK_LABEL_WIDTH = 160;
 const TEAM_SP_MAX = 300;
 const PRE_BATTLE_SP_MAX = 200;
 const PRE_BATTLE_SP_REGEN_RATE = 50;
-const PRE_BATTLE_SECONDS = 10;
+const PRE_BATTLE_SECONDS = 15;
 const GENERATED_SP_TEAM_ENERGY_RATE = 0.065;
 const SWITCH_BACK_COOLDOWN_SECONDS = 2;
 const TIMELINE_ROW_HEIGHT = 112;
@@ -241,17 +249,87 @@ function loadEnemyCommandLayoutsByScheme(): EnemyCommandLayoutsByScheme {
   }
 }
 
+function normalizeActiveContracts(value: unknown): ActiveContingencyContract[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const typed = entry as { id?: unknown; level?: unknown };
+      return {
+        id: typeof typed.id === "string" ? typed.id : "",
+        level: Number.isFinite(typed.level) ? Math.max(1, Math.floor(Number(typed.level))) : 0,
+      };
+    })
+    .filter((entry) => entry.id.length > 0 && entry.level > 0);
+}
+
+function loadContractsByScheme(): Record<string, ActiveContingencyContract[]> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  const raw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      byBuild?: Record<string, { byScheme?: Record<string, unknown> }>;
+      byScheme?: Record<string, unknown>;
+    };
+    const scoped = parsed.byBuild?.[getBuildStorageScopeId()]?.byScheme;
+    const byScheme = scoped ?? parsed.byScheme ?? {};
+    return Object.fromEntries(
+      Object.entries(byScheme).map(([schemeId, value]) => [schemeId, normalizeActiveContracts(value)]),
+    );
+  } catch (error) {
+    console.warn("Failed to load rotation contracts from localStorage", error);
+    return {};
+  }
+}
+
+const buildScopeId = computed(() => props.buildId);
+// App.vue already owns rotation-scheme hydration/scope switching.
+// Use the shared singleton state here without a second scope watcher to avoid racey reloads.
 const { rotationSchemes, activeScheme, activeRotation: rotation, setActiveScheme, addScheme, renameActiveScheme, removeActiveScheme } = useRotationSchemes();
 const selectedLibrarySlot = ref<PartySlot>(0);
 const sidebarMode = ref<"character" | "enemy">("character");
 const controlPanelMode = ref<"simple" | "detailed">("simple");
+const consumablePickerOpen = ref(false);
+const enemyPickerOpen = ref(false);
 const selectedStepIds = ref<string[]>(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);
 const selectionAnchorId = ref<string | null>(rotation.value.steps[0]?.id ?? null);
 const selectedEnemyCommandId = ref<string | null>(null);
 const cursorTime = ref(0);
 const teamSpConfigByScheme = ref<Record<string, TeamSpConfig>>(loadTeamSpConfigByScheme());
 const enemyCommandLayoutsByScheme = ref<EnemyCommandLayoutsByScheme>(loadEnemyCommandLayoutsByScheme());
+const contractsByScheme = ref<Record<string, ActiveContingencyContract[]>>(loadContractsByScheme());
+const contractsPopupOpen = ref(false);
+const highlightedContractId = ref<string>(CONTINGENCY_CONTRACTS[0]?.id ?? "");
 const rotationCountLabel = computed(() => `${rotationSchemes.value.schemes.length} / ${MAX_ROTATIONS_PER_BUILD}`);
+const selectedConsumableId = computed(() => teamSpConfig.value.consumableBySlot[selectedLibrarySlot.value] ?? null);
+const selectedConsumable = computed(() =>
+  selectedConsumableId.value ? CONSUMABLE_BY_ID[selectedConsumableId.value] ?? null : null,
+);
+const selectedConsumableLabel = computed(() =>
+  selectedConsumable.value
+    ? getConsumableDisplayName(selectedConsumable.value, locale.value as "en" | "zh-CN")
+    : t("builder.selectedNone"),
+);
+const selectedConsumableIconPath = computed(() =>
+  selectedConsumableId.value
+    ? toAssetUrl(`/item-icons/usable/${selectedConsumableId.value}.webp`)
+    : EMPTY_SELECTION_ICON_PATH,
+);
+const selectedEnemyData = computed(() =>
+  props.enemies.find((enemy) => enemy.id === props.selectedEnemyId) ?? null,
+);
+const selectedEnemyIconPath = computed(() =>
+  selectedEnemyData.value
+    ? toAssetUrl(`/item-icons/enemies/${selectedEnemyData.value.id}.webp`)
+    : EMPTY_SELECTION_ICON_PATH,
+);
 const canCreateRotationScheme = computed(() => rotationSchemes.value.schemes.length < MAX_ROTATIONS_PER_BUILD);
 const teamSpConfig = computed<TeamSpConfig>(() => {
   const schemeId = activeScheme.value.id;
@@ -268,6 +346,65 @@ const teamSpConfig = computed<TeamSpConfig>(() => {
   teamSpConfigByScheme.value[schemeId] = next;
   return next;
 });
+const activeContingencyContracts = computed<ActiveContingencyContract[]>(() => {
+  const schemeId = activeScheme.value.id;
+  return contractsByScheme.value[schemeId] ?? [];
+});
+const disabledGenericActions = computed(() =>
+  resolveContingencyContracts(activeContingencyContracts.value).disabledGenericActions,
+);
+const dodgeDisabledByContracts = computed(() => disabledGenericActions.value.has("dodge"));
+const contingencyTotalLevel = computed(() =>
+  activeContingencyContracts.value.reduce((sum, entry) => sum + entry.level, 0),
+);
+const activeContractSummary = computed(() => {
+  const levelsById = new Map(activeContingencyContracts.value.map((entry) => [entry.id, entry.level]));
+  return CONTINGENCY_CONTRACTS.flatMap((contract) => {
+    const level = levelsById.get(contract.id);
+    if (!level) {
+      return [];
+    }
+    const levelIndex = contract.levels.indexOf(level);
+    if (levelIndex < 0) {
+      return [];
+    }
+    return [{
+      id: `${contract.id}:${level}`,
+      name: contract.names[levelIndex] ?? contract.id,
+      description: contract.descriptions[levelIndex] ?? "",
+      level,
+    }];
+  });
+});
+const highlightedContract = computed(() => {
+  const byId = new Map(CONTINGENCY_CONTRACTS.map((contract) => [contract.id, contract]));
+  const contract = byId.get(highlightedContractId.value) ?? CONTINGENCY_CONTRACTS[0] ?? null;
+  if (!contract) {
+    return null;
+  }
+  const selectedLevel = activeContingencyContracts.value.find((entry) => entry.id === contract.id)?.level ?? contract.levels[0] ?? 1;
+  const levelIndex = contract.levels.indexOf(selectedLevel);
+  const index = levelIndex >= 0 ? levelIndex : 0;
+  return {
+    id: contract.id,
+    name: contract.names[index] ?? contract.names[0] ?? contract.id,
+    description: contract.descriptions[index] ?? contract.descriptions[0] ?? "",
+  };
+});
+
+function toggleContractLevel(contractId: string, level: number) {
+  const schemeId = activeScheme.value.id;
+  const next = [...(contractsByScheme.value[schemeId] ?? [])];
+  const existingIndex = next.findIndex((entry) => entry.id === contractId);
+  if (existingIndex >= 0 && next[existingIndex]!.level === level) {
+    next.splice(existingIndex, 1);
+  } else if (existingIndex >= 0) {
+    next[existingIndex] = { id: contractId, level };
+  } else {
+    next.push({ id: contractId, level });
+  }
+  contractsByScheme.value[schemeId] = next;
+}
 const commandListExpanded = ref(true);
 const statusListExpanded = ref(true);
 const enemyCommandDefinitions = computed(() => getEnemyCommandDefinitions(props.selectedEnemyId));
@@ -424,10 +561,32 @@ watch(
 );
 
 watch(
+  contractsByScheme,
+  (value) => {
+    const raw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
+    let parsed: { byBuild?: Record<string, { byScheme?: Record<string, ActiveContingencyContract[]> }> } = {};
+    if (raw) {
+      try {
+        parsed = JSON.parse(raw) as typeof parsed;
+      } catch {
+        parsed = {};
+      }
+    }
+    if (!parsed.byBuild) {
+      parsed.byBuild = {};
+    }
+    parsed.byBuild[getBuildStorageScopeId()] = { byScheme: value };
+    window.localStorage.setItem(ROTATION_CONTRACTS_STORAGE_KEY, JSON.stringify(parsed));
+  },
+  { deep: true },
+);
+
+watch(
   () => props.buildId,
   async () => {
     teamSpConfigByScheme.value = loadTeamSpConfigByScheme();
     enemyCommandLayoutsByScheme.value = loadEnemyCommandLayoutsByScheme();
+    contractsByScheme.value = loadContractsByScheme();
     syncEnemyCommandsFromLayouts();
     setSelectedStepIds(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);
     selectionAnchorId.value = rotation.value.steps[0]?.id ?? null;
@@ -441,6 +600,9 @@ watch(
 watch(
   () => activeScheme.value.id,
   async () => {
+    if (!contractsByScheme.value[activeScheme.value.id]) {
+      contractsByScheme.value[activeScheme.value.id] = [];
+    }
     syncEnemyCommandsFromLayouts();
     setSelectedStepIds(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);
     selectionAnchorId.value = rotation.value.steps[0]?.id ?? null;
@@ -456,9 +618,47 @@ const partySnapshots = computed(() =>
     .map((slot, index) => buildSnapshot(slot, index))
     .filter((snapshot): snapshot is CharacterCombatSnapshot => snapshot != null),
 );
+const partyVariantsBySlot = computed(() => {
+  const out: Partial<Record<PartySlot, CharacterCombatSnapshot[]>> = {};
+  for (const variantIndex of [0, 1, 2, 3] as const) {
+    const snapshots = buildPartySnapshotsByVariant(slots.value, variantIndex, activeVariantIndex.value);
+    for (const snapshot of snapshots) {
+      if (!out[snapshot.slot]) {
+        out[snapshot.slot] = [null, null, null, null] as unknown as CharacterCombatSnapshot[];
+      }
+      out[snapshot.slot]![variantIndex] = snapshot;
+    }
+  }
+  return out;
+});
 
 const partyBySlot = computed(() => new Map(partySnapshots.value.map((snapshot) => [snapshot.slot, snapshot])));
 const consumableOptions = CONSUMABLES;
+
+function getConsumableIconPath(consumableId: string | null | undefined): string {
+  if (!consumableId) {
+    return EMPTY_SELECTION_ICON_PATH;
+  }
+  return toAssetUrl(`/item-icons/usable/${consumableId}.webp`);
+}
+
+function selectConsumableForActiveSlot(consumableId: string | null) {
+  teamSpConfig.value.consumableBySlot[selectedLibrarySlot.value] = consumableId;
+  consumablePickerOpen.value = false;
+}
+
+function getEnemyIconPath(enemyId: string): string {
+  return toAssetUrl(`/item-icons/enemies/${enemyId}.webp`);
+}
+
+function getEnemyLocalizedName(enemy: EnemyBase): string {
+  return getEnemyDisplayName(enemy.id, enemy.name, locale.value as "en" | "zh-CN");
+}
+
+function selectEnemy(enemyId: string) {
+  emit("update:selectedEnemyId", enemyId);
+  enemyPickerOpen.value = false;
+}
 
 const libraryCharacter = computed(() => partyBySlot.value.get(selectedLibrarySlot.value) ?? null);
 const visibleLibraryCommands = computed(() =>
@@ -473,6 +673,17 @@ const selectedSidebarTitle = computed(() =>
       || t("builder.slot", { index: selectedLibrarySlot.value + 1 }),
 );
 const currentEnemyState = computed(() => getEnemyStateAtTime(simulation.value, cursorTime.value));
+const currentEnemyHpPctModifier = computed(() =>
+  currentEnemyState.value.activeDebuffs
+    .filter((debuff) => debuff.stat === "HP_PCT")
+    .reduce((sum, debuff) => sum + debuff.value, 0),
+);
+const currentEnemyDisplayedMaxHp = computed(() =>
+  Math.max(1, props.enemyStats.hp * (1 + currentEnemyHpPctModifier.value)),
+);
+const currentEnemyDisplayedHp = computed(() =>
+  Math.max(0, currentEnemyDisplayedMaxHp.value - currentEnemyState.value.currentDamageTaken),
+);
 const enemyStaggerNodePercents = computed(() => {
   const gauge = Math.max(1, props.enemyStaggerGauge);
   return (props.enemyStaggerNodes ?? [])
@@ -592,7 +803,7 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
   if (sidebarMode.value === "enemy") {
     const items: RawStatusDisplayItem[] = [];
     for (const debuff of currentEnemyState.value.activeDebuffs) {
-      const debuffName = debuff.label ?? modifierLabels[debuff.stat] ?? debuff.stat;
+      const debuffName = localizeStatusOrBuffLabel(debuff.label) || modifierLabels[debuff.stat] || debuff.stat;
       const remainingSeconds = Math.max(
         0,
         debuff.expiresAt - (debuff.timeScale === "real" ? cursorTime.value : cursorGameTime),
@@ -615,7 +826,7 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
         status.expiresAt - (status.timeScale === "real" ? cursorTime.value : cursorGameTime),
       );
       items.push({
-        label: status.label,
+        label: localizeStatusOrBuffLabel(status.label),
         details: typeof status.stacks === "number" ? t("rotation.stacks", { count: status.stacks }) : undefined,
         remainingSeconds,
       });
@@ -658,7 +869,7 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
       buff.expiresAt - (buff.timeScale === "real" ? cursorTime.value : cursorGameTime),
     );
     items.push({
-      label: buff.label,
+      label: localizeStatusOrBuffLabel(buff.label),
       remainingSeconds,
       modifierEntries: buildModifierEntriesFromEffects(buff.effects),
     });
@@ -670,7 +881,7 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
       status.expiresAt - (status.timeScale === "real" ? cursorTime.value : cursorGameTime),
     );
     items.push({
-      label: status.label,
+      label: localizeStatusOrBuffLabel(status.label),
       remainingSeconds,
     });
   }
@@ -834,9 +1045,9 @@ const selectedStepCritRigRules = computed(() => {
 const selectedStepHitRigOptions = computed(() => {
   const command = selectedStepCommand.value;
   if (!command) {
-    return [] as Array<{ hitIndex: number; repeatIndex: number; label: string }>;
+    return [] as Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute" }>;
   }
-  const options: Array<{ hitIndex: number; repeatIndex: number; label: string }> = [];
+  const options: Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute" }> = [];
   command.hits.forEach((hit, hitIndex) => {
     const repeatTimes = Math.max(1, hit.times ?? 1);
     for (let repeatIndex = 0; repeatIndex < repeatTimes; repeatIndex += 1) {
@@ -846,9 +1057,26 @@ const selectedStepHitRigOptions = computed(() => {
         label: repeatTimes > 1
           ? `${hit.name ?? `Hit ${hitIndex + 1}`} #${repeatIndex + 1}`
           : (hit.name ?? `Hit ${hitIndex + 1}`),
+        rigType: "normal",
       });
     }
   });
+  if (command.reactionHits) {
+    options.push({
+      hitIndex: CRIT_RIG_HIT_INDEX_REACTION,
+      repeatIndex: 0,
+      label: "Reaction Hits",
+      rigType: "reaction",
+    });
+  }
+  if (command.executeHits) {
+    options.push({
+      hitIndex: CRIT_RIG_HIT_INDEX_EXECUTE,
+      repeatIndex: 0,
+      label: "Execute Hits",
+      rigType: "execute",
+    });
+  }
   return options;
 });
 
@@ -869,6 +1097,8 @@ const simulation = computed(() =>
   simulateRotation({
     rotation: rotation.value,
     party: partySnapshots.value,
+    partyVariantsBySlot: partyVariantsBySlot.value,
+    initialVariantIndex: activeVariantIndex.value,
     enemyStats: props.enemyStats,
     enemyMods: enemyMods.value,
     enemyStaggerGauge: props.enemyStaggerGauge,
@@ -878,6 +1108,7 @@ const simulation = computed(() =>
     enemyFinisherSpGain: props.enemyFinisherSpGain,
     battleStartConsumableIdsBySlot: teamSpConfig.value.consumableBySlot,
     enemyActionWindows: buildEnemyActionWindows(props.selectedEnemyId, enemyCommands.value),
+    contingencyContracts: activeContingencyContracts.value,
   }),
 );
 
@@ -1047,6 +1278,9 @@ const allEvents = computed(() =>
 const allComboTriggerDebug = computed(() =>
   [...(simulation.value.comboTriggerDebug ?? [])].sort((a, b) => a.time - b.time),
 );
+const allPassiveListenerDebug = computed(() =>
+  [...(simulation.value.passiveListenerDebug ?? [])].sort((a, b) => a.time - b.time),
+);
 const linkEnhancedStepIdSet = computed(() => new Set(simulation.value.linkEnhancedStepIds));
 
 const DAMAGE_CONTRIBUTION_COLORS = ["#d9cf57", "#73b45d", "#5c9fe8", "#d07fc7"];
@@ -1089,6 +1323,7 @@ const riggedCritChance = computed(() => {
 const hitTimelineExpanded = ref(false);
 const eventLogExpanded = ref(false);
 const comboTriggerDebugExpanded = ref(false);
+const passiveListenerDebugExpanded = ref(false);
 const debugMode = ref(false);
 const liveModifiersExpanded = ref(false);
 const selectedHitForDetails = ref<RotationSimulationResult["timeline"][number] | null>(null);
@@ -1117,18 +1352,32 @@ const bonusSpReturnedEvents = computed(() =>
       amount: event.amount ?? 0,
     })),
 );
+const bonusSpGeneratedEvents = computed(() =>
+  simulation.value.events
+    .filter(
+      (event) =>
+        event.type === "SP_GENERATED"
+        && (event.amount ?? 0) > 0,
+    )
+    .map((event) => ({
+      time: event.time,
+      amount: event.amount ?? 0,
+    })),
+);
 
 const selectedCharacterLiveState = computed(() => {
   if (sidebarMode.value !== "character") {
     return null;
   }
-  const actor = partyBySlot.value.get(selectedLibrarySlot.value);
-  if (!actor) {
+  const baseActor = partyBySlot.value.get(selectedLibrarySlot.value);
+  if (!baseActor) {
     return null;
   }
 
-  const actorState = getActorStateAtTime(simulation.value, actor.slot, cursorTime.value);
-  const liveMods: ModifierStats = { ...actor.mods };
+  const actorState = getActorStateAtTime(simulation.value, baseActor.slot, cursorTime.value);
+  const runtimeVariant = Math.max(0, Math.min(3, actorState.activeBuildVariant ?? activeVariantIndex.value));
+  const runtimeActor = partyVariantsBySlot.value[selectedLibrarySlot.value]?.[runtimeVariant] ?? baseActor;
+  const liveMods: ModifierStats = { ...runtimeActor.mods };
   const applyModifierDelta = (delta: Partial<ModifierStats>) => {
     for (const [key, value] of Object.entries(delta)) {
       if (value == null || value === 0) {
@@ -1140,7 +1389,7 @@ const selectedCharacterLiveState = computed(() => {
   };
 
   const isUniqueTalentEnabledForActor = (key: string) =>
-    actor.uniqueTalentToggles[key] === true || actor.uniqueTalentDefaults?.[key] === true;
+    runtimeActor.uniqueTalentToggles[key] === true || runtimeActor.uniqueTalentDefaults?.[key] === true;
 
   const activeEnemyStatusIds = new Set(currentEnemyState.value.activeStatuses.map((status) => status.id));
   const enemyInflictionElement = currentEnemyState.value.artsInfliction?.element;
@@ -1152,7 +1401,7 @@ const selectedCharacterLiveState = computed(() => {
     applyModifierDelta(buff.effects);
   }
 
-  for (const conditional of actor.conditionalModifiers ?? []) {
+  for (const conditional of runtimeActor.conditionalModifiers ?? []) {
     const requiresEnabled = conditional.condition.requiresUniqueTalentsEnabled ?? [];
     if (requiresEnabled.some((key) => !isUniqueTalentEnabledForActor(key))) {
       continue;
@@ -1178,10 +1427,45 @@ const selectedCharacterLiveState = computed(() => {
     applyModifierDelta(conditional.effects);
   }
 
-  const rawAtk = actor.baseAtk + actor.weaponAtk;
+  const liveAttrs = {
+    STR: runtimeActor.attrs.STR,
+    AGI: runtimeActor.attrs.AGI,
+    INT: runtimeActor.attrs.INT,
+    WIL: runtimeActor.attrs.WIL,
+  };
+  const character = CHARACTERS.find((entry) => entry.id === runtimeActor.characterId);
+  const applyAttrPct = (attr: keyof typeof liveAttrs, pct: number) => {
+    if (!pct) return;
+    const delta = liveAttrs[attr] * pct;
+    liveAttrs[attr] += delta >= 0 ? Math.ceil(delta) : Math.floor(delta);
+  };
+  const attrKeys: Array<keyof typeof liveAttrs> = ["STR", "AGI", "INT", "WIL"];
+  for (const key of attrKeys) {
+    const perAttrMul = key === "STR"
+      ? 1 + liveMods.STR_PCT
+      : key === "AGI"
+        ? 1 + liveMods.AGI_PCT
+        : key === "INT"
+          ? 1 + liveMods.INT_PCT
+          : 1 + liveMods.WIL_PCT;
+    const mainSecondaryMul = key === character?.mainAttr
+      ? 1 + liveMods.MAIN_ATTR_PCT
+      : key === character?.secondaryAttr
+        ? 1 + liveMods.SECONDARY_ATTR_PCT
+        : 1;
+    const totalMul = (1 + liveMods.ALL_ATTR_PCT) * perAttrMul * mainSecondaryMul;
+    applyAttrPct(key, totalMul - 1);
+  }
+
+  const liveAttributeBonus = (liveAttrs.STR * (runtimeActor.attributeScaling.STR ?? 0))
+    + (liveAttrs.AGI * (runtimeActor.attributeScaling.AGI ?? 0))
+    + (liveAttrs.INT * (runtimeActor.attributeScaling.INT ?? 0))
+    + (liveAttrs.WIL * (runtimeActor.attributeScaling.WIL ?? 0));
+
+  const rawAtk = runtimeActor.baseAtk + runtimeActor.weaponAtk;
   const modAtk = Math.round(rawAtk * liveMods.ATK_PCT);
-  const liveAtk = Math.floor((rawAtk + modAtk + liveMods.FLAT_ATK) * (1 + actor.attributeBonus));
-  const liveHp = Math.round((actor.baseHp + actor.attrs.STR * 5) * (1 + liveMods.HP_PCT) + liveMods.FLAT_HP);
+  const liveAtk = Math.floor((rawAtk + modAtk + liveMods.FLAT_ATK) * (1 + liveAttributeBonus));
+  const liveHp = Math.round((runtimeActor.baseHp + liveAttrs.STR * 5) * (1 + liveMods.HP_PCT) + liveMods.FLAT_HP);
 
   const changedModifiers = MODIFIER_STAT_KEYS
     .filter((key) => Math.abs(liveMods[key] - defaultModifierStats[key]) > 1e-9)
@@ -1193,12 +1477,13 @@ const selectedCharacterLiveState = computed(() => {
     }));
 
   return {
-    actor,
+    actor: runtimeActor,
     liveMods,
-    attrs: actor.attrs,
+    attrs: liveAttrs,
     atk: liveAtk,
     hp: liveHp,
-    def: actor.finalDef,
+    def: runtimeActor.finalDef,
+    activeBuildVariant: runtimeVariant,
     changedModifiers,
   };
 });
@@ -1448,13 +1733,13 @@ function getEventDetailEntries(event: RotationCombatEvent): Array<{ key: string;
 function formatComboDebugBlockReason(reason: RotationSimulationResult["comboTriggerDebug"][number]["blockReason"]): string {
   switch (reason) {
     case "MISSING_ACTOR_OR_COMBO_COMMAND":
-      return "Missing actor/combo command";
+      return t("rotation.comboDebugReasonMissingActorOrCombo");
     case "ACTIVE_COMBO_WINDOW_EXISTS":
-      return "Active combo window already exists";
+      return t("rotation.comboDebugReasonActiveWindowExists");
     case "COMBO_ON_COOLDOWN":
-      return "Combo on cooldown";
+      return t("rotation.comboDebugReasonComboOnCooldown");
     default:
-      return "Unknown";
+      return t("rotation.comboDebugReasonUnknown");
   }
 }
 
@@ -1462,29 +1747,62 @@ function getComboDebugDetailEntries(
   entry: RotationSimulationResult["comboTriggerDebug"][number],
 ): Array<{ key: string; value: string }> {
   const rows: Array<{ key: string; value: string }> = [
-    { key: "Triggered", value: entry.triggered ? "yes" : "no" },
-    { key: "Slot", value: String(entry.slot + 1) },
-    { key: "Character", value: entry.characterName ?? entry.characterId ?? "-" },
-    { key: "Source Event Type", value: entry.sourceEventType },
-    { key: "Source Step", value: entry.sourceStepId || "-" },
-    { key: "Combo Command", value: entry.comboCommandId ?? "-" },
-    { key: "Cooldown Owner", value: entry.cooldownOwnerCommandId ?? "-" },
-    { key: "Combo Time Scale", value: entry.comboTimeScale },
-    { key: "Current Time", value: entry.currentTime.toFixed(3) },
-    { key: "Cooldown Until", value: entry.cooldownUntil.toFixed(3) },
-    { key: "Has Active Window", value: entry.hasActiveComboWindow ? "yes" : "no" },
-    { key: "Has Pending Cooldown", value: entry.hasPendingCooldown ? "yes" : "no" },
+    { key: t("rotation.comboDebugTriggered"), value: entry.triggered ? t("rotation.yes") : t("rotation.no") },
+    { key: t("rotation.comboDebugSlot"), value: String(entry.slot + 1) },
+    { key: t("rotation.comboDebugCharacter"), value: entry.characterName ?? entry.characterId ?? "-" },
+    { key: t("rotation.comboDebugSourceEventType"), value: entry.sourceEventType },
+    { key: t("rotation.comboDebugSourceStep"), value: entry.sourceStepId || "-" },
+    { key: t("rotation.comboDebugComboCommand"), value: entry.comboCommandId ?? "-" },
+    { key: t("rotation.comboDebugCooldownOwner"), value: entry.cooldownOwnerCommandId ?? "-" },
+    { key: t("rotation.comboDebugComboTimeScale"), value: entry.comboTimeScale },
+    { key: t("rotation.comboDebugCurrentTime"), value: entry.currentTime.toFixed(3) },
+    { key: t("rotation.comboDebugCooldownUntil"), value: entry.cooldownUntil.toFixed(3) },
+    { key: t("rotation.comboDebugHasActiveWindow"), value: entry.hasActiveComboWindow ? t("rotation.yes") : t("rotation.no") },
+    { key: t("rotation.comboDebugHasPendingCooldown"), value: entry.hasPendingCooldown ? t("rotation.yes") : t("rotation.no") },
   ];
   if (entry.readyAt != null) {
-    rows.push({ key: "Ready At", value: entry.readyAt.toFixed(3) });
+    rows.push({ key: t("rotation.comboDebugReadyAt"), value: entry.readyAt.toFixed(3) });
   }
   if (entry.expiresAt != null) {
-    rows.push({ key: "Expires At", value: entry.expiresAt.toFixed(3) });
+    rows.push({ key: t("rotation.comboDebugExpiresAt"), value: entry.expiresAt.toFixed(3) });
   }
   if (entry.blockReason) {
-    rows.push({ key: "Block Reason", value: formatComboDebugBlockReason(entry.blockReason) });
+    rows.push({ key: t("rotation.comboDebugBlockReason"), value: formatComboDebugBlockReason(entry.blockReason) });
   }
   return rows;
+}
+
+function formatPassiveListenerKind(
+  kind: RotationSimulationResult["passiveListenerDebug"][number]["listenerKind"],
+): string {
+  switch (kind) {
+    case "COMBAT_HOOK":
+      return t("rotation.listenerKindCombatHook");
+    case "GEAR_SET":
+      return t("rotation.listenerKindGearSet");
+    case "WEAPON":
+      return t("rotation.listenerKindWeapon");
+    default:
+      return kind;
+  }
+}
+
+function getPassiveListenerDebugDetailEntries(
+  entry: RotationSimulationResult["passiveListenerDebug"][number],
+): Array<{ key: string; value: string }> {
+  return [
+    { key: t("rotation.passiveDebugEventType"), value: entry.eventType },
+    { key: t("rotation.passiveDebugEventLabel"), value: entry.eventLabel },
+    { key: t("rotation.passiveDebugEventCommandAttackType"), value: entry.eventCommandAttackType ?? "-" },
+    { key: t("rotation.passiveDebugListenerKind"), value: formatPassiveListenerKind(entry.listenerKind) },
+    { key: t("rotation.passiveDebugListenerPresent"), value: entry.listenerPresent ? t("rotation.yes") : t("rotation.no") },
+    { key: t("rotation.passiveDebugSlot"), value: String(entry.slot + 1) },
+    { key: t("rotation.passiveDebugCharacter"), value: `${entry.characterName} (${entry.characterId})` },
+    { key: t("rotation.passiveDebugRealTime"), value: `${entry.time.toFixed(3)}s` },
+    { key: t("rotation.passiveDebugGameTime"), value: `${entry.gameTime.toFixed(3)}s` },
+    { key: t("rotation.passiveDebugStepId"), value: entry.eventStepId ?? "-" },
+    { key: t("rotation.passiveDebugCommandId"), value: entry.eventCommandId ?? "-" },
+  ];
 }
 
 type DragState = {
@@ -1636,6 +1954,20 @@ function getLocalizedCommandName(
       fallbackName: fallbackName ?? command.name,
     });
   }
+  if (command.attackType === "GENERIC") {
+    switch (command.genericActionType) {
+      case "switch":
+        return t("rotation.switch");
+      case "switch_build":
+        return t("rotation.swapBuild");
+      case "dodge":
+        return t("rotation.dodge");
+      case "jump":
+        return t("rotation.jump");
+      default:
+        break;
+    }
+  }
   return fallbackName ?? command.name;
 }
 
@@ -1660,6 +1992,10 @@ function getLocalizedCommandBelongsType(command: CharacterCombatSnapshot["comman
 
 function currentLocale(): "en" | "zh-CN" {
   return locale.value === "zh-CN" ? "zh-CN" : "en";
+}
+
+function localizeStatusOrBuffLabel(label: string | null | undefined): string {
+  return getLocalizedStatusBuffLabel(label, currentLocale());
 }
 
 const currentControlState = computed(() => getControlStateAtRealTime(cursorTime.value));
@@ -1725,6 +2061,9 @@ function executeControlledBasicAttack() {
 }
 
 function executeControlledGeneric(commandId: "__dodge" | "__jump") {
+  if (commandId === "__dodge" && dodgeDisabledByContracts.value) {
+    return;
+  }
   addStepForSlot(currentControlState.value.controlledSlot, commandId);
 }
 
@@ -1969,7 +2308,7 @@ function addGeneratedSp(state: TeamSpState, amount: number, cap = TEAM_SP_MAX) {
   }
 }
 
-function getSpRulesAtRealTime(time: number): { cap: number; regen: number } {
+function getSpRulesAtGameTime(time: number): { cap: number; regen: number } {
   if (time < 0) {
     return { cap: PRE_BATTLE_SP_MAX, regen: PRE_BATTLE_SP_REGEN_RATE };
   }
@@ -1982,13 +2321,22 @@ function addPassiveSpRegenSegment(state: TeamSpState, fromTime: number, toTime: 
   if (end <= start) {
     return;
   }
-  if (start < 0 && end > 0) {
-    addGeneratedSp(state, (0 - start) * PRE_BATTLE_SP_REGEN_RATE, PRE_BATTLE_SP_MAX);
-    addGeneratedSp(state, end * teamSpConfig.value.spRegenRate, TEAM_SP_MAX);
+
+  // Passive SP regen should follow game-time progression, so it pauses during time freeze.
+  const startGameTime = toGameTimeFromExtensions(start, simulation.value.timeExtensions);
+  const endGameTime = toGameTimeFromExtensions(end, simulation.value.timeExtensions);
+  if (endGameTime <= startGameTime) {
     return;
   }
-  const rules = getSpRulesAtRealTime(start);
-  addGeneratedSp(state, (end - start) * rules.regen, rules.cap);
+
+  if (startGameTime < 0 && endGameTime > 0) {
+    addGeneratedSp(state, (0 - startGameTime) * PRE_BATTLE_SP_REGEN_RATE, PRE_BATTLE_SP_MAX);
+    addGeneratedSp(state, endGameTime * teamSpConfig.value.spRegenRate, TEAM_SP_MAX);
+    return;
+  }
+
+  const rules = getSpRulesAtGameTime(startGameTime);
+  addGeneratedSp(state, (endGameTime - startGameTime) * rules.regen, rules.cap);
 }
 
 function consumeTeamSp(state: TeamSpState, amount: number): number {
@@ -2058,6 +2406,7 @@ function applyUltimateEnergyGain(args: {
   sourceType: "command" | "other";
   sourceSlot?: PartySlot;
   sourceCommandAttackType?: CharacterCombatSnapshot["commands"][number]["attackType"];
+  ignoreUltimateGainEfficiency?: boolean;
 }) {
   if (args.rawAmount <= 0) {
     return;
@@ -2081,7 +2430,9 @@ function applyUltimateEnergyGain(args: {
   })) {
     return;
   }
-  const gainMultiplier = getUltEnergyGainMultiplierAtTime(args.targetSlot, args.time);
+  const gainMultiplier = args.ignoreUltimateGainEfficiency
+    ? 1
+    : getUltEnergyGainMultiplierAtTime(args.targetSlot, args.time);
   const gained = args.rawAmount * gainMultiplier;
   if (gained <= 0) {
     return;
@@ -2170,10 +2521,12 @@ const cursorCombatState = computed(() => {
       spGenerated: number;
       spReturned: number;
       energyReturn: number;
+      ignoreUltimateGainEfficiency?: boolean;
       requiresControlledOperator: boolean;
       sourceCommandAttackType?: CharacterCombatSnapshot["commands"][number]["attackType"];
     }
     | { time: number; type: "bonus-return"; amount: number }
+    | { time: number; type: "bonus-generated"; amount: number }
     | { time: number; type: "skill-return"; amount: number }
   > = [];
 
@@ -2220,6 +2573,7 @@ const cursorCombatState = computed(() => {
       spGenerated: hit.spGenerated,
       spReturned: hit.spReturned,
       energyReturn: hit.energyReturn,
+      ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency,
       requiresControlledOperator: hit.requiresControlledOperator,
       sourceCommandAttackType: hit.calculationContext?.attackType,
     });
@@ -2242,12 +2596,21 @@ const cursorCombatState = computed(() => {
       });
     }
   }
+  for (const event of bonusSpGeneratedEvents.value) {
+    if (event.time <= targetTime) {
+      spEvents.push({
+        time: event.time,
+        type: "bonus-generated",
+        amount: event.amount,
+      });
+    }
+  }
 
   spEvents.sort((a, b) => {
     if (a.time !== b.time) {
       return a.time - b.time;
     }
-    const order = { "action-start": 0, "bonus-return": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
+    const order = { "action-start": 0, "bonus-return": 1, "bonus-generated": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
     return order[a.type] - order[b.type];
   });
   let lastSpTime = timelineStart.value;
@@ -2302,6 +2665,9 @@ const cursorCombatState = computed(() => {
     if (event.type === "skill-return") {
       addReturnedSp(teamSp, event.amount);
     }
+    if (event.type === "bonus-generated") {
+      addGeneratedSp(teamSp, event.amount);
+    }
 
     if (event.type === "hit") {
       if (!event.requiresControlledOperator || event.slot === 0) {
@@ -2319,6 +2685,7 @@ const cursorCombatState = computed(() => {
         sourceType: "command",
         sourceSlot: event.slot,
         sourceCommandAttackType: event.sourceCommandAttackType,
+        ignoreUltimateGainEfficiency: event.ignoreUltimateGainEfficiency,
       });
     }
 
@@ -2455,6 +2822,7 @@ const actionValidationByStep = computed(() => {
     | { time: number; type: "action-end"; action: RotationSimulationResult["actions"][number] }
     | { time: number; type: "hit"; hit: RotationSimulationResult["timeline"][number] }
     | { time: number; type: "bonus-return"; amount: number }
+    | { time: number; type: "bonus-generated"; amount: number }
     | { time: number; type: "skill-return"; amount: number }
   > = [];
 
@@ -2474,13 +2842,16 @@ const actionValidationByStep = computed(() => {
   for (const event of bonusSpReturnedEvents.value) {
     validationEvents.push({ time: event.time, type: "skill-return", amount: event.amount });
   }
+  for (const event of bonusSpGeneratedEvents.value) {
+    validationEvents.push({ time: event.time, type: "bonus-generated", amount: event.amount });
+  }
 
   validationEvents.sort((a, b) => {
     if (a.time !== b.time) {
       return a.time - b.time;
     }
 
-    const order = { "action-start": 0, "bonus-return": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
+    const order = { "action-start": 0, "bonus-return": 1, "bonus-generated": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
     return order[a.type] - order[b.type];
   });
 
@@ -2496,6 +2867,10 @@ const actionValidationByStep = computed(() => {
     }
     if (event.type === "skill-return") {
       addReturnedSp(teamSp, event.amount);
+      continue;
+    }
+    if (event.type === "bonus-generated") {
+      addGeneratedSp(teamSp, event.amount);
       continue;
     }
 
@@ -2516,6 +2891,7 @@ const actionValidationByStep = computed(() => {
         sourceType: "command",
         sourceSlot: hit.slot,
         sourceCommandAttackType: hit.calculationContext?.attackType,
+        ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency,
       });
       continue;
     }
@@ -2654,7 +3030,7 @@ const actionValidationByStep = computed(() => {
 
 const enemyCommandValidationById = computed(() => {
   const validations = new Map<string, string>();
-  const maxHp = Math.max(1, props.enemyStats.hp);
+  const maxHp = Math.max(1, currentEnemyDisplayedMaxHp.value);
 
   for (const command of enemyTimelineCommands.value) {
     if (props.selectedEnemyId === "rhodagn" && command.commandId === "phase_transition") {
@@ -2685,6 +3061,9 @@ function addStepAtTime(slot: PartySlot, commandId: string, startTime: number): s
     ? resolveCommandTransform(actor.commands, commandId, commandState)
     : null;
   if (!actor || !command) {
+    return null;
+  }
+  if (command.genericActionType && disabledGenericActions.value.has(command.genericActionType)) {
     return null;
   }
   const snappedStartTime = clampCursorTime(
@@ -2740,7 +3119,7 @@ function addExpandedSteps(
     pruneStaleSteps();
     if (rotation.value.steps.length >= MAX_STEPS_PER_ROTATION) {
       if (typeof window !== "undefined") {
-        window.alert("maximum steps reached");
+        window.alert(t("rotation.maximumStepsReached"));
       }
       return false;
     }
@@ -2781,6 +3160,7 @@ function addExpandedSteps(
       slot,
       commandId: resolved.id,
       startTime: clampCursorTime(clampStartTimeForFreezeWindow(snappedStart, resolved)),
+      buildSwapMap: resolved.id === "__switch_build" ? [1, 2, 3, 0] : undefined,
     };
     rotation.value.steps.push(nextStep);
     firstCreatedStepId ??= nextStep.id;
@@ -2794,7 +3174,10 @@ function addExpandedSteps(
   return firstCreatedStepId;
 }
 
-function addGenericStep(commandId: "__switch" | "__dodge" | "__jump") {
+function addGenericStep(commandId: "__switch" | "__dodge" | "__jump" | "__switch_build") {
+  if (commandId === "__dodge" && dodgeDisabledByContracts.value) {
+    return;
+  }
   addStep(selectedLibrarySlot.value, commandId);
 }
 
@@ -3375,6 +3758,59 @@ function isEnemyCommandSelected(commandPlacementId: string): boolean {
   return selectedEnemyCommandId.value === commandPlacementId;
 }
 
+function parseDebugFlag(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some((entry) => parseDebugFlag(entry));
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes";
+  }
+  return value === true;
+}
+
+function resolveDebugFlagFromUrlFallback(): boolean {
+  const searchValue = new URLSearchParams(window.location.search).get("debug");
+  if (parseDebugFlag(searchValue)) {
+    return true;
+  }
+  const hash = window.location.hash ?? "";
+  const queryIndex = hash.indexOf("?");
+  if (queryIndex < 0) {
+    return false;
+  }
+  const hashQuery = hash.slice(queryIndex + 1);
+  return parseDebugFlag(new URLSearchParams(hashQuery).get("debug"));
+}
+
+watch(
+  () => route.query.debug,
+  (value) => {
+    const enabled = (props.debugMode ?? false) || parseDebugFlag(value) || resolveDebugFlagFromUrlFallback();
+    debugMode.value = enabled;
+    if (enabled) {
+      eventLogExpanded.value = true;
+      comboTriggerDebugExpanded.value = true;
+      passiveListenerDebugExpanded.value = true;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => props.debugMode,
+  (value) => {
+    const enabled = (value ?? false) || parseDebugFlag(route.query.debug) || resolveDebugFlagFromUrlFallback();
+    debugMode.value = enabled;
+    if (enabled) {
+      eventLogExpanded.value = true;
+      comboTriggerDebugExpanded.value = true;
+      passiveListenerDebugExpanded.value = true;
+    }
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   window.addEventListener("mousemove", handlePointerMove);
   window.addEventListener("mouseup", stopBlockDrag);
@@ -3481,6 +3917,14 @@ function getTimelineCommandTypeLabel(entry: {
     return entry.commandName;
   }
 
+  if (command.showNameInTimeline) {
+    return getLocalizedCommandName(
+      command,
+      partyBySlot.value.get(entry.slot)?.characterId,
+      command.name,
+    );
+  }
+
   if (command.showNameInHitTimeline) {
     return getLocalizedCommandName(
       command,
@@ -3530,12 +3974,15 @@ function getTimelineCommandTypeLabel(entry: {
     return "Talent";
   }
   if (command.attackType === "GENERIC") {
-    if (command.showNameInHitTimeline) {
-      return "Talent";
-    }
     switch (command.genericActionType) {
       case "switch":
         return t("rotation.switch");
+      case "switch_build":
+        return getLocalizedCommandName(
+          command,
+          partyBySlot.value.get(entry.slot)?.characterId,
+          command.name,
+        );
       case "dodge":
         return t("rotation.dodge");
       case "jump":
@@ -3573,9 +4020,14 @@ function getCommandDisplayType(command: CharacterCombatSnapshot["commands"][numb
   }
 
   if (command.attackType === "GENERIC") {
+    if (command.showNameInTimeline) {
+      return getLocalizedCommandName(command, undefined, command.name);
+    }
     switch (command.genericActionType) {
       case "switch":
         return t("rotation.switch");
+      case "switch_build":
+        return getLocalizedCommandName(command, undefined, command.name);
       case "dodge":
         return t("rotation.dodge");
       case "jump":
@@ -3819,9 +4271,8 @@ function getCharacterAvatarPath(characterId: string | undefined): string | null 
   if (!characterId) {
     return null;
   }
-
-  const upper = characterId.toUpperCase();
-  return toAssetUrl(`/avatars/${upper}/${upper}.webp`);
+  const character = CHARACTERS.find((entry) => entry.id === characterId);
+  return getCharacterImagePath(character ?? null);
 }
 
 function getCharacterById(characterId: string | undefined) {
@@ -3974,19 +4425,76 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
         </label>
         <label class="mt-4 block">
           <div class="mb-1 flex items-center justify-between gap-3 text-xs text-[#666]">
-            <span class="text-sm font-semibold text-[#1b1b1b]">Consumable</span>
+            <span class="text-sm font-semibold text-[#1b1b1b]">{{ t("builder.consumable") }}</span>
           </div>
-          <select
-            :value="teamSpConfig.consumableBySlot[selectedLibrarySlot] ?? ''"
-            class="h-11 w-full rounded-xl border border-[#d4d4d4] bg-white px-3 text-sm outline-none focus:border-[#c8d13c]"
-            @change="teamSpConfig.consumableBySlot[selectedLibrarySlot] = (($event.target as HTMLSelectElement).value || null)"
-          >
-            <option value="">None</option>
-            <option v-for="item in consumableOptions" :key="item.id" :value="item.id">
-              {{ item.name }}
-            </option>
-          </select>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="h-11 min-w-0 flex-1 rounded-xl border border-[#d4d4d4] bg-white px-3 text-left text-sm outline-none transition hover:border-[#c8d13c]"
+              @click="consumablePickerOpen = true"
+            >
+              <span class="block truncate">{{ selectedConsumableLabel }}</span>
+            </button>
+            <img
+              :src="selectedConsumableIconPath"
+              :alt="t('builder.consumable')"
+              class="h-11 w-11 shrink-0 rounded-lg border border-[#d4d4d4] bg-white object-contain p-1"
+              @error="(($event.target as HTMLImageElement).src = EMPTY_SELECTION_ICON_PATH)"
+            >
+          </div>
         </label>
+      </div>
+
+      <div
+        v-if="consumablePickerOpen"
+        class="fixed inset-0 z-40 flex items-center justify-center bg-black/35 p-4"
+      >
+        <div class="flex max-h-[80vh] w-full max-w-[760px] flex-col rounded-2xl border border-[#d6d6d6] bg-white shadow-xl">
+          <div class="flex items-center justify-between border-b border-[#ececec] px-5 py-3">
+            <h3 class="text-base font-semibold text-[#1b1b1b]">{{ t("builder.consumable") }}</h3>
+            <button
+              type="button"
+              class="rounded-lg border border-[#d4d4d4] px-3 py-1.5 text-xs font-medium text-[#444] transition hover:border-[#bcbcbc] hover:text-[#222]"
+              @click="consumablePickerOpen = false"
+            >
+              {{ t("ui.close") }}
+            </button>
+          </div>
+          <div class="overflow-y-auto p-4">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <button
+                type="button"
+                class="group flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-[#d8d8d8] bg-[#fafafa] p-3 text-center transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                @click="selectConsumableForActiveSlot(null)"
+              >
+                <img
+                  :src="EMPTY_SELECTION_ICON_PATH"
+                  :alt="t('builder.selectedNone')"
+                  class="h-14 w-14 rounded-md object-contain"
+                >
+                <div class="mt-2 text-sm font-medium text-[#333]">{{ t("builder.selectedNone") }}</div>
+              </button>
+
+              <button
+                v-for="item in consumableOptions"
+                :key="item.id"
+                type="button"
+                class="group flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-[#d8d8d8] bg-[#fafafa] p-3 text-center transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                @click="selectConsumableForActiveSlot(item.id)"
+              >
+                <img
+                  :src="getConsumableIconPath(item.id)"
+                  :alt="getConsumableDisplayName(item, locale as 'en' | 'zh-CN')"
+                  class="h-14 w-14 rounded-md object-contain"
+                  @error="(($event.target as HTMLImageElement).src = EMPTY_SELECTION_ICON_PATH)"
+                >
+                <div class="mt-2 line-clamp-2 text-sm font-medium text-[#333]">
+                  {{ getConsumableDisplayName(item, locale as "en" | "zh-CN") }}
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -4000,15 +4508,21 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               <div class="mb-3 text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.enemySetup") }}</div>
               <label class="block">
                 <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("enemy.title") }}</div>
-                <select
-                  :value="props.selectedEnemyId"
-                  class="h-11 w-full rounded-xl border border-[#d4d4d4] bg-white px-3 outline-none focus:border-[#c8d13c]"
-                  @change="emit('update:selectedEnemyId', ($event.target as HTMLSelectElement).value)"
-                >
-                  <option v-for="enemy in props.enemies" :key="enemy.id" :value="enemy.id">
-                    {{ enemy.name }}
-                  </option>
-                </select>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="h-11 min-w-0 flex-1 rounded-xl border border-[#d4d4d4] bg-white px-3 text-left text-sm outline-none transition hover:border-[#c8d13c]"
+                    @click="enemyPickerOpen = true"
+                  >
+                    <span class="block truncate">{{ selectedEnemyData ? getEnemyLocalizedName(selectedEnemyData) : props.enemyName }}</span>
+                  </button>
+                  <img
+                    :src="selectedEnemyIconPath"
+                    :alt="selectedEnemyData ? getEnemyLocalizedName(selectedEnemyData) : props.enemyName"
+                    class="h-11 w-11 shrink-0 rounded-lg border border-[#d4d4d4] bg-white object-contain p-1"
+                    @error="(($event.target as HTMLImageElement).src = EMPTY_SELECTION_ICON_PATH)"
+                  >
+                </div>
               </label>
 
               <label class="mt-4 block">
@@ -4028,10 +4542,49 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </label>
             </section>
 
+            <div
+              v-if="enemyPickerOpen"
+              class="fixed inset-0 z-40 flex items-center justify-center bg-black/35 p-4"
+            >
+              <div class="flex max-h-[80vh] w-full max-w-[760px] flex-col rounded-2xl border border-[#d6d6d6] bg-white shadow-xl">
+                <div class="flex items-center justify-between border-b border-[#ececec] px-5 py-3">
+                  <h3 class="text-base font-semibold text-[#1b1b1b]">{{ t("enemy.title") }}</h3>
+                  <button
+                    type="button"
+                    class="rounded-lg border border-[#d4d4d4] px-3 py-1.5 text-xs font-medium text-[#444] transition hover:border-[#bcbcbc] hover:text-[#222]"
+                    @click="enemyPickerOpen = false"
+                  >
+                    {{ t("ui.close") }}
+                  </button>
+                </div>
+                <div class="overflow-y-auto p-4">
+                  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <button
+                      v-for="enemy in props.enemies"
+                      :key="enemy.id"
+                      type="button"
+                      class="group flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-[#d8d8d8] bg-[#fafafa] p-3 text-center transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                      @click="selectEnemy(enemy.id)"
+                    >
+                      <img
+                        :src="getEnemyIconPath(enemy.id)"
+                        :alt="getEnemyLocalizedName(enemy)"
+                        class="h-14 w-14 rounded-md object-contain"
+                        @error="(($event.target as HTMLImageElement).src = EMPTY_SELECTION_ICON_PATH)"
+                      >
+                      <div class="mt-2 line-clamp-2 text-sm font-medium text-[#333]">
+                        {{ getEnemyLocalizedName(enemy) }}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
               <div class="grid grid-cols-1 gap-3 text-sm">
                 <div class="rounded-lg border border-[#ececec] bg-white px-3 py-2">
-                  {{ t("enemy.hp") }} {{ Math.max(0, props.enemyStats.hp - currentEnemyState.currentDamageTaken).toFixed(0) }} / {{ props.enemyStats.hp }}
+                  {{ t("enemy.hp") }} {{ currentEnemyDisplayedHp.toFixed(0) }} / {{ currentEnemyDisplayedMaxHp.toFixed(0) }}
                 </div>
                 <div class="rounded-lg border border-[#ececec] bg-white px-3 py-2">
                   {{ t("enemy.staggerGauge") }} {{ currentEnemyState.currentStagger.toFixed(1) }} / {{ props.enemyStaggerGauge.toFixed(1) }}
@@ -4087,7 +4640,8 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             <template v-if="selectedCharacterIsControlled">
               <button
                 type="button"
-                class="inline-flex items-center justify-center rounded-xl border border-[#dcdcdc] bg-[#fbfbfb] px-3 py-3 text-sm font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                class="inline-flex items-center justify-center rounded-xl border border-[#dcdcdc] bg-[#fbfbfb] px-3 py-3 text-sm font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2] disabled:cursor-not-allowed disabled:border-[#ececec] disabled:bg-[#f6f6f6] disabled:text-[#9a9a9a]"
+                :disabled="dodgeDisabledByContracts"
                 @click="addGenericStep('__dodge')"
               >
                 {{ t("rotation.dodge") }}
@@ -4115,6 +4669,13 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     : t("rotation.ready")
                 }}
               </span>
+            </button>
+            <button
+              type="button"
+              class="col-span-2 inline-flex items-center justify-center rounded-xl border border-[#dcdcdc] bg-[#fbfbfb] px-3 py-3 text-sm font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+              @click="addGenericStep('__switch_build')"
+            >
+              {{ t("rotation.swapBuild") }}
             </button>
           </section>
 
@@ -4146,7 +4707,8 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 </button>
                 <button
                   type="button"
-                  class="col-span-1 row-span-1 h-11 rounded-xl border border-[#dcdcdc] bg-white text-xs font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                  class="col-span-1 row-span-1 h-11 rounded-xl border border-[#dcdcdc] bg-white text-xs font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2] disabled:cursor-not-allowed disabled:border-[#ececec] disabled:bg-[#f6f6f6] disabled:text-[#9a9a9a]"
+                  :disabled="dodgeDisabledByContracts"
                   @click="executeControlledGeneric('__dodge')"
                 >
                   {{ t("rotation.dodge") }}
@@ -4159,6 +4721,13 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   {{ t("rotation.jump") }}
                 </button>
               </div>
+              <button
+                type="button"
+                class="w-full rounded-xl border border-[#dcdcdc] bg-white px-3 py-2 text-sm font-medium text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                @click="addGenericStep('__switch_build')"
+              >
+                {{ t("rotation.swapBuild") }}
+              </button>
 
               <div class="space-y-1">
                 <div class="grid grid-cols-4 gap-2 py-1 justify-items-center">
@@ -4389,9 +4958,10 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 :key="command.id"
                 type="button"
                 draggable="true"
-                class="block w-full rounded-xl border border-[#e4e4e4] bg-white p-3 text-left transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                class="block w-full rounded-xl border border-[#e4e4e4] bg-white p-3 text-left transition hover:border-[#c8d13c] hover:bg-[#fffde2] disabled:cursor-not-allowed disabled:border-[#ececec] disabled:bg-[#f6f6f6] disabled:text-[#9a9a9a]"
+                :disabled="Boolean(command.genericActionType && disabledGenericActions.has(command.genericActionType))"
                 @click="addStep(libraryCharacter!.slot, command.id)"
-                @dragstart="startLibraryCommandDrag(libraryCharacter!.slot, command.id)"
+                @dragstart="command.genericActionType && disabledGenericActions.has(command.genericActionType) ? undefined : startLibraryCommandDrag(libraryCharacter!.slot, command.id)"
                 @dragend="clearLibraryCommandDrag"
               >
                 <div class="flex items-start justify-between gap-3">
@@ -4466,9 +5036,13 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-          <div class="text-xs text-[#777]">
-            {{ t("rotation.dragTimelineHint") }}
-          </div>
+          <button
+            type="button"
+            class="rounded-lg border border-[#5a1f1f] bg-[#2f0f0f] px-3 py-2 text-sm font-semibold text-[#f5d5d5] transition hover:bg-[#451414]"
+            @click="contractsPopupOpen = true"
+          >
+            {{ `Contracts Lv ${contingencyTotalLevel}` }}
+          </button>
           <button
             type="button"
             class="rounded-lg border border-[#d4d4d4] bg-[#f7f7f7] px-3 py-2 text-sm text-[#333] transition hover:bg-[#efefef]"
@@ -4483,6 +5057,75 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           >
             {{ t("ui.clear") }}
           </button>
+        </div>
+      </div>
+
+      <div
+        v-if="contractsPopupOpen"
+        class="fixed inset-0 z-[140] flex items-center justify-center bg-black/35 px-4 py-8"
+        @click.self="contractsPopupOpen = false"
+      >
+        <div class="w-full max-w-6xl rounded-2xl border border-[#d6d6d6] bg-white p-4 text-[#1b1b1b] shadow-2xl">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div class="text-sm uppercase tracking-[0.2em] text-[#777]">Contingency Contracts</div>
+            <button
+              type="button"
+              class="rounded-md border border-[#d7d7d7] bg-[#f7f7f7] px-3 py-1.5 text-sm text-[#444] transition hover:bg-[#efefef]"
+              @click="contractsPopupOpen = false"
+            >
+              {{ t("ui.close") }}
+            </button>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div class="contracts-scrollbar overflow-x-auto rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-3">
+              <div class="inline-flex min-w-full items-start gap-3">
+                <div
+                  v-for="contract in CONTINGENCY_CONTRACTS"
+                  :key="contract.id"
+                  class="min-w-[154px] rounded-lg border border-[#e3e3e3] bg-white p-2"
+                  @mouseenter="highlightedContractId = contract.id"
+                >
+                  <button
+                    v-for="(level, levelIndex) in contract.levels"
+                    :key="`${contract.id}-${level}`"
+                    type="button"
+                    class="mb-2 block w-full rounded-md border px-2 py-2 text-left text-xs transition last:mb-0"
+                    :class="activeContingencyContracts.some((entry) => entry.id === contract.id && entry.level === level)
+                      ? 'border-[#ea4f4f] bg-[#ffdede] text-[#6f0e0e]'
+                      : 'border-[#d6d6d6] bg-[#f8f8f8] text-[#444] hover:bg-[#fffde2]'"
+                    @click="toggleContractLevel(contract.id, level)"
+                  >
+                    <div class="font-semibold leading-tight">{{ contract.names[levelIndex] }}</div>
+                    <div class="mt-1 text-[11px] leading-tight text-[#666]">{{ contract.descriptions[levelIndex] }}</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
+              <div class="text-sm font-semibold text-[#1b1b1b]">{{ `Total Level: ${contingencyTotalLevel}` }}</div>
+              <div class="mt-3 text-xs uppercase tracking-[0.16em] text-[#777]">Selected Effects</div>
+              <div class="contracts-scrollbar mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
+                <div
+                  v-for="entry in activeContractSummary"
+                  :key="entry.id"
+                  class="rounded-md border border-[#d8d8d8] bg-white p-2 text-xs"
+                >
+                  <div class="font-semibold text-[#1f1f1f]">{{ entry.name }}</div>
+                  <div class="mt-1 text-[#555]">{{ entry.description }}</div>
+                </div>
+                <div v-if="activeContractSummary.length === 0" class="rounded-md border border-dashed border-[#d2d2d2] p-2 text-xs text-[#777]">
+                  No contracts selected.
+                </div>
+              </div>
+
+              <div v-if="highlightedContract" class="mt-4 rounded-md border border-[#d8d8d8] bg-white p-2 text-xs">
+                <div class="font-semibold text-[#1b1b1b]">{{ highlightedContract.name }}</div>
+                <div class="mt-1 text-[#555]">{{ highlightedContract.description }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -4923,12 +5566,12 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 <div class="col-span-2 min-w-0">
                   <div class="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.1em] text-[#7a7a7a]">
                     <span>{{ t("enemy.hp") }}</span>
-                    <span>{{ Math.max(0, props.enemyStats.hp - currentEnemyState.currentDamageTaken).toFixed(0) }} / {{ props.enemyStats.hp }}</span>
+                    <span>{{ currentEnemyDisplayedHp.toFixed(0) }} / {{ currentEnemyDisplayedMaxHp.toFixed(0) }}</span>
                   </div>
                   <div class="h-2 overflow-hidden rounded-full bg-[#ececec]">
                     <div
                       class="h-full bg-[#d86c6c]"
-                      :style="{ width: `${Math.max(0, 1 - currentEnemyState.currentDamageTaken / Math.max(1, props.enemyStats.hp)) * 100}%` }"
+                      :style="{ width: `${Math.max(0, 1 - currentEnemyState.currentDamageTaken / Math.max(1, currentEnemyDisplayedMaxHp)) * 100}%` }"
                     />
                   </div>
                 </div>
@@ -5208,9 +5851,24 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </div>
               <div class="text-xs font-medium text-[#666]">{{ entry.time.toFixed(2) }}s</div>
               <div class="grid grid-cols-3 items-center gap-2 text-right">
-                <div class="text-xs font-medium text-[#5f5f5f]">{{ formatDamage(entry.noCritDamage) }}</div>
-                <div class="text-xs font-medium text-[#5f5f5f]">{{ formatDamage(entry.critDamage) }}</div>
-                <div class="text-sm font-semibold text-[#1b1b1b]">{{ formatDamage(entry.damage) }}</div>
+                <div
+                  class="font-medium"
+                  :class="entry.critRigMode === 'force_non_crit' ? 'text-sm font-semibold text-[#1b1b1b]' : 'text-xs text-[#5f5f5f]'"
+                >
+                  {{ formatDamage(entry.noCritDamage) }}
+                </div>
+                <div
+                  class="font-medium"
+                  :class="entry.critRigMode === 'force_crit' ? 'text-sm font-semibold text-[#1b1b1b]' : 'text-xs text-[#5f5f5f]'"
+                >
+                  {{ formatDamage(entry.critDamage) }}
+                </div>
+                <div
+                  class="font-medium"
+                  :class="entry.critRigMode ? 'text-xs text-[#5f5f5f]' : 'text-sm font-semibold text-[#1b1b1b]'"
+                >
+                  {{ formatDamage(entry.averageDamage) }}
+                </div>
               </div>
             </div>
           </div>
@@ -5219,8 +5877,8 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
         <section v-if="debugMode" class="mt-4 rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
-              <div class="text-sm font-semibold text-[#1b1b1b]">Debug Event Log (Temporary)</div>
-              <div class="text-xs text-[#6a6a6a]">Expand an event to inspect emitted runtime fields.</div>
+              <div class="text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.debugEventLogTitle") }}</div>
+              <div class="text-xs text-[#6a6a6a]">{{ t("rotation.debugEventLogDesc") }}</div>
             </div>
             <button
               type="button"
@@ -5232,11 +5890,11 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           </div>
 
           <div v-if="allEvents.length === 0" class="text-sm text-[#6a6a6a]">
-            No events emitted.
+            {{ t("rotation.noEventsEmitted") }}
           </div>
 
           <div v-else-if="!eventLogExpanded" class="text-sm text-[#8a8a8a]">
-            Event log hidden.
+            {{ t("rotation.eventLogHidden") }}
           </div>
 
           <div v-else class="max-h-[40vh] space-y-2 overflow-y-auto pr-1">
@@ -5273,8 +5931,8 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
         <section v-if="debugMode" class="mt-4 rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
-              <div class="text-sm font-semibold text-[#1b1b1b]">Combo Trigger Debug (Temporary)</div>
-              <div class="text-xs text-[#6a6a6a]">Shows why combo trigger attempts succeeded or failed.</div>
+              <div class="text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.comboTriggerDebugTitle") }}</div>
+              <div class="text-xs text-[#6a6a6a]">{{ t("rotation.comboTriggerDebugDesc") }}</div>
             </div>
             <button
               type="button"
@@ -5286,11 +5944,11 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           </div>
 
           <div v-if="allComboTriggerDebug.length === 0" class="text-sm text-[#6a6a6a]">
-            No combo trigger attempts recorded.
+            {{ t("rotation.noComboTriggerAttempts") }}
           </div>
 
           <div v-else-if="!comboTriggerDebugExpanded" class="text-sm text-[#8a8a8a]">
-            Combo trigger debug hidden.
+            {{ t("rotation.comboTriggerDebugHidden") }}
           </div>
 
           <div v-else class="max-h-[40vh] space-y-2 overflow-y-auto pr-1">
@@ -5302,7 +5960,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               <summary class="cursor-pointer list-none">
                 <div class="grid grid-cols-[minmax(0,1fr)_68px] items-center gap-2">
                   <div class="truncate text-sm font-medium text-[#1b1b1b]">
-                    {{ entry.triggered ? "Triggered" : "Blocked" }} · {{ entry.characterName ?? entry.characterId ?? `Slot ${entry.slot + 1}` }} · {{ entry.sourceEventType }}
+                    {{ entry.triggered ? t("rotation.triggeredShort") : t("rotation.blockedShort") }} · {{ entry.characterName ?? entry.characterId ?? `Slot ${entry.slot + 1}` }} · {{ entry.sourceEventType }}
                   </div>
                   <div class="text-right text-xs font-medium text-[#666]">
                     {{ entry.time.toFixed(2) }}s
@@ -5313,6 +5971,60 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               <div class="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 <div
                   v-for="detail in getComboDebugDetailEntries(entry)"
+                  :key="`${entryIndex}-${detail.key}`"
+                  class="flex items-start justify-between gap-2 rounded border border-[#f0f0f0] bg-[#fcfcfc] px-2 py-1.5 text-xs"
+                >
+                  <span class="text-[#666]">{{ detail.key }}</span>
+                  <span class="break-all text-right font-medium text-[#1b1b1b]">{{ detail.value }}</span>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section v-if="debugMode" class="mt-4 rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.passiveListenerDebugTitle") }}</div>
+              <div class="text-xs text-[#6a6a6a]">{{ t("rotation.passiveListenerDebugDesc") }}</div>
+            </div>
+            <button
+              type="button"
+              class="rounded-lg border border-[#d4d4d4] bg-white px-3 py-2 text-sm text-[#333] transition hover:bg-[#f5f5f5]"
+              @click="passiveListenerDebugExpanded = !passiveListenerDebugExpanded"
+            >
+              {{ passiveListenerDebugExpanded ? t("ui.collapse") : t("ui.expand") }}
+            </button>
+          </div>
+
+          <div v-if="allPassiveListenerDebug.length === 0" class="text-sm text-[#6a6a6a]">
+            {{ t("rotation.noPassiveListenerDispatches") }}
+          </div>
+
+          <div v-else-if="!passiveListenerDebugExpanded" class="text-sm text-[#8a8a8a]">
+            {{ t("rotation.passiveListenerDebugHidden") }}
+          </div>
+
+          <div v-else class="max-h-[40vh] space-y-2 overflow-y-auto pr-1">
+            <details
+              v-for="(entry, entryIndex) in allPassiveListenerDebug"
+              :key="`${entry.eventStepId ?? 'no-step'}-${entry.listenerKind}-${entry.slot}-${entry.time}-${entryIndex}`"
+              class="rounded-lg border border-[#ededed] bg-white px-3 py-2"
+            >
+              <summary class="cursor-pointer list-none">
+                <div class="grid grid-cols-[minmax(0,1fr)_68px] items-center gap-2">
+                  <div class="truncate text-sm font-medium text-[#1b1b1b]">
+                    {{ formatPassiveListenerKind(entry.listenerKind) }} · {{ entry.characterName }} · {{ formatEventType(entry.eventType) }} · {{ entry.listenerPresent ? t("rotation.presentShort") : t("rotation.missingShort") }}
+                  </div>
+                  <div class="text-right text-xs font-medium text-[#666]">
+                    {{ entry.time.toFixed(2) }}s
+                  </div>
+                </div>
+              </summary>
+
+              <div class="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                <div
+                  v-for="detail in getPassiveListenerDebugDetailEntries(entry)"
                   :key="`${entryIndex}-${detail.key}`"
                   class="flex items-start justify-between gap-2 rounded border border-[#f0f0f0] bg-[#fcfcfc] px-2 py-1.5 text-xs"
                 >
@@ -5345,7 +6057,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               {{ formatDamage(tallyWindowSummary.totalDamage) }}
             </div>
             <div v-if="riggedCritChance != null" class="mt-1 text-xs text-[#8b5b23]">
-              Rig chance: {{ (riggedCritChance * 100).toFixed(2) }}%
+              {{ t("rotation.riggedCritChance") }}: {{ (riggedCritChance * 100).toFixed(2) }}%
             </div>
           </div>
           <div class="rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
@@ -5357,37 +6069,43 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           <div class="col-span-2 text-xs text-[#777]">
             {{ enemyName }} {{ t("enemy.level") }} {{ enemyLevel }} · {{ t("rotation.realTime") }} {{ formatTime(simulation.totalTime) }}s · {{ t("rotation.gameTime") }} {{ formatTime(simulation.totalGameTime) }}s
           </div>
+          <div
+            v-if="simulation.warnings && simulation.warnings.length > 0"
+            class="col-span-2 rounded-lg border border-[#f0b1b1] bg-[#fff2f2] px-3 py-2 text-sm font-medium text-[#a52a2a]"
+          >
+            {{ simulation.warnings.join(" · ") }}
+          </div>
           <div class="col-span-2 rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
-            <div class="mb-2 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">Damage Tally Timing</div>
+            <div class="mb-2 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.damageTallyTiming") }}</div>
             <label class="mb-2 flex items-center gap-2 text-sm text-[#333]">
               <input
                 type="checkbox"
                 :checked="localTallyEnabled"
                 @change="localTallyEnabled = ($event.target as HTMLInputElement).checked; emitDamageTallyTimingUpdate()"
               >
-              <span>Custom timing</span>
+              <span>{{ t("rotation.customTiming") }}</span>
             </label>
             <div class="grid grid-cols-2 gap-2">
               <label class="text-xs text-[#666]">
-                Start (s)
+                {{ t("rotation.startSeconds") }}
                 <input
                   type="number"
                   step="0.1"
                   class="mt-1 w-full rounded border border-[#d6d6d6] bg-white px-2 py-1 text-sm text-[#1b1b1b]"
                   :disabled="!localTallyEnabled"
                   :value="displayedTallyStartTime"
-                  @input="localTallyStartTime = Number(($event.target as HTMLInputElement).value); emitDamageTallyTimingUpdate()"
+                  @change="localTallyStartTime = Number(($event.target as HTMLInputElement).value); emitDamageTallyTimingUpdate()"
                 >
               </label>
               <label class="text-xs text-[#666]">
-                End (s)
+                {{ t("rotation.endSeconds") }}
                 <input
                   type="number"
                   step="0.1"
                   class="mt-1 w-full rounded border border-[#d6d6d6] bg-white px-2 py-1 text-sm text-[#1b1b1b]"
                   :disabled="!localTallyEnabled"
                   :value="displayedTallyEndTime"
-                  @input="localTallyEndTime = Number(($event.target as HTMLInputElement).value); emitDamageTallyTimingUpdate()"
+                  @change="localTallyEndTime = Number(($event.target as HTMLInputElement).value); emitDamageTallyTimingUpdate()"
                 >
               </label>
             </div>
@@ -5511,3 +6229,26 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
     />
   </section>
 </template>
+
+<style scoped>
+.contracts-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #c7cf3a #f1f1f1;
+}
+
+.contracts-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.contracts-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 999px;
+}
+
+.contracts-scrollbar::-webkit-scrollbar-thumb {
+  background: #c7cf3a;
+  border-radius: 999px;
+  border: 2px solid #f1f1f1;
+}
+</style>

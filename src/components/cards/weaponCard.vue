@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type { CharacterBase } from "@/data/characters";
 import type { WeaponBase } from "@/data/weapons";
 import { getWeaponImagePath } from "@/lib/assets/imagePaths";
@@ -27,9 +27,13 @@ const props = defineProps<{
   weaponAscensionStage: AscensionStage;
   weaponPotential: PotentialLevel;
   weaponSkillLevels: number[];
+  compareWeaponLevel?: number;
+  compareWeaponAscensionStage?: AscensionStage;
+  compareWeaponPotential?: PotentialLevel;
+  compareWeaponSkillLevels?: number[];
   character: CharacterBase | null;
   buildCostTitle?: string;
-  buildCostLines?: { name: string; amount: number }[];
+  buildCostLines?: { name: string; amount: number; iconPath?: string }[];
   buildCostNote?: string | null;
 }>();
 
@@ -48,6 +52,7 @@ const { t } = useLocale();
 const weaponImagePath = computed(() => getWeaponImagePath(selectedWeapon.value));
 const isPickerOpen = ref(false);
 const rarityFilter = ref<number | "all">("all");
+const weaponLevelInput = ref<HTMLInputElement | null>(null);
 const rarityOptions = computed(() =>
   [...new Set(props.weapons.map((weapon) => weapon.rarity ?? 0))]
     .filter((rarity) => rarity > 0)
@@ -61,6 +66,21 @@ const filteredWeapons = computed(() =>
     return (weapon.rarity ?? 0) === rarityFilter.value;
   }),
 );
+const isBuildCostWarning = computed(() =>
+  typeof props.buildCostNote === "string" && props.buildCostNote.startsWith("__warn__:"),
+);
+const buildCostNoteText = computed(() =>
+  isBuildCostWarning.value
+    ? (props.buildCostNote ?? "").replace(/^__warn__:/, "")
+    : (props.buildCostNote ?? ""),
+);
+
+function formatCompareValue(currentValue: string | number, compareValue?: string | number) {
+  if (compareValue == null || compareValue === currentValue) {
+    return String(currentValue);
+  }
+  return `${currentValue} -> ${compareValue}`;
+}
 
 const skillRanges = computed(() => {
   return [
@@ -69,6 +89,34 @@ const skillRanges = computed(() => {
     getWeaponSkill3Range(props.weaponPotential),
   ];
 });
+const compareSkillRanges = computed(() => {
+  const ascension = props.compareWeaponAscensionStage ?? props.weaponAscensionStage;
+  const potential = props.compareWeaponPotential ?? props.weaponPotential;
+  return [
+    getWeaponSkill1Range(ascension),
+    getWeaponSkill2Range(ascension),
+    getWeaponSkill3Range(potential),
+  ];
+});
+
+function syncWeaponLevelInput() {
+  const input = weaponLevelInput.value;
+  if (!input) {
+    return;
+  }
+  const nextValue = String(props.weaponLevel);
+  if (input.value !== nextValue) {
+    input.value = nextValue;
+  }
+}
+
+watch(
+  () => [props.selectedWeaponId, props.weaponAscensionStage, props.weaponLevel] as const,
+  () => {
+    void nextTick(syncWeaponLevelInput);
+  },
+  { immediate: true, flush: "post" },
+);
 
 function updateSkill(index: number, value: number) {
   emit("update:weaponSkillLevel", { index, value });
@@ -101,6 +149,7 @@ function getLiveBonus(index: number) {
   }
   return getWeaponSkillLiveBonus(weapon, skill, props.weaponSkillLevels[index] ?? skillRanges.value[index]!.min, props.character);
 }
+
 </script>
 
 <template>
@@ -140,7 +189,7 @@ function getLiveBonus(index: number) {
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-[#555]">{{ t("builder.tuningStage") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold">
-            {{ t("builder.tuningStage") }} {{ weaponAscensionStage }}
+            {{ formatCompareValue(weaponAscensionStage, compareWeaponAscensionStage) }}
           </span>
         </div>
 
@@ -165,11 +214,12 @@ function getLiveBonus(index: number) {
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-[#555]">{{ t("builder.weaponLevel") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold tabular-nums">
-            {{ weaponLevel }}
+            {{ formatCompareValue(weaponLevel, compareWeaponLevel) }}
           </span>
         </div>
 
         <input
+          ref="weaponLevelInput"
           :value="weaponLevel"
           @input="emit('update:weaponLevel', Number(($event.target as HTMLInputElement).value))"
           type="range"
@@ -190,7 +240,7 @@ function getLiveBonus(index: number) {
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-[#555]">{{ t("builder.weaponPotential") }}</span>
           <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-sm font-semibold">
-            P{{ weaponPotential }}
+            {{ formatCompareValue(`P${weaponPotential}`, compareWeaponPotential != null ? `P${compareWeaponPotential}` : undefined) }}
           </span>
         </div>
 
@@ -228,8 +278,15 @@ function getLiveBonus(index: number) {
               </div>
             </div>
 
-            <span class="rounded-md bg-white px-2 py-1 text-sm font-semibold tabular-nums">
-              {{ t("ui.levelShort") }} {{ weaponSkillLevels[i] ?? skillRanges[i]!.min }}/{{ skillRanges[i]!.max }}
+            <span class="min-w-[92px] rounded-md bg-white px-2 py-1 text-sm font-semibold tabular-nums">
+              {{
+                formatCompareValue(
+                  `${t("ui.levelShort")} ${weaponSkillLevels[i] ?? skillRanges[i]!.min}/${skillRanges[i]!.max}`,
+                  compareWeaponSkillLevels?.[i] != null
+                    ? `${t("ui.levelShort")} ${compareWeaponSkillLevels[i]}/${compareSkillRanges[i]!.max}`
+                    : undefined,
+                )
+              }}
             </span>
           </div>
 
@@ -255,6 +312,13 @@ function getLiveBonus(index: number) {
           {{ buildCostTitle ?? t("builder.buildCost") }}
         </div>
         <div
+          v-if="buildCostNote"
+          class="mb-2 text-xs"
+          :class="isBuildCostWarning ? 'text-[#c53030]' : 'text-[#777]'"
+        >
+          {{ buildCostNoteText }}
+        </div>
+        <div
           v-if="buildCostLines && buildCostLines.length > 0"
           class="space-y-1.5"
         >
@@ -263,7 +327,16 @@ function getLiveBonus(index: number) {
             :key="line.name"
             class="flex items-center justify-between gap-3"
           >
-            <span class="text-[#666]">{{ line.name }}</span>
+            <span class="flex min-w-0 items-center gap-2 text-[#666]">
+              <img
+                v-if="line.iconPath"
+                :src="line.iconPath"
+                :alt="line.name"
+                class="h-4 w-4 shrink-0 rounded object-contain"
+                loading="lazy"
+              >
+              <span class="truncate">{{ line.name }}</span>
+            </span>
             <span class="font-semibold tabular-nums">{{ line.amount.toLocaleString() }}</span>
           </div>
         </div>
@@ -271,7 +344,7 @@ function getLiveBonus(index: number) {
           v-else
           class="text-[#777]"
         >
-          {{ buildCostNote ?? t("ui.noAdditionalCost") }}
+          {{ t("ui.noAdditionalCost") }}
         </div>
       </div>
     </div>
@@ -334,7 +407,7 @@ function getLiveBonus(index: number) {
             v-for="weapon in filteredWeapons"
             :key="weapon.id"
             type="button"
-            class="overflow-hidden rounded-xl border border-[#dcdcdc] bg-[#fafafa] text-left transition hover:border-[#c9c9c9] hover:bg-white"
+            class="relative overflow-visible rounded-xl border border-[#dcdcdc] bg-[#fafafa] text-left transition hover:border-[#c9c9c9] hover:bg-white"
             :class="weapon.id === selectedWeaponId ? 'ring-2 ring-[#d7d334]' : ''"
             @click="pickWeapon(weapon.id)"
           >

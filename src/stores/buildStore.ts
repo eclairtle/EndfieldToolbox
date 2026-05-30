@@ -37,6 +37,7 @@ function firstOrThrow<T>(arr: T[], name: string): T {
   if (!value) throw new Error(`${name} is empty`);
   return value;
 }
+const BUILD_VARIANT_COUNT = 4;
 
 export type CharacterBuildSlot = {
   id: string;
@@ -63,13 +64,14 @@ export type CharacterBuildSlot = {
   kit2: GearInstance | null;
 
   activeBuffs: BuffInstance[];
-  characterBuilds: Record<string, CharacterBuildSnapshot>;
+  characterBuilds: Record<string, CharacterBuildSnapshot[]>;
   weaponBuilds: Record<string, WeaponBuildSnapshot>;
 };
 
 export type BuildStoreStateSnapshot = {
   slots: CharacterBuildSlot[];
   activeSlotIndex: number;
+  activeVariantIndex?: number;
 };
 
 type CharacterBuildSnapshot = {
@@ -80,6 +82,10 @@ type CharacterBuildSnapshot = {
   uniqueTalentToggles: Record<string, boolean>;
   characterSkillLevels: CharacterSkillLevels;
   selectedWeaponId: string;
+  weaponAscension: AscensionStage;
+  weaponPotential: PotentialLevel;
+  weaponLevel: number;
+  weaponSkillLevels: number[];
   armor: GearInstance | null;
   gloves: GearInstance | null;
   kit1: GearInstance | null;
@@ -172,6 +178,7 @@ export function createDefaultBuildStoreStateSnapshot(): BuildStoreStateSnapshot 
   return {
     slots: [makeDefaultSlot(0), makeDefaultSlot(1), makeDefaultSlot(2), makeDefaultSlot(3)],
     activeSlotIndex: 0,
+    activeVariantIndex: 0,
   };
 }
 
@@ -188,6 +195,7 @@ export const useBuildStore = defineStore("buildStore", () => {
   ]);
 
   const activeSlotIndex = ref(0);
+  const activeVariantIndex = ref(0);
 
   const activeSlot = computed(() => slots.value[activeSlotIndex.value]);
 
@@ -312,7 +320,12 @@ function cloneGearInstance(instance: GearInstance | null): GearInstance | null {
 
 function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
   if (!slot.selectedCharId) return;
-  slot.characterBuilds[slot.selectedCharId] = {
+  const existing = slot.characterBuilds[slot.selectedCharId];
+  const variants: CharacterBuildSnapshot[] = Array.isArray(existing)
+    ? [...existing]
+    : [];
+  while (variants.length < BUILD_VARIANT_COUNT) {
+    variants.push({
       characterAscension: slot.characterAscension,
       characterPotential: slot.characterPotential,
       level: slot.level,
@@ -320,11 +333,34 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
       uniqueTalentToggles: { ...slot.uniqueTalentToggles },
       characterSkillLevels: { ...slot.characterSkillLevels },
       selectedWeaponId: slot.selectedWeaponId,
+      weaponAscension: slot.weaponAscension,
+      weaponPotential: slot.weaponPotential,
+      weaponLevel: slot.weaponLevel,
+      weaponSkillLevels: [...slot.weaponSkillLevels],
+      armor: cloneGearInstance(slot.armor),
+      gloves: cloneGearInstance(slot.gloves),
+      kit1: cloneGearInstance(slot.kit1),
+      kit2: cloneGearInstance(slot.kit2),
+    });
+  }
+  variants[activeVariantIndex.value] = {
+      characterAscension: slot.characterAscension,
+      characterPotential: slot.characterPotential,
+      level: slot.level,
+      characterTalentToggles: { ...slot.characterTalentToggles },
+      uniqueTalentToggles: { ...slot.uniqueTalentToggles },
+      characterSkillLevels: { ...slot.characterSkillLevels },
+      selectedWeaponId: slot.selectedWeaponId,
+      weaponAscension: slot.weaponAscension,
+      weaponPotential: slot.weaponPotential,
+      weaponLevel: slot.weaponLevel,
+      weaponSkillLevels: [...slot.weaponSkillLevels],
       armor: cloneGearInstance(slot.armor),
       gloves: cloneGearInstance(slot.gloves),
       kit1: cloneGearInstance(slot.kit1),
       kit2: cloneGearInstance(slot.kit2),
     };
+  slot.characterBuilds[slot.selectedCharId] = variants;
   }
 
   function snapshotCurrentWeaponBuild(slot: CharacterBuildSlot) {
@@ -358,7 +394,10 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
       (w) => w.weaponType === nextCharacter.weaponType,
     );
 
-    const cachedCharacterBuild = activeSlot.value!.characterBuilds[id];
+    const cachedCharacterBuilds = activeSlot.value!.characterBuilds[id];
+    const cachedCharacterBuild = Array.isArray(cachedCharacterBuilds)
+      ? cachedCharacterBuilds[activeVariantIndex.value]
+      : null;
     if (cachedCharacterBuild) {
       activeSlot.value!.characterAscension = cachedCharacterBuild.characterAscension;
       activeSlot.value!.characterPotential = cachedCharacterBuild.characterPotential;
@@ -379,6 +418,10 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
       }
       activeSlot.value!.uniqueTalentToggles = nextUniqueToggles;
       activeSlot.value!.selectedWeaponId = cachedCharacterBuild.selectedWeaponId;
+      activeSlot.value!.weaponAscension = cachedCharacterBuild.weaponAscension;
+      activeSlot.value!.weaponPotential = cachedCharacterBuild.weaponPotential;
+      activeSlot.value!.weaponLevel = cachedCharacterBuild.weaponLevel;
+      activeSlot.value!.weaponSkillLevels = [...cachedCharacterBuild.weaponSkillLevels];
     } else {
       const defaultCharacterPotential = getDefaultPotentialByRarity(nextCharacter.rarity);
       activeSlot.value!.characterAscension = 4;
@@ -400,7 +443,11 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
     if (activeSlot.value!.selectedCharId && !activeSlot.value!.selectedWeaponId && allowedWeapons.length > 0) {
       activeSlot.value!.selectedWeaponId = allowedWeapons[0]!.id;
     }
-    loadWeaponBuild();
+    if (cachedCharacterBuild && activeSlot.value!.selectedWeaponId) {
+      normalizeWeaponSkillLevels(activeSlot.value!);
+    } else {
+      loadWeaponBuild();
+    }
   }
 
   function setCharacterLevel(level: number) {
@@ -460,36 +507,40 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
     loadWeaponBuild();
   }
 
-  function loadWeaponBuild() {
-    if (!activeSlot.value!.selectedCharId || !activeSlot.value!.selectedWeaponId) {
-      activeSlot.value!.weaponAscension = 4;
-      activeSlot.value!.weaponPotential = 0;
-      activeSlot.value!.weaponLevel = 90;
-      setWeaponSkillLevelsToMax(activeSlot.value!);
+  function loadWeaponBuildForSlot(slot: CharacterBuildSlot) {
+    if (!slot.selectedCharId || !slot.selectedWeaponId) {
+      slot.weaponAscension = 4;
+      slot.weaponPotential = 0;
+      slot.weaponLevel = 90;
+      setWeaponSkillLevelsToMax(slot);
       return;
     }
 
     const key = makeWeaponBuildKey(
-      activeSlot.value!.selectedCharId,
-      activeSlot.value!.selectedWeaponId,
+      slot.selectedCharId,
+      slot.selectedWeaponId,
     );
-    const cachedWeaponBuild = activeSlot.value!.weaponBuilds[key];
+    const cachedWeaponBuild = slot.weaponBuilds[key];
 
     if (cachedWeaponBuild) {
-      activeSlot.value!.weaponAscension = cachedWeaponBuild.weaponAscension;
-      activeSlot.value!.weaponPotential = cachedWeaponBuild.weaponPotential;
-      activeSlot.value!.weaponLevel = cachedWeaponBuild.weaponLevel;
-      activeSlot.value!.weaponSkillLevels = [...cachedWeaponBuild.weaponSkillLevels];
-      normalizeWeaponSkillLevels(activeSlot.value!);
+      slot.weaponAscension = cachedWeaponBuild.weaponAscension;
+      slot.weaponPotential = cachedWeaponBuild.weaponPotential;
+      slot.weaponLevel = cachedWeaponBuild.weaponLevel;
+      slot.weaponSkillLevels = [...cachedWeaponBuild.weaponSkillLevels];
+      normalizeWeaponSkillLevels(slot);
       return;
     }
 
-    const selectedWeaponDef = getWeaponById(activeSlot.value!.selectedWeaponId);
+    const selectedWeaponDef = getWeaponById(slot.selectedWeaponId);
     const defaultWeaponPotential = getDefaultPotentialByRarity(selectedWeaponDef?.rarity);
-    activeSlot.value!.weaponAscension = 4;
-    activeSlot.value!.weaponPotential = defaultWeaponPotential;
-    activeSlot.value!.weaponLevel = 90;
-    setWeaponSkillLevelsToMax(activeSlot.value!);
+    slot.weaponAscension = 4;
+    slot.weaponPotential = defaultWeaponPotential;
+    slot.weaponLevel = 90;
+    setWeaponSkillLevelsToMax(slot);
+  }
+
+  function loadWeaponBuild() {
+    loadWeaponBuildForSlot(activeSlot.value!);
   }
 
   function setWeaponLevel(level: number) {
@@ -581,12 +632,53 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
     const next = createDefaultBuildStoreStateSnapshot();
     slots.value = next.slots;
     activeSlotIndex.value = next.activeSlotIndex;
+    activeVariantIndex.value = next.activeVariantIndex ?? 0;
+  }
+
+  function setActiveVariantIndex(index: number) {
+    if (index < 0 || index >= BUILD_VARIANT_COUNT || index === activeVariantIndex.value) {
+      return;
+    }
+    for (const slot of slots.value) {
+      snapshotCurrentWeaponBuild(slot);
+      snapshotCurrentCharacterBuild(slot);
+    }
+    activeVariantIndex.value = index;
+    const previousActiveSlotIndex = activeSlotIndex.value;
+    for (const slot of slots.value) {
+      if (!slot.selectedCharId) {
+        continue;
+      }
+      const cachedCharacterBuilds = slot.characterBuilds[slot.selectedCharId];
+      const cached = Array.isArray(cachedCharacterBuilds) ? cachedCharacterBuilds[index] : null;
+      if (!cached) {
+        continue;
+      }
+      slot.characterAscension = cached.characterAscension;
+      slot.characterPotential = cached.characterPotential;
+      slot.level = cached.level;
+      slot.characterTalentToggles = { ...cached.characterTalentToggles };
+      slot.characterSkillLevels = { ...cached.characterSkillLevels };
+      slot.armor = cloneGearInstance(cached.armor);
+      slot.gloves = cloneGearInstance(cached.gloves);
+      slot.kit1 = cloneGearInstance(cached.kit1);
+      slot.kit2 = cloneGearInstance(cached.kit2);
+      slot.uniqueTalentToggles = { ...cached.uniqueTalentToggles };
+      slot.selectedWeaponId = cached.selectedWeaponId;
+      slot.weaponAscension = cached.weaponAscension;
+      slot.weaponPotential = cached.weaponPotential;
+      slot.weaponLevel = cached.weaponLevel;
+      slot.weaponSkillLevels = [...cached.weaponSkillLevels];
+      normalizeWeaponSkillLevels(slot);
+    }
+    activeSlotIndex.value = previousActiveSlotIndex;
   }
 
   function exportStateSnapshot(): BuildStoreStateSnapshot {
     return {
       slots: cloneSnapshotSlots(slots.value),
       activeSlotIndex: activeSlotIndex.value,
+      activeVariantIndex: activeVariantIndex.value,
     };
   }
 
@@ -598,7 +690,56 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
     const normalizedSlots = cloneSnapshotSlots(snapshot.slots);
     for (const slot of normalizedSlots) {
       slot.uniqueTalentToggles = slot.uniqueTalentToggles ?? {};
-      slot.characterBuilds = slot.characterBuilds ?? {};
+      const normalizedCharacterBuilds: Record<string, CharacterBuildSnapshot[]> = {};
+      for (const [characterId, raw] of Object.entries(slot.characterBuilds ?? {})) {
+        if (Array.isArray(raw)) {
+          const variants = raw.slice(0, BUILD_VARIANT_COUNT).map((entry) => ({
+            ...entry,
+            weaponAscension: entry.weaponAscension ?? slot.weaponAscension,
+            weaponPotential: entry.weaponPotential ?? slot.weaponPotential,
+            weaponLevel: entry.weaponLevel ?? slot.weaponLevel,
+            weaponSkillLevels: Array.isArray(entry.weaponSkillLevels)
+              ? [...entry.weaponSkillLevels]
+              : [...slot.weaponSkillLevels],
+          }));
+          while (variants.length < BUILD_VARIANT_COUNT) {
+            variants.push(variants[0] ? { ...variants[0] } : {
+              characterAscension: slot.characterAscension,
+              characterPotential: slot.characterPotential,
+              level: slot.level,
+              characterTalentToggles: { ...slot.characterTalentToggles },
+              uniqueTalentToggles: { ...slot.uniqueTalentToggles },
+              characterSkillLevels: { ...slot.characterSkillLevels },
+              selectedWeaponId: slot.selectedWeaponId,
+              weaponAscension: slot.weaponAscension,
+              weaponPotential: slot.weaponPotential,
+              weaponLevel: slot.weaponLevel,
+              weaponSkillLevels: [...slot.weaponSkillLevels],
+              armor: cloneGearInstance(slot.armor),
+              gloves: cloneGearInstance(slot.gloves),
+              kit1: cloneGearInstance(slot.kit1),
+              kit2: cloneGearInstance(slot.kit2),
+            });
+          }
+          normalizedCharacterBuilds[characterId] = variants;
+        } else if (raw && typeof raw === "object") {
+          const legacy = raw as CharacterBuildSnapshot;
+          const normalizedLegacy: CharacterBuildSnapshot = {
+            ...legacy,
+            weaponAscension: legacy.weaponAscension ?? slot.weaponAscension,
+            weaponPotential: legacy.weaponPotential ?? slot.weaponPotential,
+            weaponLevel: legacy.weaponLevel ?? slot.weaponLevel,
+            weaponSkillLevels: Array.isArray(legacy.weaponSkillLevels)
+              ? [...legacy.weaponSkillLevels]
+              : [...slot.weaponSkillLevels],
+          };
+          normalizedCharacterBuilds[characterId] = Array.from(
+            { length: BUILD_VARIANT_COUNT },
+            () => ({ ...normalizedLegacy }),
+          );
+        }
+      }
+      slot.characterBuilds = normalizedCharacterBuilds;
       slot.weaponBuilds = slot.weaponBuilds ?? {};
     }
 
@@ -606,6 +747,12 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
     activeSlotIndex.value =
       typeof snapshot.activeSlotIndex === "number" && snapshot.activeSlotIndex >= 0 && snapshot.activeSlotIndex < 4
         ? snapshot.activeSlotIndex
+        : 0;
+    activeVariantIndex.value =
+      typeof snapshot.activeVariantIndex === "number"
+      && snapshot.activeVariantIndex >= 0
+      && snapshot.activeVariantIndex < BUILD_VARIANT_COUNT
+        ? snapshot.activeVariantIndex
         : 0;
   }
 
@@ -625,6 +772,7 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
       characterAscensionStage: activeSlot.value!.characterAscension,
       characterPotential: activeSlot.value!.characterPotential,
       characterTalentToggles: activeSlot.value!.characterTalentToggles,
+      uniqueTalentToggles: activeSlot.value!.uniqueTalentToggles,
       weaponAscensionStage: activeSlot.value!.weaponAscension,
       weaponPotential: activeSlot.value!.weaponPotential,
 
@@ -671,8 +819,10 @@ function snapshotCurrentCharacterBuild(slot: CharacterBuildSlot) {
   return {
     slots,
     activeSlotIndex,
+    activeVariantIndex,
     activeSlot,
     setActiveSlot,
+    setActiveVariantIndex,
 
     selectedChar,
     selectedWeapon,

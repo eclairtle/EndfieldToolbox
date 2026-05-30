@@ -123,7 +123,7 @@ const LASTRITE_COMMANDS: CommandDefinition[] = [
     mode: "single",
     durationFrames: flat12(130),
     spCost: flat12(0),
-    timeFreezeSeconds: flat12(1.5),
+    timeFreezeSeconds: flat12(1.2),
     comboCooldownSeconds: [9,9,9,9,9,9,9,9,9,9,9,8],
     hits: [
       {
@@ -148,11 +148,19 @@ const LASTRITE_COMMANDS: CommandDefinition[] = [
       },
     ],
   },
-  { id: "lastrite_ultimate", name: "Vigil Services", skill: "ultimate", attackType: "ULTIMATE", damageType: "Cryo", mode: "single", durationFrames: flat12(280), spCost: flat12(0), energyCost: flat12(240), hits: [
-    { name: "Seq 1", multiplier: pct([178,196,213,231,249,267,284,302,320,342,369,400]), stagger: flat12(5), offsetFrames: flat12(172) },
-    { name: "Seq 2", multiplier: pct([178,196,213,231,249,267,284,302,320,342,369,400]), stagger: flat12(5), offsetFrames: flat12(210) },
-    { name: "Seq 3", multiplier: pct([356,391,427,462,498,533,569,604,640,684,738,800]), stagger: flat12(10), offsetFrames: flat12(268) },
-  ] },
+  { id: "lastrite_ultimate", name: "Vigil Services", skill: "ultimate", 
+    attackType: "ULTIMATE", damageType: "Cryo", mode: "single", 
+    durationFrames: flat12(280), 
+    spCost: flat12(0), 
+    energyCost: flat12(240), 
+    timeFreezeSeconds: flat12(2.75),
+    cutscene: true,
+    hits: [
+      { name: "Seq 1", multiplier: pct([178,196,213,231,249,267,284,302,320,342,369,400]), stagger: flat12(5), offsetFrames: flat12(172) },
+      { name: "Seq 2", multiplier: pct([178,196,213,231,249,267,284,302,320,342,369,400]), stagger: flat12(5), offsetFrames: flat12(210) },
+      { name: "Seq 3", multiplier: pct([356,391,427,462,498,533,569,604,640,684,738,800]), stagger: flat12(10), offsetFrames: flat12(268) },
+    ] 
+  },
 ];
 
 const LASTRITE_EXECUTE_HITS: ExecuteHitDefinition[] = [

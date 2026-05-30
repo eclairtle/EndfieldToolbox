@@ -1,17 +1,29 @@
 import type { CharacterBase } from "@/data/characters";
-import { flat12, pct, type CommandDefinition, type ExecuteHitDefinition } from "@/lib/commands";
+import {
+  flat12,
+  pct,
+  type CommandDefinition,
+  type ExecuteHitDefinition,
+  type CommandHitEffectDefinition,
+} from "@/lib/commands";
 import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 
 const TANGTANG_WHIRLPOOL_BUFF_ID = "tangtang_whirlpool";
 const TANGTANG_ULTIMATE_STATUS_ID = "tangtang_olden_stare";
+const TANGTANG_ULTIMATE_VULNERABLE_STATUS_ID = "tangtang_olden_stare_vulnerable";
 const TANGTANG_ULTIMATE_TICK_HIT_ID = "tangtang_ultimate_olden_stare_tick";
 const TANGTANG_ULTIMATE_DELAYED_HIT_ID = "tangtang_ultimate_rogue_wave_delayed";
 const TANGTANG_ULTIMATE_EARLY_HIT_ID = "tangtang_ultimate_rogue_wave_early";
 const TANGTANG_BATTLE_SKILL_WATERSPOUT_REPEAT_HIT_ID = "tangtang_battle_skill_waterspout_repeat";
+const TANGTANG_ULTIMATE_TALENT_WATERSPOUT_REPEAT_HIT_ID = "tangtang_ultimate_talent_waterspout_repeat";
+const TANGTANG_TALENT_RIOT_BRINGER_1 = "tangtang_riot_bringer_1";
+const TANGTANG_TALENT_RIOT_BRINGER_2 = "tangtang_riot_bringer_2";
 const TANGTANG_ULTIMATE_APPLY_FRAME = 151.8;
 const TANGTANG_ULTIMATE_END_FRAME = 418.2;
 const TANGTANG_ULTIMATE_STATUS_DURATION_SECONDS = (TANGTANG_ULTIMATE_END_FRAME - TANGTANG_ULTIMATE_APPLY_FRAME) / 60;
+const TANGTANG_ULTIMATE_VULNERABLE_DURATION_SECONDS = TANGTANG_ULTIMATE_STATUS_DURATION_SECONDS + 1.2;
 const TANGTANG_ULTIMATE_STATUS_PERIODS = 8;
+const TANGTANG_ULTIMATE_STATUS_MAX_PERIODS = 7;
 
 const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
@@ -20,20 +32,80 @@ const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
         return;
       }
 
-      ctx.state.applyEffects({
-        effects: [
+      const hasRiotBringer2 = ctx.state.isSelfUniqueTalentEnabled(TANGTANG_TALENT_RIOT_BRINGER_2);
+      const hasRiotBringer1 = hasRiotBringer2 || ctx.state.isSelfUniqueTalentEnabled(TANGTANG_TALENT_RIOT_BRINGER_1);
+      const waterspoutBonus = ctx.state.isSelfPotentialActive(5)
+        ? 0.8
+        : hasRiotBringer2
+          ? 0.6
+          : hasRiotBringer1
+            ? 0.4
+            : 0;
+      const shouldCreateAdditionalWaterspouts = hasRiotBringer1 && ctx.state.hasSelfBuff(TANGTANG_WHIRLPOOL_BUFF_ID);
+
+      const effects: CommandHitEffectDefinition[] = [
+        {
+          type: "REMOVE_STATUS" as const,
+          target: "global" as const,
+          statusId: TANGTANG_ULTIMATE_STATUS_ID,
+        },
+        {
+          type: "EXECUTE_HIT" as const,
+          hitRefId: TANGTANG_ULTIMATE_EARLY_HIT_ID,
+          commandName: "DA CHIEF SEES YOU!",
+          hitName: "Rogue Wave (Early)",
+        },
+      ];
+
+      if (hasRiotBringer1) {
+        effects.push({
+          type: "EXECUTE_HIT",
+          hitRefId: TANGTANG_ULTIMATE_TALENT_WATERSPOUT_REPEAT_HIT_ID,
+          commandName: "DA CHIEF SEES YOU!",
+          hitName: "Waterspout (Riot Bringer)",
+          times: 12,
+          repeatIntervalFrames: 15,
+          registerAtInitialTime: true,
+        });
+      }
+
+      if (shouldCreateAdditionalWaterspouts) {
+        effects.push(
           {
-            type: "REMOVE_STATUS",
-            target: "global",
-            statusId: TANGTANG_ULTIMATE_STATUS_ID,
+            type: "EXECUTE_HIT",
+            hitRefId: TANGTANG_ULTIMATE_TALENT_WATERSPOUT_REPEAT_HIT_ID,
+            commandName: "DA CHIEF SEES YOU!",
+            hitName: "Additional Waterspout (Riot Bringer)",
+            times: 12,
+            repeatIntervalFrames: 15,
+            registerAtInitialTime: true,
           },
           {
             type: "EXECUTE_HIT",
-            hitRefId: TANGTANG_ULTIMATE_EARLY_HIT_ID,
+            hitRefId: TANGTANG_ULTIMATE_TALENT_WATERSPOUT_REPEAT_HIT_ID,
             commandName: "DA CHIEF SEES YOU!",
-            hitName: "Rogue Wave (Early)",
+            hitName: "Additional Waterspout (Riot Bringer)",
+            times: 12,
+            repeatIntervalFrames: 15,
+            registerAtInitialTime: true,
           },
-        ],
+          {
+            type: "REMOVE_BUFF",
+            target: "self",
+            buffId: TANGTANG_WHIRLPOOL_BUFF_ID,
+            stacks: 1,
+          },
+          {
+            type: "REMOVE_BUFF",
+            target: "self",
+            buffId: TANGTANG_WHIRLPOOL_BUFF_ID,
+            stacks: 1,
+          },
+        );
+      }
+
+      ctx.state.applyEffects({
+        effects,
         stepId: ctx.event.stepId,
       });
       return;
@@ -221,7 +293,7 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Cryo",
     mode: "single",
-    durationFrames: flat12(100.2),
+    durationFrames: flat12(80.2),
     spCost: flat12(100),
     energyGain: flat12(0),
     hits: [
@@ -231,12 +303,12 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
         times: 5,
         repeatIntervalFrames: flat12(10),
         repeatRegisterOffsetWithInterval: false,
-        offsetFrames: flat12(46.2),
+        offsetFrames: flat12(36.2),
       },
       {
         name: "Create Waterspout",
         multiplier: flat12(0),
-        offsetFrames: flat12(54),
+        offsetFrames: flat12(44),
         effects: [
           {
             type: "EXECUTE_HIT",
@@ -285,7 +357,7 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
         times: 2,
         repeatIntervalFrames: flat12(1),
         repeatRegisterOffsetWithInterval: false,
-        offsetFrames: flat12(55),
+        offsetFrames: flat12(45),
         executeCondition: {
           requiresSelfBuffId: TANGTANG_WHIRLPOOL_BUFF_ID,
           requiresStacksAtLeast: 1,
@@ -346,6 +418,7 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
     damageType: "Cryo",
     mode: "single",
     durationFrames: flat12(168),
+    delayedEnd: true,
     timeFreezeSeconds: flat12(151.8 / 60),
     cutscene: true,
     spCost: flat12(0),
@@ -359,11 +432,28 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
           {
             type: "APPLY_STATUS",
             target: "global",
+            statusId: TANGTANG_ULTIMATE_VULNERABLE_STATUS_ID,
+            label: "OLDEN STARE (Vulnerable)",
+            durationSeconds: TANGTANG_ULTIMATE_VULNERABLE_DURATION_SECONDS,
+            timeScale: "game",
+          },
+          {
+            type: "APPLY_STATUS",
+            target: "global",
             statusId: TANGTANG_ULTIMATE_STATUS_ID,
             label: "OLDEN STARE",
             durationSeconds: TANGTANG_ULTIMATE_STATUS_DURATION_SECONDS,
             timeScale: "game",
             periods: TANGTANG_ULTIMATE_STATUS_PERIODS,
+            maxPeriods: TANGTANG_ULTIMATE_STATUS_MAX_PERIODS,
+            initialEffects: [
+              {
+                type: "EXECUTE_HIT",
+                hitRefId: TANGTANG_ULTIMATE_TICK_HIT_ID,
+                commandName: "DA CHIEF SEES YOU!",
+                hitName: "OLDEN STARE Tick",
+              },
+            ],
             periodicEffects: [
               {
                 type: "EXECUTE_HIT",
@@ -372,7 +462,21 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
                 hitName: "OLDEN STARE Tick",
               },
             ],
+            removeEffects: [
+              {
+                type: "EMIT_EVENT",
+                eventType: "ULTIMATE_END",
+                label: "Tangtang Ultimate End",
+                commandAttackType: "ULTIMATE",
+              },
+            ],
             expireEffects: [
+              {
+                type: "EMIT_EVENT",
+                eventType: "ULTIMATE_END",
+                label: "Tangtang Ultimate End",
+                commandAttackType: "ULTIMATE",
+              },
               {
                 type: "EXECUTE_HIT",
                 hitRefId: TANGTANG_ULTIMATE_DELAYED_HIT_ID,
@@ -431,6 +535,17 @@ const TANGTANG_EXECUTE_HITS: ExecuteHitDefinition[] = [
     damageType: "Cryo",
     commandId: "tangtang_battle_skill",
     commandName: "IMA WAVERIDAAH!",
+    multiplier: pct([11.0833333333, 12.25, 13.3333333333, 14.5, 15.5833333333, 16.6666666667, 17.8333333333, 18.9166666667, 20, 21.4166666667, 23.0833333333, 25]),
+    offsetFrames: flat12(0),
+  },
+  {
+    id: TANGTANG_ULTIMATE_TALENT_WATERSPOUT_REPEAT_HIT_ID,
+    name: "Waterspout (Riot Bringer)",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Cryo",
+    commandId: "tangtang_ultimate",
+    commandName: "DA CHIEF SEES YOU!",
     multiplier: pct([11.0833333333, 12.25, 13.3333333333, 14.5, 15.5833333333, 16.6666666667, 17.8333333333, 18.9166666667, 20, 21.4166666667, 23.0833333333, 25]),
     offsetFrames: flat12(0),
   },
@@ -516,48 +631,48 @@ export const TANGTANG: CharacterBase = {
         return {
           ...command,
           hits: command.hits.map((hit) => {
-            if (hit.name !== "Additional Waterspout x2") {
-              return hit;
-            }
-            return {
-              ...hit,
-              spReturned: hit.spReturned + 5,
-            };
-          }),
-        };
-      }
+            let nextHit = hit;
 
-      if (command.id === "tangtang_battle_skill" && potentialLevel >= 3) {
-        return {
-          ...command,
-          hits: command.hits.map((hit) => ({
-            ...hit,
-            multiplier: hit.multiplier * 1.1,
-            effects: hit.effects.map((effect) => {
-              if (effect.type !== "APPLY_BUFF" || effect.target !== "enemy") {
-                return effect;
-              }
-              return {
-                ...effect,
-                effects: {
-                  ...effect.effects,
-                  ARTS_SUS_PCT: (effect.effects?.ARTS_SUS_PCT ?? 0) + 0.05,
-                },
+            if (hit.name === "Additional Waterspout x2") {
+              nextHit = {
+                ...nextHit,
+                spReturned: nextHit.spReturned + 5,
               };
-            }),
-            postEffects: (hit.postEffects ?? []).map((effect) => {
-              if (effect.type !== "APPLY_BUFF" || effect.target !== "enemy") {
-                return effect;
-              }
-              return {
-                ...effect,
-                effects: {
-                  ...effect.effects,
-                  ARTS_SUS_PCT: (effect.effects?.ARTS_SUS_PCT ?? 0) + 0.05,
-                },
+            }
+
+            if (potentialLevel >= 3) {
+              nextHit = {
+                ...nextHit,
+                multiplier: nextHit.multiplier * 1.1,
+                effects: (nextHit.effects ?? []).map((effect) => {
+                  if (effect.type !== "APPLY_BUFF" || effect.target !== "enemy") {
+                    return effect;
+                  }
+                  return {
+                    ...effect,
+                    effects: {
+                      ...(effect.effects ?? {}),
+                      ARTS_SUS_PCT: (effect.effects?.ARTS_SUS_PCT ?? 0) + 0.05,
+                    },
+                  };
+                }),
+                postEffects: (nextHit.postEffects ?? []).map((effect) => {
+                  if (effect.type !== "APPLY_BUFF" || effect.target !== "enemy") {
+                    return effect;
+                  }
+                  return {
+                    ...effect,
+                    effects: {
+                      ...(effect.effects ?? {}),
+                      ARTS_SUS_PCT: (effect.effects?.ARTS_SUS_PCT ?? 0) + 0.05,
+                    },
+                  };
+                }),
               };
-            }),
-          })),
+            }
+
+            return nextHit;
+          }),
         };
       }
 
@@ -583,12 +698,48 @@ export const TANGTANG: CharacterBase = {
   },
   mutateResolvedExecuteHits: (executeHits, ctx) => {
     const potentialLevel = ctx.buildState.potentialLevel ?? 0;
-    if (potentialLevel < 5) {
-      return executeHits;
-    }
+    const hasRiotBringer2 = Boolean(ctx.buildState.uniqueTalentToggles?.[TANGTANG_TALENT_RIOT_BRINGER_2]);
+    const hasRiotBringer1 = hasRiotBringer2 || Boolean(ctx.buildState.uniqueTalentToggles?.[TANGTANG_TALENT_RIOT_BRINGER_1]);
+    const waterspoutBonus = potentialLevel >= 5
+      ? 0.8
+      : hasRiotBringer2
+        ? 0.6
+        : hasRiotBringer1
+          ? 0.4
+          : 0;
 
     return Object.fromEntries(
       Object.entries(executeHits).map(([hitId, executeHit]) => {
+        if (hitId === TANGTANG_ULTIMATE_TALENT_WATERSPOUT_REPEAT_HIT_ID) {
+          return [
+            hitId,
+            {
+              ...executeHit,
+              hit: {
+                ...executeHit.hit,
+                multiplier: executeHit.hit.multiplier * (potentialLevel >= 3 ? 1.1 : 1) * (1 + waterspoutBonus),
+              },
+            },
+          ];
+        }
+
+        if (hitId === TANGTANG_BATTLE_SKILL_WATERSPOUT_REPEAT_HIT_ID && potentialLevel >= 3) {
+          return [
+            hitId,
+            {
+              ...executeHit,
+              hit: {
+                ...executeHit.hit,
+                multiplier: executeHit.hit.multiplier * 1.1,
+              },
+            },
+          ];
+        }
+
+        if (potentialLevel < 5) {
+          return [hitId, executeHit];
+        }
+
         if (
           hitId === TANGTANG_ULTIMATE_TICK_HIT_ID
           || hitId === TANGTANG_ULTIMATE_DELAYED_HIT_ID

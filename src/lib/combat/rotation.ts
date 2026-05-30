@@ -21,6 +21,7 @@ export type RotationStep = {
   groupId?: string;
   missed?: boolean;
   interrupted?: boolean;
+  buildSwapMap?: [number, number, number, number];
 };
 
 export type RotationGroup = {
@@ -29,6 +30,8 @@ export type RotationGroup = {
 };
 
 export type CritRigMode = "force_crit" | "force_non_crit";
+export const CRIT_RIG_HIT_INDEX_REACTION = -1;
+export const CRIT_RIG_HIT_INDEX_EXECUTE = -2;
 
 export type CritRiggingRule = {
   id: string;
@@ -67,6 +70,12 @@ export type CharacterCombatSnapshot = {
   baseAtk: number;
   weaponAtk: number;
   attributeBonus: number;
+  attributeScaling: {
+    STR?: number;
+    AGI?: number;
+    INT?: number;
+    WIL?: number;
+  };
   attrs: {
     STR: number;
     AGI: number;
@@ -100,11 +109,13 @@ export type DamageTimelineEntry = {
   multiplier: number;
   noCritDamage: number;
   critDamage: number;
+  averageDamage: number;
   damage: number;
   stagger: number;
   spGenerated: number;
   spReturned: number;
   energyReturn: number;
+  ignoreUltimateGainEfficiency?: boolean;
   requiresControlledOperator: boolean;
   triggeredComboSlots: PartySlot[];
   critRigMode?: CritRigMode;
@@ -152,6 +163,7 @@ export type CompiledRotationAction = {
   cutscene: boolean;
   missed?: boolean;
   interrupted?: boolean;
+  buildSwapMap?: [number, number, number, number];
 };
 
 export type ActorActiveBuffState = {
@@ -177,6 +189,7 @@ export type ActorCombatStateSnapshot = {
   time: number;
   gameTime: number;
   slot: PartySlot;
+  activeBuildVariant: number;
   currentHp: number;
   maxHp: number;
   meltingFlameStacks: number;
@@ -255,6 +268,25 @@ export type RotationSimulationResult = {
   enemyStaggerDecayRate: number;
   riggedCritCount: number;
   comboTriggerDebug: ComboTriggerDebugEntry[];
+  passiveListenerDebug: PassiveListenerDebugEntry[];
+  warnings?: string[];
+};
+
+export type PassiveListenerKind = "COMBAT_HOOK" | "GEAR_SET" | "WEAPON";
+
+export type PassiveListenerDebugEntry = {
+  time: number;
+  gameTime: number;
+  eventType: RotationCombatEventType;
+  eventLabel: string;
+  eventStepId?: string;
+  eventCommandId?: string;
+  eventCommandAttackType?: RotationCombatEvent["commandAttackType"];
+  listenerKind: PassiveListenerKind;
+  slot: PartySlot;
+  characterId: string;
+  characterName: string;
+  listenerPresent: boolean;
 };
 
 export type ComboTriggerDebugBlockReason =
@@ -286,6 +318,7 @@ export type ComboTriggerDebugEntry = {
 
 export type RotationCombatEventType =
   | "ULTIMATE_CAST"
+  | "ULTIMATE_END"
   | "CRIT_THRESHOLD_REACHED"
   | "BASIC_ATTACK_FINAL_STRIKE_HIT"
   | "DIVE_ATTACK_HIT"
@@ -297,17 +330,23 @@ export type RotationCombatEventType =
   | "COMBUSTION_APPLIED"
   | "CORROSION_APPLIED"
   | "BATTLE_SKILL_CAST"
+  | "BATTLE_SKILL_END"
+  | "COMBO_SKILL_CAST"
   | "ENEMY_DEBUFF_APPLIED"
+  | "ENEMY_DEBUFF_CONSUMED"
   | "MELTING_FLAME_GAINED"
   | "MELTING_FLAME_CONSUMED"
   | "MELTING_FLAME_FULL"
   | "COMBO_TRIGGERED"
+  | "SP_GENERATED"
   | "SP_RETURNED"
   | "TEAM_LINK_GAINED"
   | "WEAPON_BUFF_APPLIED"
   | "ACTOR_BUFF_APPLIED"
   | "SKILL_SP_RECOVERED"
-  | "BATTLE_OR_COMBO_HIT"
+  | "BATTLE_SKILL_HIT"
+  | "COMBO_SKILL_HIT"
+  | "ULTIMATE_HIT"
   | "ARTS_INFLICTION_CONSUMED"
   | "ARTS_REACTION_CONSUMED"
   | "ARTS_REACTION_APPLIED"
@@ -319,7 +358,9 @@ export type RotationCombatEventType =
   | "TEAM_STATUS_CONSUMED"
   | "HEALING_HIT_EXECUTED"
   | "ENEMY_COMMAND_INTERRUPTED"
-  | "ROSSI_VULNERABILITY_AND_ARTS_INFLICTION";
+  | "ROSSI_VULNERABILITY_AND_ARTS_INFLICTION"
+  | "SNAPSHOT_INITIALIZED"
+  | "OPERATOR_SWITCHED";
 
 export type RotationCombatEvent = {
   type: RotationCombatEventType;

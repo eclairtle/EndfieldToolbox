@@ -39,6 +39,11 @@ export const MODIFIER_STAT_KEYS = [
   "CRIT_DMG_PCT",
   "ULT_GAIN_PCT",
   "ULTIMATE_COST_REDUCTION_PCT",
+  "ALL_ATTR_PCT",
+  "STR_PCT",
+  "AGI_PCT",
+  "INT_PCT",
+  "WIL_PCT",
   "MAIN_ATTR_PCT",
   "SECONDARY_ATTR_PCT",
 
@@ -141,6 +146,11 @@ export function makeBaseModifierStats(): ModifierStats {
     ULT_GAIN_PCT: 1.0,                // 100%
     ULTIMATE_COST_REDUCTION_PCT: 0,
 
+    ALL_ATTR_PCT: 0,
+    STR_PCT: 0,
+    AGI_PCT: 0,
+    INT_PCT: 0,
+    WIL_PCT: 0,
     MAIN_ATTR_PCT: 0,
     SECONDARY_ATTR_PCT: 0,
     ATK_PCT: 0,
@@ -223,16 +233,28 @@ function applyAttributePercentMods(
   char: CharacterBase,
   mods: ModifierStats,
 ): Attrs {
-  let out = { ...attrs };
+  const out = { ...attrs };
+  const attrPctMap: Record<AttrKey, number> = {
+    STR: mods.STR_PCT,
+    AGI: mods.AGI_PCT,
+    INT: mods.INT_PCT,
+    WIL: mods.WIL_PCT,
+  };
 
-  if (mods.MAIN_ATTR_PCT > 0) {
-    const key = char.mainAttr;
-    out[key] = out[key] + Math.ceil(out[key] * mods.MAIN_ATTR_PCT);
-  }
+  for (const key of ATTRIBUTE_KEYS) {
+    const allAttrMul = 1 + mods.ALL_ATTR_PCT;
+    const perAttrMul = 1 + attrPctMap[key];
+    const mainSecondaryMul =
+      key === char.mainAttr
+        ? 1 + mods.MAIN_ATTR_PCT
+        : key === char.secondaryAttr
+          ? 1 + mods.SECONDARY_ATTR_PCT
+          : 1;
+    const totalMul = allAttrMul * perAttrMul * mainSecondaryMul;
+    if (Math.abs(totalMul - 1) < 1e-12) continue;
 
-  if (mods.SECONDARY_ATTR_PCT > 0) {
-    const key = char.secondaryAttr;
-    out[key] = out[key] + Math.ceil(out[key] * mods.SECONDARY_ATTR_PCT);
+    const delta = out[key] * (totalMul - 1);
+    out[key] = out[key] + (delta >= 0 ? Math.ceil(delta) : Math.floor(delta));
   }
 
   return out;
@@ -247,6 +269,7 @@ export type FinalStats = {
   weaponATK: number;     // weapon base atk at weaponLevel
 
   attributeBonus: number; // e.g. 0.143 means +14.3%
+  attributeScaling: AttributeScaling;
   finalATK: number;
 
   baseHP: number;        // scaled base HP (Lv-scaled, before STR*5)
@@ -254,6 +277,13 @@ export type FinalStats = {
 
   mods: ModifierStats;    // expose this in the UI
   extraStats: Record<string, number>;
+  attributeBreakdown: Record<AttrKey, {
+    operatorBase: number;
+    operatorBonus: number;
+    weaponBonus: number;
+    gearBonus: number;
+    percentageMultiplierPct: number;
+  }>;
 
   // convenience display for full stat card
   statsCard: FinalStatCard;
@@ -268,10 +298,10 @@ function weaponAtkAtLevel(weapon: WeaponBase, level: number) {
   return weapon.baseAtkTable[index] ?? weapon.baseAtkTable[weapon.baseAtkTable.length - 1] ?? 0;
 }
 
-function attributeBonus(char: CharacterBase, attrs: Attrs): number {
+function attributeBonus(scaling: AttributeScaling, attrs: Attrs): number {
   let b = 0;
-  for (const k of Object.keys(char.scaling) as (keyof Attrs)[]) {
-    b += attrs[k] * (char.scaling[k] ?? 0);
+  for (const k of Object.keys(scaling) as (keyof Attrs)[]) {
+    b += attrs[k] * (scaling[k] ?? 0);
   }
   return b;
 }
@@ -288,6 +318,7 @@ export function computeFinalStats(args: {
   characterAscensionStage: AscensionStage;
   characterPotential: PotentialLevel;
   characterTalentToggles: CharacterTalentToggles;
+  uniqueTalentToggles?: Record<string, boolean>;
 
   weaponAscensionStage: AscensionStage;
   weaponPotential: PotentialLevel;
@@ -313,12 +344,13 @@ export function computeFinalStats(args: {
 
   // 1) base stats at level (before weapon, gear, or weapon skills)
   const baseLevelStats = baseStatsAtLevel(char, level);
-  let attrs: Attrs = {
+  const baseAttrs: Attrs = {
     STR: baseLevelStats.STR,
     AGI: baseLevelStats.AGI,
     INT: baseLevelStats.INT,
     WIL: baseLevelStats.WIL,
   };
+  let attrs: Attrs = { ...baseAttrs };
   const baseATK = baseLevelStats.ATK;
   const baseHP = baseLevelStats.HP;
 
@@ -330,6 +362,7 @@ export function computeFinalStats(args: {
     mods,
   });
   attrs = gearRes.attrs;
+  const attrsAfterGear: Attrs = { ...attrs };
   mods = gearRes.mods;
   const gearDEF = gearRes.defFlat;
 
@@ -343,6 +376,7 @@ export function computeFinalStats(args: {
     mods,
   });
   attrs = weaponRes.attrs;
+  const attrsAfterWeapon: Attrs = { ...attrs };
   mods = weaponRes.mods;
 
   attrs = applyGenericCharacterTalents({
@@ -359,7 +393,7 @@ export function computeFinalStats(args: {
     buildState: {
       ascensionStage: args.characterAscensionStage,
       potentialLevel: args.characterPotential,
-      uniqueTalentToggles: {},
+      uniqueTalentToggles: args.uniqueTalentToggles ?? {},
       uniqueTalentConditions: Object.fromEntries(
         Object.entries(char.uniqueTalentDefs ?? {}).map(([key, talent]) => [key, talent.condition]),
       ),
@@ -371,6 +405,8 @@ export function computeFinalStats(args: {
   attrs = characterRuntimeEffects.attrs;
   mods = characterRuntimeEffects.mods;
   Object.assign(extraStats, characterRuntimeEffects.extra);
+  const attrsBeforePercent: Attrs = { ...attrs };
+  const runtimeAttributeScaling = characterRuntimeEffects.attributeScaling ?? char.scaling;
 
   // 4) apply manual bonus
   mods.ATK_PCT += atkPct;
@@ -388,6 +424,51 @@ export function computeFinalStats(args: {
   // 5) apply main/secondary attr %
   attrs = applyAttributePercentMods(attrs, char, mods);
 
+  const attributeBreakdown: Record<AttrKey, {
+    operatorBase: number;
+    operatorBonus: number;
+    weaponBonus: number;
+    gearBonus: number;
+    percentageMultiplierPct: number;
+  }> = {
+    STR: {
+      operatorBase: baseAttrs.STR,
+      operatorBonus: attrsBeforePercent.STR - baseAttrs.STR - (attrsAfterGear.STR - baseAttrs.STR) - (attrsAfterWeapon.STR - attrsAfterGear.STR),
+      weaponBonus: attrsAfterWeapon.STR - attrsAfterGear.STR,
+      gearBonus: attrsAfterGear.STR - baseAttrs.STR,
+      percentageMultiplierPct: attrsBeforePercent.STR > 0
+        ? ((attrs.STR - attrsBeforePercent.STR) / attrsBeforePercent.STR) * 100
+        : 0,
+    },
+    AGI: {
+      operatorBase: baseAttrs.AGI,
+      operatorBonus: attrsBeforePercent.AGI - baseAttrs.AGI - (attrsAfterGear.AGI - baseAttrs.AGI) - (attrsAfterWeapon.AGI - attrsAfterGear.AGI),
+      weaponBonus: attrsAfterWeapon.AGI - attrsAfterGear.AGI,
+      gearBonus: attrsAfterGear.AGI - baseAttrs.AGI,
+      percentageMultiplierPct: attrsBeforePercent.AGI > 0
+        ? ((attrs.AGI - attrsBeforePercent.AGI) / attrsBeforePercent.AGI) * 100
+        : 0,
+    },
+    INT: {
+      operatorBase: baseAttrs.INT,
+      operatorBonus: attrsBeforePercent.INT - baseAttrs.INT - (attrsAfterGear.INT - baseAttrs.INT) - (attrsAfterWeapon.INT - attrsAfterGear.INT),
+      weaponBonus: attrsAfterWeapon.INT - attrsAfterGear.INT,
+      gearBonus: attrsAfterGear.INT - baseAttrs.INT,
+      percentageMultiplierPct: attrsBeforePercent.INT > 0
+        ? ((attrs.INT - attrsBeforePercent.INT) / attrsBeforePercent.INT) * 100
+        : 0,
+    },
+    WIL: {
+      operatorBase: baseAttrs.WIL,
+      operatorBonus: attrsBeforePercent.WIL - baseAttrs.WIL - (attrsAfterGear.WIL - baseAttrs.WIL) - (attrsAfterWeapon.WIL - attrsAfterGear.WIL),
+      weaponBonus: attrsAfterWeapon.WIL - attrsAfterGear.WIL,
+      gearBonus: attrsAfterGear.WIL - baseAttrs.WIL,
+      percentageMultiplierPct: attrsBeforePercent.WIL > 0
+        ? ((attrs.WIL - attrsBeforePercent.WIL) / attrsBeforePercent.WIL) * 100
+        : 0,
+    },
+  };
+
   // Every 1 point of WIL gives +0.1% healing received bonus.
   mods.HEALING_RECEIVED_PCT += attrs.WIL * 0.001;
 
@@ -395,7 +476,7 @@ export function computeFinalStats(args: {
   const weaponATK = weaponAtkAtLevel(weapon, weaponLevel);
 
   // 7) attribute bonus (after weapon-added attrs)
-  const attrBonus = attributeBonus(char, attrs);
+  const attrBonus = attributeBonus(runtimeAttributeScaling, attrs);
 
   // final ATK
   const rawATK = baseATK + weaponATK;
@@ -425,11 +506,13 @@ export function computeFinalStats(args: {
     baseATK,
     weaponATK,
     attributeBonus: attrBonus,
+    attributeScaling: runtimeAttributeScaling,
     finalATK,
     baseHP,
     finalHP,
     mods,
     extraStats,
+    attributeBreakdown,
     statsCard,
   };
 }

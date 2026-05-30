@@ -10,18 +10,27 @@ import type {
   DamageTimelineEntry,
   EnemyActionWindow,
   EnemyCombatStateSnapshot,
+  PassiveListenerDebugEntry,
+  PartySlot,
   Rotation,
   RotationCombatEvent,
   RotationSimulationResult,
 } from "@/lib/combat/rotation";
+import { CRIT_RIG_HIT_INDEX_EXECUTE, CRIT_RIG_HIT_INDEX_REACTION } from "@/lib/combat/rotation";
 import type { UnifiedCombatStatus } from "@/lib/combat/statusModel";
 import { calculateReactionDamage, calculateResolvedHitDamage } from "@/lib/combat/combatDamage";
 import { compileRotationTimeline } from "@/lib/combat/compileRotationTimeline";
 import type { CombatHookEnemyArtsInflictionState } from "@/lib/combat/hooks";
 import type { ElementType } from "@/data/characters";
+import { CHARACTERS } from "@/data/characters";
 import { CONSUMABLE_BY_ID } from "@/data/consumables";
 import { runGearSetEventListener } from "@/lib/combat/gearSetEffects";
 import { runWeaponEventListener } from "@/lib/combat/weaponEffects";
+import {
+  getSuppressionDebuffStatFromEvent,
+  resolveContingencyContracts,
+  type ActiveContingencyContract,
+} from "@/lib/combat/contracts";
 import type {
   CombatCondition,
   CommandHitEffectDefinition,
@@ -64,6 +73,7 @@ type TimedEffectStatus = {
   expiresAt: number;
   timeScale: TimeScale;
   periods: number;
+  maxPeriods?: number;
   periodsExecuted: number;
   periodInterval: number;
   nextPeriodAt?: number;
@@ -71,6 +81,7 @@ type TimedEffectStatus = {
   effects?: Partial<ModifierStats>;
   periodicEffects: CommandHitEffectDefinition[];
   expireEffects: CommandHitEffectDefinition[];
+  removeEffects: CommandHitEffectDefinition[];
 };
 
 type TimedTeamLinkStack = {
@@ -116,6 +127,7 @@ type PendingExecuteHit = {
   hitName?: string;
   sourceCommandId: string;
   sourceCommandName: string;
+  sourceCommandAttackType?: RotationCombatEvent["commandAttackType"];
   stepId: string;
   executionTime: number;
   executionGameTime: number;
@@ -170,7 +182,7 @@ const ENEMY_STAGGERED_STATUS_ID = "enemy_staggered";
 const ENEMY_FINISHER_AVAILABLE_STATUS_ID = "enemy_finisher_available";
 const ENEMY_STAGGERED_DAMAGE_MULTIPLIER = 1.3;
 const PRE_BATTLE_START_GAME_TIME = 0;
-const TANGTANG_ULTIMATE_STATUS_ID = "tangtang_olden_stare";
+const TANGTANG_ULTIMATE_STATUS_ID = "tangtang_olden_stare_vulnerable";
 const ENEMY_STATUS_KIND = "reaction_status";
 const EFFECT_STATUS_KIND = "effect_status";
 const ACTOR_BUFF_KIND = "actor_buff";
@@ -278,6 +290,7 @@ export function getActorStateAtTime(
       slot,
       time: realTime,
       gameTime,
+      activeBuildVariant: 0,
       currentHp: 0,
       maxHp: 0,
       meltingFlameStacks: 0,
@@ -383,6 +396,8 @@ export function getEnemyStateAtTime(
 export function simulateRotation(args: {
   rotation: Rotation;
   party: CharacterCombatSnapshot[];
+  partyVariantsBySlot?: Partial<Record<PartySlot, CharacterCombatSnapshot[]>>;
+  initialVariantIndex?: number;
   enemyStats: EnemyResolvedStats;
   enemyMods: ModifierStats;
   enemyStaggerGauge: number;
@@ -391,6 +406,7 @@ export function simulateRotation(args: {
   enemyFinisherMultiplier?: number;
   enemyFinisherSpGain?: number;
   battleStartConsumableIdsBySlot?: Array<string | null | undefined>;
+  contingencyContracts?: ActiveContingencyContract[];
   enemyActionWindows?: EnemyActionWindow[];
   debug?: {
     onResolvedHit?: (ctx: {
@@ -408,13 +424,26 @@ export function simulateRotation(args: {
   };
 }): RotationSimulationResult {
   const { rotation, party, enemyStats, enemyMods } = args;
+  const characterById = new Map(CHARACTERS.map((character) => [character.id, character]));
+  const resolvedContracts = resolveContingencyContracts(args.contingencyContracts);
+  const battleTimeLimitSeconds = resolvedContracts.battleTimeLimitSeconds;
+  const warnings: string[] = [];
 
   const partyBySlot = new Map(party.map((member) => [member.slot, member]));
+  const partyVariantsBySlot = new Map<PartySlot, CharacterCombatSnapshot[]>();
+  for (const [slotKey, variants] of Object.entries(args.partyVariantsBySlot ?? {})) {
+    const slot = Number(slotKey) as PartySlot;
+    if (!Array.isArray(variants) || variants.length === 0) {
+      continue;
+    }
+    partyVariantsBySlot.set(slot, variants);
+  }
   const { actions, timeExtensions, timeContext } = compileRotationTimeline({ rotation, party });
 
   const events: RotationCombatEvent[] = [];
   const comboWindows: ComboTriggerWindow[] = [];
   const comboTriggerDebug: ComboTriggerDebugEntry[] = [];
+  const passiveListenerDebug: PassiveListenerDebugEntry[] = [];
   const timeline: DamageTimelineEntry[] = [];
   const actorStateTimeline: ActorCombatStateSnapshot[] = [];
   const enemyStateTimeline: EnemyCombatStateSnapshot[] = [];
@@ -431,8 +460,12 @@ export function simulateRotation(args: {
   const setTriggerFlags = new Set<string>();
   const listenerCooldowns = new Map<string, { expiresAt: number; timeScale: TimeScale }>();
   const listenerCounters = new Map<string, number>();
+  const commandModifierByStepId = new Map<string, Partial<ModifierStats>>();
+  const bladebreakingPendingBySlot = new Map<PartySlot, boolean>();
   const critThresholdProgressBySlot = new Map<CharacterCombatSnapshot["slot"], number>();
   const commandLinkedStacksByStepId = new Map<string, number>();
+  const commandAttackTypeByStepId = new Map<string, ResolvedCommandAtLevel["attackType"]>();
+  const castEventEmittedByStepId = new Map<string, { battleSkill: boolean; ultimate: boolean }>();
   const interruptedAtByStepId = new Map<string, number>();
   const pendingArtsBursts: PendingArtsBurst[] = [];
   const pendingExecuteHits: PendingExecuteHit[] = [];
@@ -441,6 +474,21 @@ export function simulateRotation(args: {
   for (const rule of critRiggingRules) {
     critRigModeByHitKey.set(`${rule.stepId}:${rule.hitIndex}:${rule.repeatIndex}`, rule.mode);
   }
+  const getCritRigMode = (stepId: string, hitIndex: number, repeatIndex: number) =>
+    critRigModeByHitKey.get(`${stepId}:${hitIndex}:${repeatIndex}`);
+
+  const applyCommandModifierToStep = (stepId: string, effects: Partial<ModifierStats>) => {
+    const existing = commandModifierByStepId.get(stepId) ?? {};
+    const merged: Partial<ModifierStats> = { ...existing };
+    (Object.keys(effects) as (keyof ModifierStats)[]).forEach((key) => {
+      const delta = effects[key];
+      if (typeof delta !== "number" || Number.isNaN(delta) || delta === 0) {
+        return;
+      }
+      merged[key] = (merged[key] ?? 0) + delta;
+    });
+    commandModifierByStepId.set(stepId, merged);
+  };
 
   let totalDamage = 0;
   let riggedCritCount = 0;
@@ -450,6 +498,11 @@ export function simulateRotation(args: {
   const actorMaxHpBySlot = new Map<CharacterCombatSnapshot["slot"], number>();
   const actorCurrentHpBySlot = new Map<CharacterCombatSnapshot["slot"], number>();
   let controlledOperatorSlot: CharacterCombatSnapshot["slot"] = 0;
+  const activeBuildVariantBySlot = new Map<PartySlot, number>();
+  const getRuntimeActorBySlot = (slot: PartySlot) => {
+    const variant = activeBuildVariantBySlot.get(slot) ?? Math.max(0, Math.min(3, args.initialVariantIndex ?? 0));
+    return partyVariantsBySlot.get(slot)?.[variant] ?? partyBySlot.get(slot);
+  };
   const switchBackLockedUntilBySlot = new Map<CharacterCombatSnapshot["slot"], number>();
   const enemyActionWindows = [...(args.enemyActionWindows ?? [])]
     .filter((window) => Number.isFinite(window.startTime) && Number.isFinite(window.endTime) && window.endTime > window.startTime)
@@ -720,6 +773,38 @@ export function simulateRotation(args: {
     return realTime + cumulativeFreezeAfter;
   };
 
+  const rebuildTimeExtensions = () => {
+    timeExtensions.sort((left, right) => left.time - right.time);
+    let cumulative = 0;
+    for (const ext of timeExtensions) {
+      ext.cumulativeFreezeTime = cumulative;
+      ext.gameTime = ext.time - cumulative;
+      cumulative += Math.max(0, ext.amount);
+    }
+  };
+
+  const addTimeFreezeExtension = (args: {
+    time: number;
+    amount: number;
+    sourceStepId: string;
+    cutscene?: boolean;
+  }) => {
+    const duration = Math.max(0, args.amount);
+    if (duration <= 0) {
+      return;
+    }
+    timeExtensions.push({
+      time: args.time,
+      gameTime: args.time,
+      amount: duration,
+      sourceStepId: args.sourceStepId,
+      sourceStepIds: [args.sourceStepId],
+      cumulativeFreezeTime: 0,
+      cutscene: args.cutscene ?? false,
+    });
+    rebuildTimeExtensions();
+  };
+
   const getRootStepId = (stepId: string) => stepId.split(":")[0] ?? stepId;
   const getInterruptCutoffForStep = (stepId: string) => interruptedAtByStepId.get(getRootStepId(stepId));
   const isInterruptedAtOrAfter = (stepId: string, time: number) => {
@@ -913,11 +998,13 @@ export function simulateRotation(args: {
     expiresAt: status.expiresAt,
     timeScale: status.timeScale,
     periods: typeof status.metadata?.periods === "number" ? status.metadata.periods : 1,
+    maxPeriods: typeof status.metadata?.maxPeriods === "number" ? status.metadata.maxPeriods : undefined,
     periodsExecuted: typeof status.metadata?.periodsExecuted === "number" ? status.metadata.periodsExecuted : 0,
     periodInterval: typeof status.metadata?.periodInterval === "number" ? status.metadata.periodInterval : 0,
     nextPeriodAt: typeof status.metadata?.nextPeriodAt === "number" ? status.metadata.nextPeriodAt : undefined,
     periodicEffects: (status.metadata?.periodicEffects as CommandHitEffectDefinition[]) ?? [],
     expireEffects: (status.metadata?.expireEffects as CommandHitEffectDefinition[]) ?? [],
+    removeEffects: (status.metadata?.removeEffects as CommandHitEffectDefinition[]) ?? [],
     pauseStatusIds: Array.isArray(status.metadata?.pauseStatusIds)
       ? (status.metadata?.pauseStatusIds as string[])
       : undefined,
@@ -945,11 +1032,13 @@ export function simulateRotation(args: {
           linkSourceStepId: status.linkSourceStepId,
           effects: status.effects,
           periods: status.periods,
+          maxPeriods: status.maxPeriods,
           periodsExecuted: status.periodsExecuted,
           periodInterval: status.periodInterval,
           nextPeriodAt: status.nextPeriodAt,
           periodicEffects: status.periodicEffects,
           expireEffects: status.expireEffects,
+          removeEffects: status.removeEffects,
           pauseStatusIds: status.pauseStatusIds,
         },
       });
@@ -1279,6 +1368,7 @@ export function simulateRotation(args: {
       slot,
       time,
       gameTime,
+      activeBuildVariant: activeBuildVariantBySlot.get(slot) ?? 0,
       currentHp: actorCurrentHpBySlot.get(slot) ?? 0,
       maxHp: actorMaxHpBySlot.get(slot) ?? 0,
       meltingFlameStacks: getMeltingFlameStacks(slot),
@@ -1523,7 +1613,8 @@ export function simulateRotation(args: {
 
     const cooldownOwnerId = comboCommand.comboCooldownOwnerCommandId ?? comboCommand.id;
     const cooldownOwnerCommand = getComboCommandById(actor, cooldownOwnerId);
-    const cooldownUntil = comboCooldownUntilBySlot.get(args.slot) ?? 0;
+    const cooldownUntilEntry = comboCooldownUntilBySlot.get(args.slot);
+    const cooldownUntil = cooldownUntilEntry ?? 0;
     const pendingCooldown = pendingComboCooldownBySlot.get(args.slot);
     const currentTime =
       (cooldownOwnerCommand?.comboCooldownTimeScale ?? comboCommand.comboCooldownTimeScale) === "real"
@@ -1532,7 +1623,7 @@ export function simulateRotation(args: {
 
     if (
       comboCommand.id === cooldownOwnerId
-      && (pendingCooldown != null || currentTime < cooldownUntil)
+      && (pendingCooldown != null || (cooldownUntilEntry != null && currentTime < cooldownUntil))
     ) {
       comboTriggerDebug.push({
         ...baseDebugEntry,
@@ -1600,6 +1691,43 @@ export function simulateRotation(args: {
     });
 
     return true;
+  };
+
+  const shortenComboCooldownByRatio = (args: {
+    slot: CharacterCombatSnapshot["slot"];
+    ratio: number;
+    time: number;
+    gameTime: number;
+  }) => {
+    const clampedRatio = Math.max(0, Math.min(1, args.ratio));
+    if (clampedRatio <= 0) {
+      return;
+    }
+    const actor = partyBySlot.get(args.slot);
+    const comboCommand = actor ? getComboCommand(actor) : undefined;
+    if (!comboCommand) {
+      return;
+    }
+
+    cleanupStateAt(args.time, args.gameTime);
+
+    const pending = pendingComboCooldownBySlot.get(args.slot);
+    if (pending) {
+      pendingComboCooldownBySlot.set(args.slot, {
+        ...pending,
+        durationSeconds: Math.max(0, pending.durationSeconds * (1 - clampedRatio)),
+      });
+      return;
+    }
+
+    const cooldownUntil = comboCooldownUntilBySlot.get(args.slot);
+    if (cooldownUntil == null) {
+      return;
+    }
+    const now = comboCommand.comboCooldownTimeScale === "real" ? args.time : args.gameTime;
+    const remaining = Math.max(0, cooldownUntil - now);
+    const shortenedRemaining = Math.max(0, remaining * (1 - clampedRatio));
+    comboCooldownUntilBySlot.set(args.slot, now + shortenedRemaining);
   };
 
   const applyActorBuff = (args: {
@@ -1857,10 +1985,86 @@ export function simulateRotation(args: {
   const dispatchPassiveListeners = (
     event: RotationCombatEvent,
     triggerSlots?: CharacterCombatSnapshot["slot"][],
+    options?: {
+      memberSlots?: Set<PartySlot>;
+      includeCombatHooks?: boolean;
+      includeGearSet?: boolean;
+      includeWeapon?: boolean;
+    },
   ) => {
-    for (const member of party) {
+    if (
+      resolvedContracts.bladebreakingUltimateDmgPct != null
+      && event.type === "ULTIMATE_CAST"
+      && event.slot != null
+    ) {
+      const hadPending = bladebreakingPendingBySlot.get(event.slot) === true;
+      if (hadPending && event.stepId) {
+        applyCommandModifierToStep(event.stepId, {
+          ULTIMATE_DMG_PCT: resolvedContracts.bladebreakingUltimateDmgPct,
+        });
+      }
+      bladebreakingPendingBySlot.set(event.slot, true);
+    }
+
+    if (
+      resolvedContracts.suppressionOnInflictionValues.length > 0
+      && event.sourceSlot != null
+    ) {
+      const suppressionStat = getSuppressionDebuffStatFromEvent(event);
+      if (suppressionStat) {
+        const suppressionValue = Math.min(...resolvedContracts.suppressionOnInflictionValues);
+        applyActorBuff({
+          slot: event.sourceSlot,
+          sourceSlot: event.sourceSlot,
+          stepId: event.stepId ?? "",
+          time: event.time,
+          gameTime: event.gameTime,
+          buffId: `contract_suppression:${suppressionStat}`,
+          label: `Suppression ${suppressionStat}`,
+          durationSeconds: 0,
+          infiniteDuration: true,
+          timeScale: "game",
+          effects: {
+            [suppressionStat]: suppressionValue,
+          },
+        });
+      }
+    }
+
+    const logPassiveListener = (args: {
+      member: CharacterCombatSnapshot;
+      listenerKind: PassiveListenerDebugEntry["listenerKind"];
+      listenerPresent: boolean;
+    }) => {
+      passiveListenerDebug.push({
+        time: event.time,
+        gameTime: event.gameTime,
+        eventType: event.type,
+        eventLabel: event.label,
+        eventStepId: event.stepId,
+        eventCommandId: event.commandId,
+        eventCommandAttackType: event.commandAttackType,
+        listenerKind: args.listenerKind,
+        slot: args.member.slot,
+        characterId: args.member.characterId,
+        characterName: args.member.characterName,
+        listenerPresent: args.listenerPresent,
+      });
+    };
+
+    for (const baseMember of party) {
+      if (options?.memberSlots && !options.memberSlots.has(baseMember.slot)) {
+        continue;
+      }
+      const member = getRuntimeActorBySlot(baseMember.slot) ?? baseMember;
       const combatHooks = member.combatHooks;
-      combatHooks?.onEvent?.({
+      if (options?.includeCombatHooks !== false) {
+        logPassiveListener({
+          member,
+          listenerKind: "COMBAT_HOOK",
+          listenerPresent: typeof combatHooks?.onEvent === "function",
+        });
+        combatHooks?.onEvent?.({
         self: {
           slot: member.slot,
           characterId: member.characterId,
@@ -1877,17 +2081,24 @@ export function simulateRotation(args: {
           sourceSlot: event.sourceSlot,
           label: event.label,
           commandAttackType: event.commandAttackType,
+          amount: event.amount,
           consumedElement: event.consumedElement,
           consumedStacks: event.consumedStacks,
         },
         state: {
           getEnemyArtsInfliction: () => getEnemyArtsInfliction(),
+          getEnemyVulnerabilityStacks: () => getEnemyPhysicalInfliction()?.stacks ?? 0,
           hasSelfBuff: (buffId: string) =>
             getActorBuffs().some(
               (buff) =>
                 buff.slot === member.slot &&
                 (buff.id === buffId || buff.id.startsWith(`${buffId}:`)),
             ),
+          getSelfBuffStackCount: (buffId: string) =>
+            getActorBuffStackCount({
+              slot: member.slot,
+              buffId,
+            }),
           isSelfUniqueTalentEnabled: (key: string) =>
             isUniqueTalentEnabled(key, {
               ascensionStage: member.ascensionStage,
@@ -1920,7 +2131,8 @@ export function simulateRotation(args: {
             });
           },
           applyOtherTeammatesBuff: (args) => {
-            for (const teammate of party) {
+            for (const teammateBase of party) {
+              const teammate = getRuntimeActorBySlot(teammateBase.slot) ?? teammateBase;
               if (teammate.slot === member.slot) {
                 continue;
               }
@@ -1945,6 +2157,25 @@ export function simulateRotation(args: {
                 refreshExistingStacks: args.refreshExistingStacks,
               });
             }
+          },
+          applyBuffToSlot: (args) => {
+            applyActorBuff({
+              slot: args.slot,
+              sourceSlot: member.slot,
+              stepId: event.stepId ?? "",
+              time: event.time,
+              gameTime: event.gameTime,
+              buffId: args.buffId,
+              label: args.label,
+              hidden: args.hidden,
+              durationSeconds: args.durationSeconds,
+              infiniteDuration: args.infiniteDuration,
+              timeScale: args.timeScale ?? "game",
+              effects: args.effects,
+              stackGroup: args.stackGroup,
+              maxStacks: args.maxStacks,
+              refreshExistingStacks: args.refreshExistingStacks,
+            });
           },
           gainTeamLinkStacks: (args) => {
             gainTeamLinkStacks({
@@ -1996,6 +2227,24 @@ export function simulateRotation(args: {
               gameTime: event.gameTime,
               stepId: event.stepId ?? "",
             }),
+          grantReturnedSp: (amount: number, label: string) => {
+            if (amount <= 0) {
+              return;
+            }
+            const spReturnedEvent: RotationCombatEvent = {
+              type: "SP_RETURNED",
+              time: event.time,
+              gameTime: event.gameTime,
+              stepId: event.stepId,
+              slot: member.slot,
+              sourceSlot: member.slot,
+              label,
+              amount,
+              commandAttackType: event.commandAttackType,
+            };
+            emitEvent(spReturnedEvent);
+            dispatchPassiveListeners(spReturnedEvent, triggerSlots);
+          },
           markTriggerOnce: (key: string) => {
             const onceKey = `event:${member.slot}:${key}`;
             if (setTriggerFlags.has(onceKey)) {
@@ -2030,6 +2279,14 @@ export function simulateRotation(args: {
               comboCommand.comboCooldownTimeScale === "real" ? event.time : event.gameTime,
             );
           },
+          shortenSelfComboCooldownByRatio: (ratio: number) => {
+            shortenComboCooldownByRatio({
+              slot: member.slot,
+              ratio,
+              time: event.time,
+              gameTime: event.gameTime,
+            });
+          },
           hasStatus: (hookArgs) =>
             hasUnifiedStatus({
               statusId: hookArgs.statusId,
@@ -2038,6 +2295,23 @@ export function simulateRotation(args: {
               realTime: event.time,
               gameTime: event.gameTime,
             }),
+          getStatusSourceStepId: (hookArgs) => {
+            const target = hookArgs.target ?? "self";
+            const statuses = getUnifiedStatuses({
+              realTime: event.time,
+              gameTime: event.gameTime,
+            });
+            const matched = statuses.find((status) =>
+              status.id === hookArgs.statusId
+              && (
+                (target === "enemy" && status.scope === "enemy")
+                || (target === "global" && status.scope === "global")
+                || (target === "self" && status.scope === "actor" && status.targetSlot === member.slot)
+              ),
+            );
+            const sourceStepId = matched?.metadata?.sourceStepId;
+            return typeof sourceStepId === "string" && sourceStepId.length > 0 ? sourceStepId : null;
+          },
           emitEvent: (hookArgs) => {
             emitEvent({
               type: hookArgs.type as RotationCombatEvent["type"],
@@ -2067,8 +2341,15 @@ export function simulateRotation(args: {
           },
         },
       });
+      }
 
-      runGearSetEventListener({
+      if (options?.includeGearSet !== false) {
+        logPassiveListener({
+          member,
+          listenerKind: "GEAR_SET",
+          listenerPresent: member.activeGearSet != null,
+        });
+        runGearSetEventListener({
         wearer: member,
         event,
         helpers: {
@@ -2093,7 +2374,8 @@ export function simulateRotation(args: {
             });
           },
           applyOtherTeammatesBuff: (args) => {
-            for (const teammate of party) {
+            for (const teammateBase of party) {
+              const teammate = getRuntimeActorBySlot(teammateBase.slot) ?? teammateBase;
               if (teammate.slot === member.slot) {
                 continue;
               }
@@ -2159,12 +2441,16 @@ export function simulateRotation(args: {
               slot: member.slot,
               buffId,
             }),
+          getEnemyVulnerabilityStacks: () => getEnemyPhysicalInfliction()?.stacks ?? 0,
           consumeThreshold: ({ key, amount, threshold = 1 }) => {
             const current = listenerCounters.get(key) ?? 0;
             const next = current + amount;
             const triggerCount = Math.floor(next / threshold);
             listenerCounters.set(key, next - triggerCount * threshold);
             return triggerCount;
+          },
+          applyCommandModifierToStep: (args) => {
+            applyCommandModifierToStep(args.stepId, args.effects);
           },
           applyEffects: (args) => {
             applyHitEffects({
@@ -2178,8 +2464,15 @@ export function simulateRotation(args: {
           },
         },
       });
+      }
 
-      runWeaponEventListener({
+      if (options?.includeWeapon !== false) {
+        logPassiveListener({
+          member,
+          listenerKind: "WEAPON",
+          listenerPresent: !!member.weaponId,
+        });
+        runWeaponEventListener({
         wearer: member,
         event,
         helpers: {
@@ -2202,7 +2495,8 @@ export function simulateRotation(args: {
             });
           },
           applyTeamBuff: (args) => {
-            for (const teammate of party) {
+            for (const teammateBase of party) {
+              const teammate = getRuntimeActorBySlot(teammateBase.slot) ?? teammateBase;
               applyActorBuff({
                 slot: teammate.slot,
                 sourceSlot: member.slot,
@@ -2222,7 +2516,8 @@ export function simulateRotation(args: {
             }
           },
           applyTeamBuffFiltered: (args) => {
-            for (const teammate of party) {
+            for (const teammateBase of party) {
+              const teammate = getRuntimeActorBySlot(teammateBase.slot) ?? teammateBase;
               if (!args.shouldApplyTo(teammate)) {
                 continue;
               }
@@ -2302,9 +2597,48 @@ export function simulateRotation(args: {
               slot: member.slot,
               buffId,
             }),
+          removeSelfBuff: (buffId: string) => {
+            removeActorBuff({
+              slot: member.slot,
+              buffId,
+            });
+          },
         },
       });
+      }
     }
+  };
+
+  const initializeSnapshotForSlot = (args: {
+    slot: PartySlot;
+    time: number;
+    gameTime: number;
+    includeGearSet: boolean;
+    includeWeapon: boolean;
+  }) => {
+    if (!args.includeGearSet && !args.includeWeapon) {
+      return;
+    }
+    const event: RotationCombatEvent = {
+      type: "SNAPSHOT_INITIALIZED",
+      time: args.time,
+      gameTime: args.gameTime,
+      stepId: "__snapshot_init",
+      slot: args.slot,
+      sourceSlot: args.slot,
+      label: "Snapshot Initialized",
+    };
+    emitEvent(event);
+    dispatchPassiveListeners(
+      event,
+      [],
+      {
+        memberSlots: new Set<PartySlot>([args.slot]),
+        includeCombatHooks: false,
+        includeGearSet: args.includeGearSet,
+        includeWeapon: args.includeWeapon,
+      },
+    );
   };
 
   const gainMeltingFlameStacks = (args: {
@@ -2448,10 +2782,39 @@ export function simulateRotation(args: {
   };
 
   const getEffectiveFinalAtk = (actor: CharacterCombatSnapshot, mods: ModifierStats) => {
+    const character = characterById.get(actor.characterId);
+    const mainAttr = character?.mainAttr;
+    const secondaryAttr = character?.secondaryAttr;
+    const attrKeys: Array<"STR" | "AGI" | "INT" | "WIL"> = ["STR", "AGI", "INT", "WIL"];
+    const effectiveAttrs = Object.fromEntries(attrKeys.map((key) => {
+      const baseValue = actor.attrs[key];
+      const allMul = 1 + (mods.ALL_ATTR_PCT ?? 0);
+      const perAttrMul = key === "STR"
+        ? 1 + (mods.STR_PCT ?? 0)
+        : key === "AGI"
+          ? 1 + (mods.AGI_PCT ?? 0)
+          : key === "INT"
+            ? 1 + (mods.INT_PCT ?? 0)
+            : 1 + (mods.WIL_PCT ?? 0);
+      const mainSecondaryMul = key === mainAttr
+        ? 1 + (mods.MAIN_ATTR_PCT ?? 0)
+        : key === secondaryAttr
+          ? 1 + (mods.SECONDARY_ATTR_PCT ?? 0)
+          : 1;
+      const scaled = baseValue * allMul * perAttrMul * mainSecondaryMul;
+      return [key, scaled >= 0 ? Math.ceil(scaled) : Math.floor(scaled)];
+    })) as Record<"STR" | "AGI" | "INT" | "WIL", number>;
+
+    const effectiveAttributeBonus =
+      (effectiveAttrs.STR * (actor.attributeScaling.STR ?? 0))
+      + (effectiveAttrs.AGI * (actor.attributeScaling.AGI ?? 0))
+      + (effectiveAttrs.INT * (actor.attributeScaling.INT ?? 0))
+      + (effectiveAttrs.WIL * (actor.attributeScaling.WIL ?? 0));
+
     const rawAtk = actor.baseAtk + actor.weaponAtk;
     const modAtk = rawAtk * (mods.ATK_PCT ?? 0);
     const flatAtk = mods.FLAT_ATK ?? 0;
-    return Math.floor((rawAtk + modAtk + flatAtk) * (1 + actor.attributeBonus));
+    return Math.floor((rawAtk + modAtk + flatAtk) * (1 + effectiveAttributeBonus));
   };
 
   const getEffectiveEnemyMods = (_actor: CharacterCombatSnapshot, realTime: number, gameTime: number) => {
@@ -2612,6 +2975,14 @@ export function simulateRotation(args: {
     const noCritDamage = damageBreakdown.noCritDamage * (1 + linkMultiplier) * staggeredMultiplier;
     const critDamage = damageBreakdown.critDamage * (1 + linkMultiplier) * staggeredMultiplier;
     const averageDamage = damageBreakdown.averageDamage * (1 + linkMultiplier) * staggeredMultiplier;
+    const critRigMode = args.noCrit ? undefined : getCritRigMode(args.stepId, CRIT_RIG_HIT_INDEX_REACTION, 0);
+    const damage = args.noCrit
+      ? noCritDamage
+      : critRigMode === "force_crit"
+        ? critDamage
+        : critRigMode === "force_non_crit"
+          ? noCritDamage
+          : averageDamage;
     const appliedStagger = applyEnemyStaggerFromHit({
       rawStagger: args.stagger ?? 0,
       time: args.time,
@@ -2637,13 +3008,16 @@ export function simulateRotation(args: {
       multiplier: args.baseMultiplier,
       noCritDamage,
       critDamage,
-      damage: averageDamage,
+      averageDamage,
+      damage,
       stagger: appliedStagger,
       spGenerated: 0,
       spReturned: 0,
       energyReturn: 0,
       requiresControlledOperator: false,
       triggeredComboSlots,
+      critRigMode,
+      riggedCrit: critRigMode === "force_crit",
       calculationContext: {
         finalAtk: effectiveFinalAtk,
         attackType: "REACTION",
@@ -2661,8 +3035,11 @@ export function simulateRotation(args: {
       },
     });
 
-    totalDamage += averageDamage;
-    damageBySlot.set(actor.slot, (damageBySlot.get(actor.slot) ?? 0) + averageDamage);
+    totalDamage += damage;
+    damageBySlot.set(actor.slot, (damageBySlot.get(actor.slot) ?? 0) + damage);
+    if (critRigMode === "force_crit") {
+      riggedCritCount += 1;
+    }
 
     emitCritThresholdEvent({
       slot: actor.slot,
@@ -2694,6 +3071,8 @@ export function simulateRotation(args: {
     linkSourceStepId?: string;
     applySourceCommandModifiers?: boolean;
     triggerSlots?: CharacterCombatSnapshot["slot"][];
+    rigHitIndexOverride?: number;
+    rigRepeatIndex?: number;
   }) => {
     if (
       args.hit.damageType !== "Healing"
@@ -2716,9 +3095,15 @@ export function simulateRotation(args: {
     const effectiveEnemyMods = getEffectiveEnemyMods(actor, args.time, args.gameTime);
     const sourceCommand = actor.commands.find((command) => command.id === args.commandId);
     const baseActorMods = getEffectiveActorMods(actor, args.time, args.gameTime);
+    const injectedCommandModifiers = args.stepId
+      ? (commandModifierByStepId.get(args.stepId) ?? {})
+      : {};
     const effectiveActorMods = args.applySourceCommandModifiers === false
       ? baseActorMods
-      : addModifierDelta(baseActorMods, sourceCommand?.commandModifiers ?? {});
+      : addModifierDelta(
+          addModifierDelta(baseActorMods, sourceCommand?.commandModifiers ?? {}),
+          injectedCommandModifiers,
+        );
     const effectiveFinalAtk = getEffectiveFinalAtk(actor, effectiveActorMods);
     const damageBreakdown = calculateResolvedHitDamage({
       finalAtk: effectiveFinalAtk,
@@ -2746,6 +3131,14 @@ export function simulateRotation(args: {
     const noCritDamage = damageBreakdown.noCritDamage * (1 + linkMultiplier) * totalEnemyMultiplier;
     const critDamage = damageBreakdown.critDamage * (1 + linkMultiplier) * totalEnemyMultiplier;
     const averageDamage = damageBreakdown.averageDamage * (1 + linkMultiplier) * totalEnemyMultiplier;
+    const critRigMode = args.hit.noCrit
+      ? undefined
+      : getCritRigMode(args.stepId, args.rigHitIndexOverride ?? args.hitIndex, args.rigRepeatIndex ?? 0);
+    const damage = critRigMode === "force_crit"
+      ? critDamage
+      : critRigMode === "force_non_crit"
+        ? noCritDamage
+        : averageDamage;
     const finisherBonusSp =
       isEnemyStaggered && isFinisherHit && finisherAvailable ? enemyFinisherSpGain : 0;
       const appliedStagger = applyEnemyStaggerFromHit({
@@ -2776,13 +3169,17 @@ export function simulateRotation(args: {
       multiplier: args.hit.multiplier,
       noCritDamage,
       critDamage,
-      damage: averageDamage,
+      averageDamage,
+      damage,
       stagger: appliedStagger,
       spGenerated: args.hit.spGenerated + finisherBonusSp,
       spReturned: args.hit.spReturned,
       energyReturn: args.hit.energyReturn,
+      ignoreUltimateGainEfficiency: args.hit.ignoreUltimateGainEfficiency,
       requiresControlledOperator: args.hit.requiresControlledOperator,
       triggeredComboSlots,
+      critRigMode,
+      riggedCrit: critRigMode === "force_crit",
       calculationContext: {
         finalAtk: effectiveFinalAtk,
         attackType: args.hit.attackType,
@@ -2798,8 +3195,11 @@ export function simulateRotation(args: {
       },
     });
 
-    totalDamage += averageDamage;
-    damageBySlot.set(actor.slot, (damageBySlot.get(actor.slot) ?? 0) + averageDamage);
+    totalDamage += damage;
+    damageBySlot.set(actor.slot, (damageBySlot.get(actor.slot) ?? 0) + damage);
+    if (critRigMode === "force_crit") {
+      riggedCritCount += 1;
+    }
 
     if (args.hit.damageType !== "Healing") {
       emitCritThresholdEvent({
@@ -2852,11 +3252,13 @@ export function simulateRotation(args: {
       multiplier: args.hit.multiplier,
       noCritDamage: 0,
       critDamage: 0,
+      averageDamage: 0,
       damage: 0,
       stagger: 0,
       spGenerated: args.hit.spGenerated,
       spReturned: args.hit.spReturned,
       energyReturn: args.hit.energyReturn,
+      ignoreUltimateGainEfficiency: args.hit.ignoreUltimateGainEfficiency,
       requiresControlledOperator: args.hit.requiresControlledOperator,
       triggeredComboSlots: args.triggerSlots ?? [],
       calculationContext: {
@@ -2916,6 +3318,7 @@ export function simulateRotation(args: {
     const repeatTimes = Math.max(1, Math.floor(args.effect.times ?? 1));
     const repeatIntervalSeconds = Math.max(0, args.effect.repeatIntervalFrames ?? 0) / 60;
     const executeDelaySeconds = Math.max(0, args.effect.executeDelayFrames ?? 0) / 60;
+    const executeDelayTimeScale = args.effect.executeDelayTimeScale ?? "real";
     const registerOffsetSeconds = Math.max(0, args.effect.registerOffsetFrames ?? 0) / 60;
     const repeatRegisterOffsetWithInterval = args.effect.repeatRegisterOffsetWithInterval ?? true;
     const registerAtInitialTime = args.effect.registerAtInitialTime ?? false;
@@ -2923,8 +3326,12 @@ export function simulateRotation(args: {
 
     for (let repeatIndex = 0; repeatIndex < repeatTimes; repeatIndex += 1) {
       const executionOffsetSeconds = executeDelaySeconds + repeatIndex * repeatIntervalSeconds;
-      const executionTime = timeContext.getShiftedEndTime(args.time, executionOffsetSeconds, args.stepId);
-      const executionGameTime = timeContext.toGameTime(executionTime);
+      const executionGameTime = executeDelayTimeScale === "game"
+        ? args.gameTime + executionOffsetSeconds
+        : timeContext.toGameTime(timeContext.getShiftedEndTime(args.time, executionOffsetSeconds, args.stepId));
+      const executionTime = executeDelayTimeScale === "game"
+        ? toRealTimeFromExtensions(executionGameTime)
+        : timeContext.getShiftedEndTime(args.time, executionOffsetSeconds, args.stepId);
       if (isInterruptedAtOrAfter(args.stepId, executionTime)) {
         continue;
       }
@@ -2956,6 +3363,7 @@ export function simulateRotation(args: {
               : (args.effect.hitName ?? hit.name),
           sourceCommandId,
           sourceCommandName: args.effect.commandName ?? sourceCommandName,
+          sourceCommandAttackType: hit.attackType,
           stepId: args.stepId,
           executionTime,
           executionGameTime,
@@ -2977,6 +3385,7 @@ export function simulateRotation(args: {
         triggerSlots: args.triggerSlots,
         sourceCommandId,
         sourceCommandName,
+        sourceCommandAttackType: hit.attackType,
         linkSourceStepId: args.linkSourceStepId,
         blockEnemyTargetEffects: blockedByEnemyInvulnerability,
       });
@@ -2991,6 +3400,7 @@ export function simulateRotation(args: {
           triggerSlots: args.triggerSlots,
           sourceCommandId,
           sourceCommandName,
+          sourceCommandAttackType: hit.attackType,
           linkSourceStepId: args.linkSourceStepId,
           blockEnemyTargetEffects: true,
         });
@@ -3034,6 +3444,8 @@ export function simulateRotation(args: {
         linkSourceStepId: inheritSourceBonuses ? args.linkSourceStepId : undefined,
         applySourceCommandModifiers: inheritSourceBonuses,
         triggerSlots: args.triggerSlots,
+        rigHitIndexOverride: CRIT_RIG_HIT_INDEX_EXECUTE,
+        rigRepeatIndex: 0,
       });
 
       if (hit.damageType === "Healing") {
@@ -3057,6 +3469,7 @@ export function simulateRotation(args: {
         triggerSlots: args.triggerSlots,
         sourceCommandId,
         sourceCommandName,
+        sourceCommandAttackType: hit.attackType,
         linkSourceStepId: args.linkSourceStepId,
         blockEnemyTargetEffects: false,
       });
@@ -3094,6 +3507,7 @@ export function simulateRotation(args: {
         triggerSlots: next.triggerSlots,
         sourceCommandId: next.sourceCommandId,
         sourceCommandName: next.sourceCommandName,
+        sourceCommandAttackType: next.sourceCommandAttackType,
         linkSourceStepId: next.linkSourceStepId,
         blockEnemyTargetEffects: blockedByEnemyInvulnerability,
       });
@@ -3108,6 +3522,7 @@ export function simulateRotation(args: {
           triggerSlots: next.triggerSlots,
           sourceCommandId: next.sourceCommandId,
           sourceCommandName: next.sourceCommandName,
+          sourceCommandAttackType: next.sourceCommandAttackType,
           linkSourceStepId: next.linkSourceStepId,
           blockEnemyTargetEffects: true,
         });
@@ -3147,6 +3562,8 @@ export function simulateRotation(args: {
         linkSourceStepId: next.applySourceCommandModifiers === false ? undefined : next.linkSourceStepId,
         applySourceCommandModifiers: next.applySourceCommandModifiers,
         triggerSlots: next.triggerSlots,
+        rigHitIndexOverride: CRIT_RIG_HIT_INDEX_EXECUTE,
+        rigRepeatIndex: 0,
       });
 
       if (next.hit.damageType === "Healing") {
@@ -3170,6 +3587,7 @@ export function simulateRotation(args: {
         triggerSlots: next.triggerSlots,
         sourceCommandId: next.sourceCommandId,
         sourceCommandName: next.sourceCommandName,
+        sourceCommandAttackType: next.sourceCommandAttackType,
         linkSourceStepId: next.linkSourceStepId,
         blockEnemyTargetEffects: false,
       });
@@ -3434,7 +3852,30 @@ export function simulateRotation(args: {
     sourceCommandId?: string;
     sourceCommandName?: string;
   }) => {
-    const emitPhysicalReactionAppliedEvent = (reaction: PhysicalReactionKind) => {
+    const isBarrierActive =
+      resolvedContracts.barrierInflictionIntervalSeconds != null
+      && resolvedContracts.barrierInflictionIntervalSeconds > 0;
+    const isVulnerabilityBarrierBlocked = () =>
+      isBarrierActive
+      && hasUnifiedStatus({
+        statusId: "contract_barrier_vulnerability",
+        target: "enemy",
+        realTime: args.time,
+        gameTime: args.gameTime,
+      });
+    const applyVulnerabilityBarrier = () => {
+      if (!isBarrierActive) {
+        return;
+      }
+      addEnemyStatusById({
+        statusId: "contract_barrier_vulnerability",
+        label: "Barrier Immunity (Vulnerability)",
+        expiresAt: args.gameTime + resolvedContracts.barrierInflictionIntervalSeconds!,
+        timeScale: "game",
+      });
+    };
+
+    const emitPhysicalReactionAppliedEvent = (reaction: PhysicalReactionKind, amount = 1) => {
       const sourceCommand = args.sourceCommandId
         ? partyBySlot.get(args.sourceSlot)?.commands.find((command) => command.id === args.sourceCommandId)
         : undefined;
@@ -3450,13 +3891,16 @@ export function simulateRotation(args: {
         target: "enemy",
         label: `${reaction} Applied`,
         commandAttackType: sourceCommand?.attackType,
-        amount: 1,
+        amount,
       };
       emitEvent(event);
       dispatchPassiveListeners(event, args.triggerSlots);
     };
 
     const emitVulnerabilityAppliedEvent = () => {
+      const sourceCommand = args.sourceCommandId
+        ? partyBySlot.get(args.sourceSlot)?.commands.find((command) => command.id === args.sourceCommandId)
+        : undefined;
       const event: RotationCombatEvent = {
         type: "ENEMY_DEBUFF_APPLIED",
         time: args.time,
@@ -3466,6 +3910,27 @@ export function simulateRotation(args: {
         sourceSlot: args.sourceSlot,
         target: "enemy",
         label: "Vulnerability Applied",
+        commandAttackType: sourceCommand?.attackType,
+      };
+      emitEvent(event);
+      dispatchPassiveListeners(event, args.triggerSlots);
+    };
+
+    const emitVulnerabilityConsumedEvent = (consumedStacks: number) => {
+      const sourceCommand = args.sourceCommandId
+        ? partyBySlot.get(args.sourceSlot)?.commands.find((command) => command.id === args.sourceCommandId)
+        : undefined;
+      const event: RotationCombatEvent = {
+        type: "ENEMY_DEBUFF_CONSUMED",
+        time: args.time,
+        gameTime: args.gameTime,
+        stepId: args.stepId,
+        slot: args.sourceSlot,
+        sourceSlot: args.sourceSlot,
+        target: "enemy",
+        label: "Vulnerability Consumed",
+        commandAttackType: sourceCommand?.attackType,
+        amount: consumedStacks,
       };
       emitEvent(event);
       dispatchPassiveListeners(event, args.triggerSlots);
@@ -3499,11 +3964,15 @@ export function simulateRotation(args: {
     };
 
     if (!args.forceApply && (getEnemyPhysicalInfliction()?.stacks ?? 0) <= 0) {
+      if (isVulnerabilityBarrierBlocked()) {
+        return;
+      }
       setEnemyPhysicalInfliction({
         stacks: 1,
         expiresAtGameTime: args.gameTime + ARTS_INFLICTION_DURATION_SECONDS,
       });
       emitVulnerabilityAppliedEvent();
+      applyVulnerabilityBarrier();
       triggerShatterIfSolidificationPresent();
       return;
     }
@@ -3514,12 +3983,16 @@ export function simulateRotation(args: {
       : 0;
 
     if (args.reaction === "Lift" || args.reaction === "Knockdown") {
+      if (isVulnerabilityBarrierBlocked()) {
+        return;
+      }
       const currentStacks = getEnemyPhysicalInfliction()?.stacks ?? 0;
       setEnemyPhysicalInfliction({
         stacks: Math.max(1, Math.min(4, currentStacks + 1)),
         expiresAtGameTime: args.gameTime + ARTS_INFLICTION_DURATION_SECONDS,
       });
       emitVulnerabilityAppliedEvent();
+      applyVulnerabilityBarrier();
       const reactionId = args.reaction.toLowerCase();
       const nextEnemyStatuses = getEnemyStatuses().filter((status) => status.id !== reactionId);
       nextEnemyStatuses.push({
@@ -3547,15 +4020,17 @@ export function simulateRotation(args: {
           stagger: 10 * (1 + artsIntensity / 200),
         });
       }
-      emitPhysicalReactionAppliedEvent(args.reaction);
+      emitPhysicalReactionAppliedEvent(args.reaction, 1);
       triggerShatterIfSolidificationPresent();
       return;
     }
 
     const consumedStacks = Math.max(1, getEnemyPhysicalInfliction()?.stacks ?? 0);
-    setEnemyPhysicalInfliction(null);
 
     if (args.reaction === "Crush") {
+      setEnemyPhysicalInfliction(null);
+      emitVulnerabilityConsumedEvent(consumedStacks);
+      emitPhysicalReactionAppliedEvent("Crush", consumedStacks);
       if (args.reactionDamage) {
         pushReactionDamageHit({
           sourceSlot: args.sourceSlot,
@@ -3571,7 +4046,6 @@ export function simulateRotation(args: {
           linkSourceStepId: args.linkSourceStepId,
         });
       }
-      emitPhysicalReactionAppliedEvent("Crush");
       triggerShatterIfSolidificationPresent();
       return;
     }
@@ -3621,7 +4095,9 @@ export function simulateRotation(args: {
       timeScale: "game",
     });
 
-    emitPhysicalReactionAppliedEvent("Breach");
+    setEnemyPhysicalInfliction(null);
+    emitVulnerabilityConsumedEvent(consumedStacks);
+    emitPhysicalReactionAppliedEvent("Breach", consumedStacks);
     triggerShatterIfSolidificationPresent();
   };
 
@@ -3771,6 +4247,16 @@ export function simulateRotation(args: {
       }
       return perfectTimingStepIds.has(args.stepId);
     }
+    if (condition.type === "require_vulnerability_stacks") {
+      const stacks = Math.max(0, getEnemyPhysicalInfliction()?.stacks ?? 0);
+      if (condition.min != null && stacks < condition.min) {
+        return false;
+      }
+      if (condition.max != null && stacks > condition.max) {
+        return false;
+      }
+      return true;
+    }
 
     const expectedEnabled = condition.enabled ?? true;
     return isUniqueTalentEnabled(condition.talentKey, {
@@ -3786,6 +4272,10 @@ export function simulateRotation(args: {
     statusId: string;
     sourceSlot: CharacterCombatSnapshot["slot"];
     target?: "enemy" | "self" | "global";
+    time?: number;
+    gameTime?: number;
+    stepId?: string;
+    linkSourceStepId?: string;
   }): TimedEffectStatus[] => {
     const effectStatuses = getEffectStatuses();
     const removed = effectStatuses.filter((status) =>
@@ -3797,6 +4287,23 @@ export function simulateRotation(args: {
       return [];
     }
     for (const status of removed) {
+      const sourceActor = partyBySlot.get(args.sourceSlot);
+      if (
+        sourceActor
+        && args.time != null
+        && args.gameTime != null
+        && (status.removeEffects?.length ?? 0) > 0
+      ) {
+        applyHitEffects({
+          effects: status.removeEffects,
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: status.sourceStepId,
+          actor: sourceActor,
+          triggerSlots: [],
+          linkSourceStepId: args.linkSourceStepId ?? status.linkSourceStepId,
+        });
+      }
       if (status.target === "enemy") {
         timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) => debuff.buffId !== status.id);
       }
@@ -3811,6 +4318,8 @@ export function simulateRotation(args: {
     stepId: string;
     time: number;
     gameTime: number;
+    triggerSlots: CharacterCombatSnapshot["slot"][];
+    sourceCommandAttackType?: RotationCombatEvent["commandAttackType"];
     linkSourceStepId?: string;
   }) => {
     const timeScale = args.effect.timeScale ?? "game";
@@ -3820,25 +4329,19 @@ export function simulateRotation(args: {
       return;
     }
 
-    if ((args.effect.initialEffects?.length ?? 0) > 0) {
-      const sourceActor = partyBySlot.get(args.sourceSlot);
-      if (sourceActor) {
-        applyHitEffects({
-          effects: args.effect.initialEffects ?? [],
-          time: args.time,
-          gameTime: args.gameTime,
-          stepId: `${args.stepId}:${args.effect.statusId}:initial`,
-          actor: sourceActor,
-          triggerSlots: [],
-          linkSourceStepId: args.linkSourceStepId,
-        });
-      }
-    }
-
     const periods = Math.max(0, Math.floor(args.effect.periods ?? 0));
+    const maxPeriods = args.effect.maxPeriods == null
+      ? undefined
+      : Math.max(0, Math.floor(args.effect.maxPeriods));
     const periodInterval = periods > 0 ? durationSeconds / periods : 0;
 
-    const effectStatuses = getEffectStatuses().filter((status) => !(
+    const existingStatuses = getEffectStatuses();
+    const replacedStatuses = existingStatuses.filter((status) => (
+      status.id === args.effect.statusId
+      && status.sourceSlot === args.sourceSlot
+      && status.target === args.effect.target
+    ));
+    const effectStatuses = existingStatuses.filter((status) => !(
       status.id === args.effect.statusId
       && status.sourceSlot === args.sourceSlot
       && status.target === args.effect.target
@@ -3873,11 +4376,13 @@ export function simulateRotation(args: {
       expiresAt: now + durationSeconds,
       timeScale,
       periods,
+      maxPeriods,
       periodsExecuted: 0,
       periodInterval,
       nextPeriodAt: periods > 0 ? now + periodInterval : undefined,
       periodicEffects: args.effect.periodicEffects ?? [],
       expireEffects: args.effect.expireEffects ?? [],
+      removeEffects: args.effect.removeEffects ?? [],
       pauseStatusIds: args.effect.pauseStatusIds,
       effects: args.effect.effects,
     });
@@ -3892,6 +4397,59 @@ export function simulateRotation(args: {
       }
     }
     setEffectStatuses(effectStatuses);
+
+    if (replacedStatuses.length > 0) {
+      const sourceActor = partyBySlot.get(args.sourceSlot);
+      if (sourceActor) {
+        for (const status of replacedStatuses) {
+          if ((status.removeEffects?.length ?? 0) <= 0) {
+            continue;
+          }
+          applyHitEffects({
+            effects: status.removeEffects,
+            time: args.time,
+            gameTime: args.gameTime,
+            stepId: status.sourceStepId,
+            actor: sourceActor,
+            triggerSlots: [],
+            linkSourceStepId: status.linkSourceStepId,
+          });
+        }
+      }
+    }
+
+    if (args.effect.target === "enemy") {
+      const event: RotationCombatEvent = {
+        type: "ENEMY_DEBUFF_APPLIED",
+        time: args.time,
+        gameTime: args.gameTime,
+        stepId: args.stepId,
+        slot: args.sourceSlot,
+        sourceSlot: args.sourceSlot,
+        target: "enemy",
+        label: args.effect.label ?? args.effect.statusId,
+        commandAttackType: args.sourceCommandAttackType ?? commandAttackTypeByStepId.get(args.stepId),
+      };
+      emitEvent(event);
+      dispatchPassiveListeners(event, args.triggerSlots);
+    }
+
+    // Important ordering: status should exist before initial effects run so those
+    // effects can query/benefit from the freshly-applied status in the same frame.
+    if ((args.effect.initialEffects?.length ?? 0) > 0) {
+      const sourceActor = partyBySlot.get(args.sourceSlot);
+      if (sourceActor) {
+        applyHitEffects({
+          effects: args.effect.initialEffects ?? [],
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: `${args.stepId}:${args.effect.statusId}:initial`,
+          actor: sourceActor,
+          triggerSlots: [],
+          linkSourceStepId: args.linkSourceStepId,
+        });
+      }
+    }
   };
 
   const processTimedEffectStatusesUpTo = (args: { realTime: number; gameTime: number }) => {
@@ -3899,6 +4457,21 @@ export function simulateRotation(args: {
     for (const status of [...effectStatuses]) {
       const interruptedAt = getInterruptCutoffForStep(status.sourceStepId);
       if (interruptedAt != null && interruptedAt <= args.realTime + 0.0001) {
+        const sourceActor = partyBySlot.get(status.sourceSlot);
+        if (sourceActor && (status.removeEffects?.length ?? 0) > 0) {
+          applyHitEffects({
+            effects: status.removeEffects,
+            time: interruptedAt,
+            gameTime: toGameTimeFromExtensions(interruptedAt),
+            stepId: status.sourceStepId,
+            actor: sourceActor,
+            triggerSlots: [],
+            linkSourceStepId: status.linkSourceStepId,
+          });
+        }
+        if (status.target === "enemy") {
+          timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) => debuff.buffId !== status.id);
+        }
         effectStatuses = effectStatuses.filter((entry) => entry !== status);
         continue;
       }
@@ -3910,7 +4483,7 @@ export function simulateRotation(args: {
       }
 
       while (
-        status.periodsExecuted < status.periods
+        status.periodsExecuted < Math.min(status.periods, status.maxPeriods ?? status.periods)
         && status.nextPeriodAt != null
       ) {
         const periodTime = status.nextPeriodAt;
@@ -3946,6 +4519,20 @@ export function simulateRotation(args: {
         continue;
       }
       if (isInterruptedAtOrAfter(status.sourceStepId, expiresAtRealTime)) {
+        if ((status.removeEffects?.length ?? 0) > 0) {
+          applyHitEffects({
+            effects: status.removeEffects,
+            time: expiresAtRealTime,
+            gameTime: expiresAtGameTime,
+            stepId: status.sourceStepId,
+            actor: sourceActor,
+            triggerSlots: [],
+            linkSourceStepId: status.linkSourceStepId,
+          });
+        }
+        if (status.target === "enemy") {
+          timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) => debuff.buffId !== status.id);
+        }
         effectStatuses = effectStatuses.filter((entry) => entry !== status);
         continue;
       }
@@ -4073,6 +4660,7 @@ export function simulateRotation(args: {
     triggerSlots: CharacterCombatSnapshot["slot"][];
     sourceCommandId?: string;
     sourceCommandName?: string;
+    sourceCommandAttackType?: RotationCombatEvent["commandAttackType"];
     linkSourceStepId?: string;
     isCommandHit?: boolean;
     blockEnemyTargetEffects?: boolean;
@@ -4138,6 +4726,34 @@ export function simulateRotation(args: {
         continue;
       }
 
+      if (effect.type === "ADD_TIME_FREEZE") {
+        addTimeFreezeExtension({
+          time: args.time,
+          amount: Math.max(0, effect.durationSeconds),
+          sourceStepId: args.stepId,
+          cutscene: effect.cutscene ?? false,
+        });
+        continue;
+      }
+
+      if (effect.type === "EMIT_EVENT") {
+        const event: RotationCombatEvent = {
+          type: effect.eventType,
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId,
+          slot: args.actor.slot,
+          sourceSlot: args.actor.slot,
+          label: effect.label ?? effect.eventType,
+          amount: effect.amount,
+          commandAttackType: effect.commandAttackType ?? args.sourceCommandAttackType ?? commandAttackTypeByStepId.get(args.stepId),
+          damageType: effect.damageType,
+        };
+        emitEvent(event);
+        dispatchPassiveListeners(event, args.triggerSlots);
+        continue;
+      }
+
       if (effect.type === "APPLY_STATUS") {
         if (args.blockEnemyTargetEffects && effect.target === "enemy") {
           continue;
@@ -4148,6 +4764,8 @@ export function simulateRotation(args: {
           stepId: args.stepId,
           time: args.time,
           gameTime: args.gameTime,
+          triggerSlots: args.triggerSlots,
+          sourceCommandAttackType: args.sourceCommandAttackType ?? commandAttackTypeByStepId.get(args.stepId),
           linkSourceStepId: resolvedLinkSourceStepId,
         });
         continue;
@@ -4156,6 +4774,17 @@ export function simulateRotation(args: {
       if (effect.type === "APPLY_PHYSICAL_INFLICTION") {
         if (args.blockEnemyTargetEffects) {
           continue;
+        }
+        if (resolvedContracts.barrierInflictionIntervalSeconds != null && resolvedContracts.barrierInflictionIntervalSeconds > 0) {
+          const blocked = hasUnifiedStatus({
+            statusId: "contract_barrier_vulnerability",
+            target: "enemy",
+            realTime: args.time,
+            gameTime: args.gameTime,
+          });
+          if (blocked) {
+            continue;
+          }
         }
         const currentStacks = Math.max(0, getEnemyPhysicalInfliction()?.stacks ?? 0);
         const addedStacks = Math.max(0, effect.stacks ?? 1);
@@ -4174,9 +4803,18 @@ export function simulateRotation(args: {
           sourceSlot: args.actor.slot,
           target: "enemy",
           label: "Vulnerability Applied",
+          commandAttackType: args.sourceCommandAttackType ?? commandAttackTypeByStepId.get(args.stepId),
         };
         emitEvent(event);
         dispatchPassiveListeners(event, args.triggerSlots);
+        if (resolvedContracts.barrierInflictionIntervalSeconds != null && resolvedContracts.barrierInflictionIntervalSeconds > 0) {
+          addEnemyStatusById({
+            statusId: "contract_barrier_vulnerability",
+            label: "Barrier Immunity",
+            expiresAt: args.gameTime + resolvedContracts.barrierInflictionIntervalSeconds,
+            timeScale: "game",
+          });
+        }
         continue;
       }
 
@@ -4208,6 +4846,47 @@ export function simulateRotation(args: {
           gameTime: args.gameTime,
           stepId: args.stepId,
           sourceSlot: args.actor.slot,
+        });
+        continue;
+      }
+
+      if (effect.type === "GRANT_SP_FROM_VULNERABILITY_STACKS") {
+        const vulnerabilityStacks = Math.max(0, Math.min(4, getEnemyPhysicalInfliction()?.stacks ?? 0));
+        if (vulnerabilityStacks <= 0) {
+          continue;
+        }
+        const amount =
+          vulnerabilityStacks >= 4
+            ? effect.amountAt4 ?? 0
+            : vulnerabilityStacks === 3
+              ? effect.amountAt3 ?? 0
+              : vulnerabilityStacks === 2
+                ? effect.amountAt2 ?? 0
+                : effect.amountAt1 ?? 0;
+        if (amount <= 0) {
+          continue;
+        }
+        emitEvent({
+          type: "SP_GENERATED",
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId,
+          slot: args.actor.slot,
+          sourceSlot: args.actor.slot,
+          label: effect.label ?? `${args.actor.characterName} Skill Generated SP`,
+          amount,
+          commandAttackType: args.sourceCommandAttackType,
+        });
+        emitEvent({
+          type: "SKILL_SP_RECOVERED",
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId,
+          slot: args.actor.slot,
+          sourceSlot: args.actor.slot,
+          label: effect.label ?? `${args.actor.characterName} Skill Recovered SP`,
+          amount,
+          commandAttackType: args.sourceCommandAttackType,
         });
         continue;
       }
@@ -4250,6 +4929,10 @@ export function simulateRotation(args: {
           statusId: effect.statusId,
           sourceSlot: args.actor.slot,
           target: effect.target,
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId,
+          linkSourceStepId: resolvedLinkSourceStepId,
         });
         continue;
       }
@@ -4429,6 +5112,18 @@ export function simulateRotation(args: {
         if (args.blockEnemyTargetEffects) {
           continue;
         }
+        if (resolvedContracts.barrierInflictionIntervalSeconds != null && resolvedContracts.barrierInflictionIntervalSeconds > 0) {
+          const immunityId = `contract_barrier_arts_${effect.element.toLowerCase()}`;
+          const blocked = hasUnifiedStatus({
+            statusId: immunityId,
+            target: "enemy",
+            realTime: args.time,
+            gameTime: args.gameTime,
+          });
+          if (blocked) {
+            continue;
+          }
+        }
         const stacks = Math.max(1, effect.stacks ?? 1);
         const durationSeconds = effect.durationSeconds ?? ARTS_INFLICTION_DURATION_SECONDS;
         const currentInfliction = getEnemyArtsInfliction();
@@ -4566,10 +5261,19 @@ export function simulateRotation(args: {
           sourceSlot: args.actor.slot,
           target: "enemy",
           label: `${effect.element} Infliction Applied`,
+          commandAttackType: args.sourceCommandAttackType ?? commandAttackTypeByStepId.get(args.stepId),
           consumedElement: effect.element,
         };
         emitEvent(inflictionEvent);
         dispatchPassiveListeners(inflictionEvent, args.triggerSlots);
+        if (resolvedContracts.barrierInflictionIntervalSeconds != null && resolvedContracts.barrierInflictionIntervalSeconds > 0) {
+          addEnemyStatusById({
+            statusId: `contract_barrier_arts_${effect.element.toLowerCase()}`,
+            label: "Barrier Immunity",
+            expiresAt: args.gameTime + resolvedContracts.barrierInflictionIntervalSeconds,
+            timeScale: "game",
+          });
+        }
 
         if (effect.element === "Heat") {
           emitEvent({
@@ -4640,6 +5344,33 @@ export function simulateRotation(args: {
         continue;
       }
 
+      if (effect.type === "APPLY_CUSTOM_REACTION" && effect.reactionId === "DAPAN_COMBO_CRUSH") {
+        if (args.blockEnemyTargetEffects) {
+          continue;
+        }
+        const vulnerabilityStacks = Math.max(0, getEnemyPhysicalInfliction()?.stacks ?? 0);
+        if (vulnerabilityStacks <= 0) {
+          continue;
+        }
+        const crushMultiplier = effect.crushMultiplier ?? 1;
+        const baseMultiplier = (1.5 + 1.5 * vulnerabilityStacks) * crushMultiplier;
+        applyPhysicalReaction({
+          reaction: "Crush",
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId,
+          sourceSlot: args.actor.slot,
+          triggerSlots: args.triggerSlots,
+          forceApply: true,
+          reactionDamage: true,
+          baseMultiplier,
+          linkSourceStepId: resolvedLinkSourceStepId,
+          sourceCommandId: args.sourceCommandId,
+          sourceCommandName: args.sourceCommandName,
+        });
+        continue;
+      }
+
       if (effect.type === "APPLY_CUSTOM_REACTION" && effect.reactionId === "YVONNE_BATTLE_SKILL_FREEZE") {
         if (args.blockEnemyTargetEffects) {
           continue;
@@ -4698,6 +5429,7 @@ export function simulateRotation(args: {
           repeatIntervalFrames: 0,
           repeatRegisterOffsetWithInterval: true,
           energyReturn: (effect.baseEnergyReturn ?? 0) + (effect.bonusEnergyReturnPerConsumedStack ?? 0) * consumedStacks,
+          ignoreUltimateGainEfficiency: false,
           attackType: "BATTLE_SKILL",
           damageType: "Cryo",
           noCrit: false,
@@ -4719,8 +5451,8 @@ export function simulateRotation(args: {
           linkSourceStepId: resolvedLinkSourceStepId,
         });
 
-        const battleOrComboEvent: RotationCombatEvent = {
-          type: "BATTLE_OR_COMBO_HIT",
+        const battleSkillHitEvent: RotationCombatEvent = {
+          type: "BATTLE_SKILL_HIT",
           time: args.time,
           gameTime: args.gameTime,
           stepId: args.stepId,
@@ -4731,8 +5463,8 @@ export function simulateRotation(args: {
           damageType: customHit.damageType,
           expectedCritCount: Math.max(0, getEffectiveActorMods(args.actor, args.time, args.gameTime).CRIT_RATE_PCT),
         };
-        emitEvent(battleOrComboEvent);
-        dispatchPassiveListeners(battleOrComboEvent, args.triggerSlots);
+        emitEvent(battleSkillHitEvent);
+        dispatchPassiveListeners(battleSkillHitEvent, args.triggerSlots);
 
         if (
           isSelfUniqueTalentEnabled(args.actor, "yvonne_barrage_of_technology_1")
@@ -4764,7 +5496,8 @@ export function simulateRotation(args: {
     occurrenceIndex: number;
     triggerSlots: CharacterCombatSnapshot["slot"][];
   }) => {
-    for (const member of party) {
+    for (const baseMember of party) {
+      const member = getRuntimeActorBySlot(baseMember.slot) ?? baseMember;
       const hooks = member.combatHooks;
       if (!hooks?.onResolvedHit) {
         continue;
@@ -4795,6 +5528,7 @@ export function simulateRotation(args: {
         },
         state: {
           getEnemyArtsInfliction: () => getEnemyArtsInfliction(),
+          getEnemyVulnerabilityStacks: () => getEnemyPhysicalInfliction()?.stacks ?? 0,
           setEnemyArtsInfliction: (value: CombatHookEnemyArtsInflictionState | null) => {
             setEnemyArtsInfliction(value ? { ...value } : null);
           },
@@ -4814,12 +5548,34 @@ export function simulateRotation(args: {
               realTime: args.occurrence.time,
               gameTime: args.occurrence.gameTime,
             }),
+          getStatusSourceStepId: (hookArgs) => {
+            const target = hookArgs.target ?? "self";
+            const statuses = getUnifiedStatuses({
+              realTime: args.occurrence.time,
+              gameTime: args.occurrence.gameTime,
+            });
+            const matched = statuses.find((status) =>
+              status.id === hookArgs.statusId
+              && (
+                (target === "enemy" && status.scope === "enemy")
+                || (target === "global" && status.scope === "global")
+                || (target === "self" && status.scope === "actor" && status.targetSlot === member.slot)
+              ),
+            );
+            const sourceStepId = matched?.metadata?.sourceStepId;
+            return typeof sourceStepId === "string" && sourceStepId.length > 0 ? sourceStepId : null;
+          },
           hasSelfBuff: (buffId: string) =>
             getActorBuffs().some(
               (buff) =>
                 buff.slot === member.slot &&
                 (buff.id === buffId || buff.id.startsWith(`${buffId}:`)),
             ),
+          getSelfBuffStackCount: (buffId: string) =>
+            getActorBuffStackCount({
+              slot: member.slot,
+              buffId,
+            }),
           getSelfMeltingFlameStacks: () => getMeltingFlameStacks(member.slot),
           gainSelfMeltingFlameStacks: (stacks: number, label?: string) => {
             gainMeltingFlameStacks({
@@ -4863,7 +5619,8 @@ export function simulateRotation(args: {
             });
           },
           applyOtherTeammatesBuff: (hookArgs) => {
-            for (const teammate of party) {
+            for (const teammateBase of party) {
+              const teammate = getRuntimeActorBySlot(teammateBase.slot) ?? teammateBase;
               if (teammate.slot === member.slot) {
                 continue;
               }
@@ -4907,6 +5664,20 @@ export function simulateRotation(args: {
             if (amount <= 0) {
               return;
             }
+            const spReturnedEvent: RotationCombatEvent = {
+              type: "SP_RETURNED",
+              time: args.occurrence.time,
+              gameTime: args.occurrence.gameTime,
+              stepId: args.occurrence.action.stepId,
+              slot: member.slot,
+              sourceSlot: member.slot,
+              label,
+              amount,
+              commandAttackType: args.occurrence.command.attackType,
+            };
+            emitEvent(spReturnedEvent);
+            dispatchPassiveListeners(spReturnedEvent);
+
             const event: RotationCombatEvent = {
               type: "SKILL_SP_RECOVERED",
               time: args.occurrence.time,
@@ -4916,6 +5687,7 @@ export function simulateRotation(args: {
               sourceSlot: member.slot,
               label,
               amount,
+              commandAttackType: args.occurrence.command.attackType,
             };
             emitEvent(event);
             dispatchPassiveListeners(event);
@@ -4997,7 +5769,7 @@ export function simulateRotation(args: {
               gameTime: args.occurrence.gameTime,
               sourceStepId: args.occurrence.action.stepId,
               sourceEventType:
-                (hookArgs?.sourceEventType as RotationCombatEvent["type"]) ?? "BATTLE_OR_COMBO_HIT",
+                (hookArgs?.sourceEventType as RotationCombatEvent["type"]) ?? "BATTLE_SKILL_HIT",
               label: hookArgs?.label ?? `${member.characterName} Combo Triggered`,
               comboCommandId: hookArgs?.comboCommandId,
             });
@@ -5005,6 +5777,14 @@ export function simulateRotation(args: {
               args.triggerSlots.push(member.slot);
             }
             return triggered;
+          },
+          shortenSelfComboCooldownByRatio: (ratio: number) => {
+            shortenComboCooldownByRatio({
+              slot: member.slot,
+              ratio,
+              time: args.occurrence.time,
+              gameTime: args.occurrence.gameTime,
+            });
           },
           emitEvent: (event) => {
             emitEvent({
@@ -5036,11 +5816,29 @@ export function simulateRotation(args: {
   };
 
   const occurrences: Array<ActionOccurrence | ActionEndOccurrence | HitOccurrence> = [];
+  const actionsInTimeOrder = [...actions].sort((left, right) => {
+    if (left.realStartTime !== right.realStartTime) {
+      return left.realStartTime - right.realStartTime;
+    }
+    return left.slot - right.slot;
+  });
+
+  const firstAction = actionsInTimeOrder[0];
+  const initialSnapshotRealTime = firstAction && firstAction.realStartTime < 0 ? firstAction.realStartTime : 0;
+  const initialSnapshotGameTime = firstAction && firstAction.realStartTime < 0 ? firstAction.startTime : 0;
 
   for (const member of party) {
+    activeBuildVariantBySlot.set(member.slot, Math.max(0, Math.min(3, args.initialVariantIndex ?? 0)));
     actorMaxHpBySlot.set(member.slot, member.maxHp);
     actorCurrentHpBySlot.set(member.slot, member.maxHp);
-    recordActorState(member.slot, 0, 0);
+    initializeSnapshotForSlot({
+      slot: member.slot,
+      time: initialSnapshotRealTime,
+      gameTime: initialSnapshotGameTime,
+      includeGearSet: true,
+      includeWeapon: true,
+    });
+    recordActorState(member.slot, initialSnapshotRealTime, initialSnapshotGameTime);
   }
   for (const member of party) {
     const consumableId = args.battleStartConsumableIdsBySlot?.[member.slot] ?? null;
@@ -5055,8 +5853,8 @@ export function simulateRotation(args: {
       slot: member.slot,
       sourceSlot: member.slot,
       stepId: `__battle_start_consumable:${member.slot}`,
-      time: 0,
-      gameTime: 0,
+      time: initialSnapshotRealTime,
+      gameTime: initialSnapshotGameTime,
       buffId: `consumable:${consumable.id}`,
       label: consumable.name,
       durationSeconds: consumable.durationSeconds,
@@ -5064,10 +5862,58 @@ export function simulateRotation(args: {
       effects: consumable.effects,
     });
   }
-  recordEnemyState(0, 0);
+  for (const member of party) {
+    if (Object.keys(resolvedContracts.operatorModifierEffects).length > 0) {
+      applyActorBuff({
+        slot: member.slot,
+        sourceSlot: member.slot,
+        stepId: "__contract_operator_modifiers",
+        time: initialSnapshotRealTime,
+        gameTime: initialSnapshotGameTime,
+        buffId: "contract_operator_modifiers",
+        label: "Contract Operator Modifiers",
+        durationSeconds: 0,
+        infiniteDuration: true,
+        timeScale: "game",
+        effects: resolvedContracts.operatorModifierEffects,
+      });
+    }
+  }
+  if (Object.keys(resolvedContracts.enemyModifierEffects).length > 0) {
+    applyEnemyBuff({
+      buffId: "contract_enemy_modifiers",
+      label: "Contract Enemy Modifiers",
+      effects: resolvedContracts.enemyModifierEffects,
+      durationSeconds: Number.POSITIVE_INFINITY,
+      timeScale: "game",
+      time: initialSnapshotRealTime,
+      gameTime: initialSnapshotGameTime,
+      stepId: "__contract_enemy_modifiers",
+      sourceSlot: controlledOperatorSlot,
+    });
+  }
+  if (resolvedContracts.decapitationDamageTakenPct != null && resolvedContracts.decapitationDamageTakenPct > 0) {
+    applyActorBuff({
+      slot: controlledOperatorSlot,
+      sourceSlot: controlledOperatorSlot,
+      stepId: "__contract_decapitation_init",
+      time: initialSnapshotRealTime,
+      gameTime: initialSnapshotGameTime,
+      buffId: "contract_decapitation_controlled",
+      label: "Decapitation",
+      durationSeconds: 0,
+      infiniteDuration: true,
+      timeScale: "game",
+      effects: {
+        DMG_TAKEN_PCT: resolvedContracts.decapitationDamageTakenPct,
+      },
+    });
+  }
+  recordEnemyState(initialSnapshotRealTime, initialSnapshotGameTime);
 
-  for (const action of actions) {
-    const actor = partyBySlot.get(action.slot);
+  for (const action of actionsInTimeOrder) {
+    const currentVariant = activeBuildVariantBySlot.get(action.slot) ?? 0;
+    const actor = partyVariantsBySlot.get(action.slot)?.[currentVariant] ?? partyBySlot.get(action.slot);
     if (!actor) {
       continue;
     }
@@ -5075,6 +5921,12 @@ export function simulateRotation(args: {
     const command = actor.commands.find((entry) => entry.id === action.commandId);
     if (!command) {
       continue;
+    }
+    if (
+      command.genericActionType
+      && resolvedContracts.disabledGenericActions.has(command.genericActionType)
+    ) {
+      action.missed = true;
     }
 
     occurrences.push({
@@ -5096,6 +5948,42 @@ export function simulateRotation(args: {
     });
 
     if (action.missed || action.interrupted) {
+      if (command.genericActionType === "switch_build") {
+        const map = action.buildSwapMap ?? [1, 2, 3, 0];
+        const nextVariant = map[currentVariant] ?? currentVariant;
+        const clampedNextVariant = Math.max(0, Math.min(3, nextVariant));
+        const previousActor = actor;
+        activeBuildVariantBySlot.set(action.slot, clampedNextVariant);
+        const nextActor = getRuntimeActorBySlot(action.slot) ?? previousActor;
+        const gearChanged = (previousActor.activeGearSet?.name ?? "") !== (nextActor.activeGearSet?.name ?? "");
+        const weaponChanged = previousActor.weaponId !== nextActor.weaponId;
+        initializeSnapshotForSlot({
+          slot: action.slot,
+          time: action.realStartTime,
+          gameTime: action.startTime,
+          includeGearSet: gearChanged,
+          includeWeapon: weaponChanged,
+        });
+      }
+      continue;
+    }
+
+    if (command.genericActionType === "switch_build") {
+      const map = action.buildSwapMap ?? [1, 2, 3, 0];
+      const nextVariant = map[currentVariant] ?? currentVariant;
+      const clampedNextVariant = Math.max(0, Math.min(3, nextVariant));
+      const previousActor = actor;
+      activeBuildVariantBySlot.set(action.slot, clampedNextVariant);
+      const nextActor = getRuntimeActorBySlot(action.slot) ?? previousActor;
+      const gearChanged = (previousActor.activeGearSet?.name ?? "") !== (nextActor.activeGearSet?.name ?? "");
+      const weaponChanged = previousActor.weaponId !== nextActor.weaponId;
+      initializeSnapshotForSlot({
+        slot: action.slot,
+        time: action.realStartTime,
+        gameTime: action.startTime,
+        includeGearSet: gearChanged,
+        includeWeapon: weaponChanged,
+      });
       continue;
     }
 
@@ -5192,6 +6080,7 @@ export function simulateRotation(args: {
 
   for (let occurrenceIndex = 0; occurrenceIndex < occurrences.length; occurrenceIndex += 1) {
     const occurrence = occurrences[occurrenceIndex]!;
+    commandAttackTypeByStepId.set(occurrence.action.stepId, occurrence.command.attackType);
     flushEnemyInterruptedCommandEventsUpTo({ time: occurrence.time });
     processTimedEffectStatusesUpTo({ realTime: occurrence.time, gameTime: occurrence.gameTime });
     processReactionTicksUpTo({ realTime: occurrence.time, gameTime: occurrence.gameTime });
@@ -5200,6 +6089,11 @@ export function simulateRotation(args: {
     cleanupStateAt(occurrence.time, occurrence.gameTime);
 
     if (occurrence.kind === "action-start") {
+      if (occurrence.command.genericActionType === "switch_build") {
+        recordActorState(occurrence.actor.slot, occurrence.time, occurrence.gameTime);
+        recordEnemyState(occurrence.time, occurrence.gameTime);
+        continue;
+      }
       if (occurrence.command.genericActionType === "switch") {
         const lockedUntil = switchBackLockedUntilBySlot.get(occurrence.actor.slot) ?? 0;
         if (
@@ -5209,6 +6103,38 @@ export function simulateRotation(args: {
           const previousControlledSlot = controlledOperatorSlot;
           controlledOperatorSlot = occurrence.actor.slot;
           switchBackLockedUntilBySlot.set(previousControlledSlot, occurrence.time + SWITCH_BACK_COOLDOWN_SECONDS);
+          const switchedEvent: RotationCombatEvent = {
+            type: "OPERATOR_SWITCHED",
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+            stepId: occurrence.action.stepId,
+            slot: controlledOperatorSlot,
+            sourceSlot: previousControlledSlot,
+            label: `${occurrence.actor.characterName} Switched In`,
+          };
+          emitEvent(switchedEvent);
+          dispatchPassiveListeners(switchedEvent);
+          if (resolvedContracts.decapitationDamageTakenPct != null && resolvedContracts.decapitationDamageTakenPct > 0) {
+            removeActorBuff({
+              slot: previousControlledSlot,
+              buffId: "contract_decapitation_controlled",
+            });
+            applyActorBuff({
+              slot: controlledOperatorSlot,
+              sourceSlot: controlledOperatorSlot,
+              stepId: occurrence.action.stepId,
+              time: occurrence.time,
+              gameTime: occurrence.gameTime,
+              buffId: "contract_decapitation_controlled",
+              label: "Decapitation",
+              durationSeconds: 0,
+              infiniteDuration: true,
+              timeScale: "game",
+              effects: {
+                DMG_TAKEN_PCT: resolvedContracts.decapitationDamageTakenPct,
+              },
+            });
+          }
         }
         recordActorState(occurrence.actor.slot, occurrence.time, occurrence.gameTime);
         recordEnemyState(occurrence.time, occurrence.gameTime);
@@ -5221,16 +6147,28 @@ export function simulateRotation(args: {
           commandLinkedStacksByStepId.set(occurrence.action.stepId, Math.min(4, linkStacks));
         }
 
-        const event: RotationCombatEvent = {
-          type: "BATTLE_SKILL_CAST",
-          time: occurrence.time,
-          gameTime: occurrence.gameTime,
-          stepId: occurrence.action.stepId,
-          slot: occurrence.actor.slot,
-          label: `${occurrence.actor.characterName} Battle Skill Cast`,
-        };
-        emitEvent(event);
-        dispatchPassiveListeners(event);
+        const shouldEmitCastEvent =
+          occurrence.gameTime >= PRE_BATTLE_START_GAME_TIME
+          || canHitEnemyBeforeBattleStart({
+            sourceSlot: occurrence.actor.slot,
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+          });
+        if (shouldEmitCastEvent) {
+          const event: RotationCombatEvent = {
+            type: "BATTLE_SKILL_CAST",
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+            stepId: occurrence.action.stepId,
+            slot: occurrence.actor.slot,
+            label: `${occurrence.actor.characterName} Battle Skill Cast`,
+          };
+          emitEvent(event);
+          dispatchPassiveListeners(event);
+          const existing = castEventEmittedByStepId.get(occurrence.action.stepId) ?? { battleSkill: false, ultimate: false };
+          existing.battleSkill = true;
+          castEventEmittedByStepId.set(occurrence.action.stepId, existing);
+        }
       }
 
       if (occurrence.command.attackType === "ULTIMATE") {
@@ -5239,22 +6177,54 @@ export function simulateRotation(args: {
           commandLinkedStacksByStepId.set(occurrence.action.stepId, Math.min(4, linkStacks));
         }
 
-        const event: RotationCombatEvent = {
-          type: "ULTIMATE_CAST",
-          time: occurrence.time,
-          gameTime: occurrence.gameTime,
-          stepId: occurrence.action.stepId,
-          slot: occurrence.actor.slot,
-          label: `${occurrence.actor.characterName} Ultimate Cast`,
-        };
-        emitEvent(event);
-        dispatchPassiveListeners(event);
+        const shouldEmitCastEvent =
+          occurrence.gameTime >= PRE_BATTLE_START_GAME_TIME
+          || canHitEnemyBeforeBattleStart({
+            sourceSlot: occurrence.actor.slot,
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+          });
+        if (shouldEmitCastEvent) {
+          const event: RotationCombatEvent = {
+            type: "ULTIMATE_CAST",
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+            stepId: occurrence.action.stepId,
+            slot: occurrence.actor.slot,
+            label: `${occurrence.actor.characterName} Ultimate Cast`,
+          };
+          emitEvent(event);
+          dispatchPassiveListeners(event);
+          const existing = castEventEmittedByStepId.get(occurrence.action.stepId) ?? { battleSkill: false, ultimate: false };
+          existing.ultimate = true;
+          castEventEmittedByStepId.set(occurrence.action.stepId, existing);
+        }
 
         recordActorState(occurrence.actor.slot, occurrence.time, occurrence.gameTime);
         recordEnemyState(occurrence.time, occurrence.gameTime);
       }
 
       if (occurrence.command.attackType === "COMBO_SKILL") {
+        const shouldEmitCastEvent =
+          occurrence.gameTime >= PRE_BATTLE_START_GAME_TIME
+          || canHitEnemyBeforeBattleStart({
+            sourceSlot: occurrence.actor.slot,
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+          });
+        if (shouldEmitCastEvent) {
+          const event: RotationCombatEvent = {
+            type: "COMBO_SKILL_CAST",
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+            stepId: occurrence.action.stepId,
+            slot: occurrence.actor.slot,
+            label: `${occurrence.actor.characterName} Combo Skill Cast`,
+          };
+          emitEvent(event);
+          dispatchPassiveListeners(event);
+        }
+
         const cooldownOwnerId = occurrence.command.comboCooldownOwnerCommandId ?? occurrence.command.id;
         if (
           occurrence.command.id === cooldownOwnerId
@@ -5301,6 +6271,9 @@ export function simulateRotation(args: {
           stepId: occurrence.action.stepId,
           actor: occurrence.actor,
           triggerSlots: [],
+          sourceCommandId: occurrence.command.id,
+          sourceCommandName: occurrence.command.name,
+          sourceCommandAttackType: occurrence.command.attackType,
         });
       }
 
@@ -5311,6 +6284,41 @@ export function simulateRotation(args: {
       const interruptedAt = interruptedAtByStepId.get(occurrence.action.stepId);
       if (interruptedAt != null && occurrence.time >= interruptedAt - 0.0001) {
         continue;
+      }
+      const castEmitted = castEventEmittedByStepId.get(occurrence.action.stepId);
+      if (!occurrence.command.delayedEnd) {
+        if (occurrence.command.attackType === "BATTLE_SKILL" && castEmitted?.battleSkill) {
+          const endEvent: RotationCombatEvent = {
+            type: "BATTLE_SKILL_END",
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+            stepId: occurrence.action.stepId,
+            slot: occurrence.actor.slot,
+            sourceSlot: occurrence.actor.slot,
+            label: `${occurrence.actor.characterName} Battle Skill End`,
+            commandId: occurrence.command.id,
+            commandName: occurrence.command.name,
+            commandAttackType: occurrence.command.attackType,
+          };
+          emitEvent(endEvent);
+          dispatchPassiveListeners(endEvent);
+        }
+        if (occurrence.command.attackType === "ULTIMATE" && castEmitted?.ultimate) {
+          const endEvent: RotationCombatEvent = {
+            type: "ULTIMATE_END",
+            time: occurrence.time,
+            gameTime: occurrence.gameTime,
+            stepId: occurrence.action.stepId,
+            slot: occurrence.actor.slot,
+            sourceSlot: occurrence.actor.slot,
+            label: `${occurrence.actor.characterName} Ultimate End`,
+            commandId: occurrence.command.id,
+            commandName: occurrence.command.name,
+            commandAttackType: occurrence.command.attackType,
+          };
+          emitEvent(endEvent);
+          dispatchPassiveListeners(endEvent);
+        }
       }
       if (occurrence.command.attackType === "COMBO_SKILL") {
         const cooldownOwnerId = occurrence.command.comboCooldownOwnerCommandId ?? occurrence.command.id;
@@ -5407,6 +6415,14 @@ export function simulateRotation(args: {
         terminatedRepeatHitChains.add(repeatHitChainKey);
         continue;
       }
+
+      if (executeCondition.requiresConsumedLink) {
+        const consumedLinkStacks = commandLinkedStacksByStepId.get(occurrence.action.stepId) ?? 0;
+        if (consumedLinkStacks <= 0) {
+          terminatedRepeatHitChains.add(repeatHitChainKey);
+          continue;
+        }
+      }
     }
 
     const triggeredComboSlots: CharacterCombatSnapshot["slot"][] = [];
@@ -5429,6 +6445,7 @@ export function simulateRotation(args: {
       triggerSlots: triggeredComboSlots,
       sourceCommandId: occurrence.command.id,
       sourceCommandName: occurrence.command.name,
+      sourceCommandAttackType: occurrence.command.attackType,
       linkSourceStepId: occurrence.action.stepId,
       isCommandHit: true,
       blockEnemyTargetEffects: blockedByEnemyInvulnerability,
@@ -5443,6 +6460,7 @@ export function simulateRotation(args: {
         triggerSlots: triggeredComboSlots,
         sourceCommandId: occurrence.command.id,
         sourceCommandName: occurrence.command.name,
+        sourceCommandAttackType: occurrence.command.attackType,
         linkSourceStepId: occurrence.action.stepId,
         isCommandHit: true,
         blockEnemyTargetEffects: true,
@@ -5543,7 +6561,11 @@ export function simulateRotation(args: {
       occurrence.time,
       occurrence.gameTime,
     );
-    const effectiveActorMods = addModifierDelta(baseActorMods, occurrence.command.commandModifiers ?? {});
+    const injectedCommandModifiers = commandModifierByStepId.get(occurrence.action.stepId) ?? {};
+    const effectiveActorMods = addModifierDelta(
+      addModifierDelta(baseActorMods, occurrence.command.commandModifiers ?? {}),
+      injectedCommandModifiers,
+    );
     const effectiveFinalAtk = getEffectiveFinalAtk(occurrence.actor, effectiveActorMods);
     const linkStacks = commandLinkedStacksByStepId.get(occurrence.action.stepId) ?? 0;
     const linkMultiplier = getLinkBonusForAttackType(linkStacks, occurrence.hit.attackType);
@@ -5676,11 +6698,13 @@ export function simulateRotation(args: {
       multiplier: effectiveHit.multiplier,
       noCritDamage,
       critDamage,
+      averageDamage,
       damage,
       stagger: appliedStagger,
       spGenerated: effectiveHit.spGenerated + finisherBonusSp,
       spReturned: effectiveHit.spReturned,
       energyReturn: effectiveHit.energyReturn,
+      ignoreUltimateGainEfficiency: effectiveHit.ignoreUltimateGainEfficiency,
       requiresControlledOperator: occurrence.hit.requiresControlledOperator,
       triggeredComboSlots,
       critRigMode,
@@ -5710,6 +6734,7 @@ export function simulateRotation(args: {
       triggerSlots: triggeredComboSlots,
       sourceCommandId: occurrence.command.id,
       sourceCommandName: occurrence.command.name,
+      sourceCommandAttackType: occurrence.command.attackType,
       linkSourceStepId: occurrence.action.stepId,
       isCommandHit: true,
       blockEnemyTargetEffects: false,
@@ -5718,10 +6743,17 @@ export function simulateRotation(args: {
     const isControlledOperatorHit = occurrence.actor.slot === controlledOperatorSlot;
 
     if (
-      (occurrence.command.attackType === "BATTLE_SKILL" || occurrence.command.attackType === "COMBO_SKILL")
+      occurrence.command.attackType === "BATTLE_SKILL"
+      || occurrence.command.attackType === "COMBO_SKILL"
+      || occurrence.command.attackType === "ULTIMATE"
     ) {
       const battleOrComboEvent: RotationCombatEvent = {
-        type: "BATTLE_OR_COMBO_HIT",
+        type:
+          occurrence.command.attackType === "BATTLE_SKILL"
+            ? "BATTLE_SKILL_HIT"
+            : occurrence.command.attackType === "COMBO_SKILL"
+              ? "COMBO_SKILL_HIT"
+              : "ULTIMATE_HIT",
         time: occurrence.time,
         gameTime: occurrence.gameTime,
         stepId: occurrence.action.stepId,
@@ -5729,7 +6761,13 @@ export function simulateRotation(args: {
         commandName: occurrence.command.name,
         slot: occurrence.actor.slot,
         sourceSlot: occurrence.actor.slot,
-        label: `${occurrence.actor.characterName} ${occurrence.command.attackType === "BATTLE_SKILL" ? "Battle" : "Combo"} Hit`,
+        label: `${occurrence.actor.characterName} ${
+          occurrence.command.attackType === "BATTLE_SKILL"
+            ? "Battle"
+            : occurrence.command.attackType === "COMBO_SKILL"
+              ? "Combo"
+              : "Ultimate"
+        } Hit`,
         commandAttackType: occurrence.command.attackType,
         damageType: occurrence.hit.damageType,
         expectedCritCount: occurrence.hit.noCrit ? 0 : effectiveActorMods.CRIT_RATE_PCT,
@@ -5849,6 +6887,9 @@ export function simulateRotation(args: {
     (max, entry) => Math.max(max, entry.executeGameTime),
     finalStatusGameTime,
   );
+  if (battleTimeLimitSeconds != null && finalPendingBurstGameTime > battleTimeLimitSeconds + 0.0001) {
+    warnings.push("Time Limit Exceeded!");
+  }
   const finalStatusRealTime = Math.max(finalRealTime, toRealTimeFromExtensions(finalPendingBurstGameTime));
   flushEnemyInterruptedCommandEventsUpTo({ time: finalStatusRealTime });
   processReactionTicksUpTo({ realTime: finalStatusRealTime, gameTime: finalStatusGameTime });
@@ -5887,5 +6928,7 @@ export function simulateRotation(args: {
     enemyStaggerDecayRate: staggerDecayRate,
     riggedCritCount,
     comboTriggerDebug,
+    passiveListenerDebug,
+    warnings,
   };
 }
