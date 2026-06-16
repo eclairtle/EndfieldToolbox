@@ -254,7 +254,7 @@ export const PERLICA: CharacterBase = {
           return {
             ...effect,
             durationSeconds: (effect.durationSeconds ?? 0) * electrificationDurationMultiplier,
-            level: potentialLevel >= 4 ? (effect.level ?? 1) + 1 : effect.level,
+            customBaseDebuffAmount: potentialLevel >= 4 ? 0.16 : effect.customBaseDebuffAmount,
           };
         });
 

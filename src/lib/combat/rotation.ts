@@ -10,6 +10,8 @@ import type { BuildCondition } from "@/lib/build/buildConditions";
 import type { AscensionStage, PotentialLevel } from "@/lib/build/progression";
 import type { ActiveGearSetInfo } from "@/lib/combat/gearSetEffects";
 import type { CharacterConditionalModifierDefinition } from "@/data/characters";
+import type { CombatEffectTree } from "@/lib/combat/effectTree";
+import type { UnifiedStatusChangeLogEntry } from "@/lib/combat/statusModel";
 
 export type PartySlot = 0 | 1 | 2 | 3;
 
@@ -38,6 +40,7 @@ export type CritRiggingRule = {
   stepId: string;
   hitIndex: number;
   repeatIndex: number;
+  executeCritRigId?: string;
   mode: CritRigMode;
   enabled?: boolean;
 };
@@ -167,6 +170,7 @@ export type CompiledRotationAction = {
 };
 
 export type ActorActiveBuffState = {
+  instanceId?: string;
   id: string;
   label: string;
   slot: PartySlot;
@@ -179,13 +183,25 @@ export type ActorActiveBuffState = {
 };
 
 export type TeamActiveStatusState = {
+  instanceId?: string;
   id: string;
   label: string;
   expiresAt: number;
   timeScale: "real" | "game";
 };
 
+export type ActorActiveStatusState = {
+  instanceId?: string;
+  id: string;
+  label: string;
+  hidden?: boolean;
+  expiresAt: number;
+  timeScale: "real" | "game";
+  fieldStatus?: boolean;
+};
+
 export type ActorCombatStateSnapshot = {
+  sequence?: number;
   time: number;
   gameTime: number;
   slot: PartySlot;
@@ -194,6 +210,7 @@ export type ActorCombatStateSnapshot = {
   maxHp: number;
   meltingFlameStacks: number;
   activeBuffs: ActorActiveBuffState[];
+  activeStatuses: ActorActiveStatusState[];
   activeTeamStatuses: TeamActiveStatusState[];
 };
 
@@ -206,6 +223,7 @@ export type EnemyActiveDebuffState = {
 };
 
 export type EnemyActiveStatusState = {
+  instanceId?: string;
   id: string;
   label: string;
   stacks?: number;
@@ -214,6 +232,7 @@ export type EnemyActiveStatusState = {
 };
 
 export type EnemyCombatStateSnapshot = {
+  sequence?: number;
   time: number;
   gameTime: number;
   currentDamageTaken: number;
@@ -269,6 +288,7 @@ export type RotationSimulationResult = {
   riggedCritCount: number;
   comboTriggerDebug: ComboTriggerDebugEntry[];
   passiveListenerDebug: PassiveListenerDebugEntry[];
+  statusChangeLog: UnifiedStatusChangeLogEntry[];
   warnings?: string[];
 };
 
@@ -351,6 +371,7 @@ export type RotationCombatEventType =
   | "ARTS_REACTION_CONSUMED"
   | "ARTS_REACTION_APPLIED"
   | "PHYSICAL_REACTION_APPLIED"
+  | "ORIGINIUM_CRYSTAL_APPLIED"
   | "ARTS_INFLICTION_APPLIED"
   | "ARTS_BURST_APPLIED"
   | "ARTS_BURST_HIT"
@@ -366,9 +387,12 @@ export type RotationCombatEvent = {
   type: RotationCombatEventType;
   time: number;
   gameTime: number;
+  effectTree?: CombatEffectTree;
   stepId?: string;
   commandId?: string;
   commandName?: string;
+  hitName?: string;
+  dealsDamage?: boolean;
   slot?: PartySlot;
   sourceSlot?: PartySlot;
   target?: "enemy";
@@ -387,11 +411,16 @@ export type RotationCombatEvent = {
   consumedElement?: "Heat" | "Cryo" | "Electric" | "Nature";
   consumedStacks?: number;
   healedAmount?: number;
+  enemyHpRatio?: number;
+  enemyHadPhysicalSusceptibility?: boolean;
+  enemyWasStaggered?: boolean;
+  enemyHadOriginiumCrystal?: boolean;
 };
 
 export type ComboTriggerWindow = {
   slot: PartySlot;
   commandId: string;
+  triggerId: string;
   readyAt: number;
   expiresAt: number;
   perfectTimingStartAt?: number;

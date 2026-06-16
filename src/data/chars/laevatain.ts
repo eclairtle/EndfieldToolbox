@@ -845,7 +845,7 @@ export const LAEVATAIN: CharacterBase = {
                   }
                   return {
                     ...effect,
-                    level: (effect.level ?? 1) + 1,
+                    customBaseTickMultiplier: 0.36,
                   };
                 }),
               };

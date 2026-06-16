@@ -68,149 +68,364 @@ function makeDefaultBuild(index: number): SavedBuild {
   };
 }
 
-function makeDefaultExampleBuildLastRite(): SavedBuild {
-  const build = makeDefaultBuild(1);
-  build.id = "build_sb34yazo";
-  build.name = "别礼大王11秒罗丹";
-
-  const [slot1, slot2, slot3, slot4] = build.currentBuildState.slots;
-  if (slot1 && slot2 && slot3 && slot4) {
-    slot1.selectedCharId = "lastrite";
-    slot1.characterAscension = 4;
-    slot1.characterPotential = 5;
-    slot1.level = 90;
-    slot1.selectedWeaponId = "khravengger";
-    slot1.weaponAscension = 4;
-    slot1.weaponPotential = 5;
-    slot1.weaponLevel = 90;
-    slot1.weaponSkillLevels = [9, 9, 9];
-    slot1.characterSkillLevels = { basic: 12, battleSkill: 12, comboSkill: 12, ultimate: 12 };
-    slot1.uniqueTalentToggles = {
-      lastrite_talent_cryo_sus_1: true,
-      lastrite_talent_cryo_sus_2: true,
-      lastrite_talent_ult_sus_scale_1: true,
-      lastrite_talent_ult_sus_scale_2: true,
-    };
-    slot1.armor = { gearId: "item_equip_t4_suit_attri01_body_03", subLevels: [1, 3, 3] };
-    slot1.gloves = { gearId: "item_equip_t4_suit_burst01_hand_01", subLevels: [3, 1, 3] };
-    slot1.kit1 = { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 1, 3] };
-    slot1.kit2 = { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 2, 3] };
-
-    slot2.selectedCharId = "ardelia";
-    slot2.characterAscension = 4;
-    slot2.characterPotential = 5;
-    slot2.level = 90;
-    slot2.selectedWeaponId = "dreams_of_the_starry_beach";
-    slot2.weaponAscension = 4;
-    slot2.weaponPotential = 5;
-    slot2.weaponLevel = 90;
-    slot2.weaponSkillLevels = [9, 4, 9];
-    slot2.characterSkillLevels = { basic: 9, battleSkill: 12, comboSkill: 9, ultimate: 10 };
-    slot2.uniqueTalentToggles = {
-      ardelia_friendly_presence_1: true,
-      ardelia_friendly_presence_2: true,
-      ardelia_friendly_presence_3: true,
-      ardelia_mountainpeak_surfer: true,
-    };
-    slot2.armor = { gearId: "item_equip_t4_suit_criti01_body_03", subLevels: [0, 0, 0] };
-    slot2.gloves = { gearId: "item_equip_t4_suit_fire_natr01_hand_03", subLevels: [0, 0, 0] };
-    slot2.kit1 = { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] };
-    slot2.kit2 = { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] };
-
-    slot3.selectedCharId = "xaihi";
-    slot3.characterAscension = 4;
-    slot3.characterPotential = 5;
-    slot3.level = 90;
-    slot3.selectedWeaponId = "detonation_unit";
-    slot3.weaponAscension = 4;
-    slot3.weaponPotential = 5;
-    slot3.weaponLevel = 90;
-    slot3.weaponSkillLevels = [9, 9, 9];
-    slot3.characterSkillLevels = { basic: 9, battleSkill: 10, comboSkill: 9, ultimate: 12 };
-    slot3.uniqueTalentToggles = {
-      xaihi_execute_process_1: true,
-      xaihi_execute_process_2: true,
-      xaihi_freeze_protocol: true,
-    };
-    slot3.armor = { gearId: "item_equip_t4_suit_usp02_body_01", subLevels: [0, 0, 0] };
-    slot3.gloves = { gearId: "item_equip_t4_suit_usp02_hand_02", subLevels: [3, 0, 0] };
-    slot3.kit1 = { gearId: "item_equip_t4_suit_usp02_edc_02", subLevels: [0, 0, 0] };
-    slot3.kit2 = { gearId: "item_equip_t4_suit_atb01_edc_04", subLevels: [0, 3, 3] };
-
-    slot4.selectedCharId = "perlica";
-    slot4.characterAscension = 4;
-    slot4.characterPotential = 5;
-    slot4.level = 90;
-    slot4.selectedWeaponId = "stanza_of_memorials";
-    slot4.weaponAscension = 4;
-    slot4.weaponPotential = 5;
-    slot4.weaponLevel = 90;
-    slot4.weaponSkillLevels = [7, 3, 9];
-    slot4.characterSkillLevels = { basic: 9, battleSkill: 9, comboSkill: 9, ultimate: 9 };
-    slot4.uniqueTalentToggles = {
-      perlica_talent_staggered_damage_1: true,
-      perlica_talent_staggered_damage_2: true,
-      perlica_talent_combo_chain_1: true,
-    };
-    slot4.armor = { gearId: "item_equip_t4_suit_pulse_cryst01_body_01", subLevels: [0, 0, 3] };
-    slot4.gloves = { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [0, 0, 2] };
-    slot4.kit1 = { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] };
-    slot4.kit2 = { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] };
-  }
-  build.currentBuildState.activeSlotIndex = 2;
-  build.plannedBuildState = cloneJson(build.currentBuildState);
-  build.plannedBuildState.activeSlotIndex = 3;
-
-  const scheme = build.rotationState.schemes[0];
-  if (scheme) {
-    scheme.id = "rotation_xpzih3i3";
-    scheme.name = "Rotation 1";
-    scheme.rotation.steps = [
-      { id: "step_yx248t0q", slot: 0, commandId: "lastrite_battle_skill", startTime: -9.9 },
-      { id: "step_r7a98fhj", slot: 2, commandId: "xaihi_battle_skill", startTime: -9.2 },
-      { id: "step_rbtfoijo", slot: 2, commandId: "xaihi_ultimate", startTime: -5.3 },
-      { id: "step_0ll65ix7", slot: 1, commandId: "ardelia_ultimate", startTime: -3.7 },
-      { id: "step_d99fzzg9", slot: 3, commandId: "perlica_ultimate", startTime: -1.9 },
-      { id: "step_yw36e18u", slot: 0, commandId: "lastrite_basic_sequence_1", startTime: -8.9, groupId: "group_dlwvzyjf" },
-      { id: "step_mc4sfksf", slot: 0, commandId: "lastrite_basic_sequence_2", startTime: -8.3, groupId: "group_dlwvzyjf" },
-      { id: "step_vb0qnjs4", slot: 0, commandId: "lastrite_basic_sequence_3", startTime: -7.5, groupId: "group_dlwvzyjf" },
-      { id: "step_sayh2y3n", slot: 0, commandId: "lastrite_basic_sequence_4", startTime: -5.7, groupId: "group_dlwvzyjf" },
-      { id: "step_o34mcvu9", slot: 2, commandId: "__switch", startTime: 0.3 },
-      { id: "step_y5x7jpux", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 0.6 },
-      { id: "step_50cdfocb", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 1.1 },
-      { id: "step_1r8o9gqg", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 1.7 },
-      { id: "step_7b12jbas", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 2.2 },
-      { id: "step_n1002i5p", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 2.9 },
-      { id: "step_a4k932pm", slot: 0, commandId: "lastrite_battle_skill", startTime: 0.6 },
-      { id: "step_zcgyg92f", slot: 2, commandId: "xaihi_combo_skill", startTime: 3.7 },
-      { id: "step_102updpe", slot: 3, commandId: "perlica_combo_skill", startTime: 3.7 },
-      { id: "step_8f4unvna", slot: 1, commandId: "ardelia_combo_skill", startTime: 3.7 },
-      { id: "step_yor7p2qw", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 4.7 },
-      { id: "step_2utrngbe", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 5.8 },
-      { id: "step_d40hb14d", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 6.3 },
-      { id: "step_j5fh0b24", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 6.8 },
-      { id: "step_ps6kgcpg", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 7 },
-      { id: "step_wqic1zyf", slot: 0, commandId: "lastrite_battle_skill", startTime: 5.8 },
-      { id: "step_v5h1csgs", slot: 1, commandId: "ardelia_battle_skill", startTime: 6.2 },
-      { id: "step_lx6tljsh", slot: 0, commandId: "lastrite_combo_skill", startTime: 8.2 },
-    ];
-    scheme.rotation.groups = [{ id: "group_dlwvzyjf", name: "group 1" }];
-    scheme.rotation.critRiggingRules = [];
-    build.rotationState.activeSchemeId = scheme.id;
-  }
-
-  build.rotationState.enemyLevel = 90;
-  build.summary = {
-    totalDamage: 2134915.1116965273,
-    dps: 190617.42068718997,
-    updatedAt: 1778205335297,
-  };
-  build.damageTallyTiming = {
-    enabled: false,
-    startTime: 0,
-    endTime: 60,
-  };
-  return build;
+export function makeDefaultExampleBuildZhuangFangyi(): SavedBuild {
+  return cloneJson({
+    id: "build_rs8ospee",
+    name: "Build 1",
+    currentBuildState: {
+      slots: [
+        {
+          id: "slot_1",
+          label: "Character 1",
+          selectedCharId: "zhuangfangyi",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: false, TALENT_3: false, TALENT_4: false },
+          uniqueTalentToggles: {
+            zhuangfangyi_force_of_nature_1: true,
+            zhuangfangyi_force_of_nature_2: true,
+            zhuangfangyi_ordained_by_heaven_1: true,
+            zhuangfangyi_ordained_by_heaven_2: true,
+          },
+          characterSkillLevels: { basic: 12, battleSkill: 12, comboSkill: 12, ultimate: 12 },
+          selectedWeaponId: "lone_barge",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 9, 9],
+          armor: { gearId: "item_equip_t4_suit_expend_spell01_body_02", subLevels: [3, 3, 3] },
+          gloves: { gearId: "item_equip_t4_suit_expend_spell01_hand_02", subLevels: [3, 3, 3] },
+          kit1: { gearId: "item_equip_t4_suit_expend_spell01_edc_02", subLevels: [3, 3, 3] },
+          kit2: { gearId: "item_equip_t4_suit_heal01_edc_03", subLevels: [3, 3, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "zhuangfangyi::delivery_guaranteed": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+        {
+          id: "slot_2",
+          label: "Character 2",
+          selectedCharId: "perlica",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            perlica_talent_staggered_damage_1: true,
+            perlica_talent_staggered_damage_2: true,
+            perlica_talent_combo_chain_1: true,
+          },
+          characterSkillLevels: { basic: 1, battleSkill: 1, comboSkill: 1, ultimate: 9 },
+          selectedWeaponId: "detonation_unit",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [7, 5, 9],
+          armor: { gearId: "item_equip_t4_suit_pulse_cryst01_body_01", subLevels: [0, 0, 0] },
+          gloves: { gearId: "item_equip_t3_suit_usp01_hand_01", subLevels: [0, 0, 0] },
+          kit1: { gearId: "item_equip_t3_suit_usp01_edc_03", subLevels: [0, 0, 0] },
+          kit2: { gearId: "item_equip_t3_suit_usp01_edc_03", subLevels: [0, 0, 0] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "perlica::delivery_guaranteed": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+        {
+          id: "slot_3",
+          label: "Character 3",
+          selectedCharId: "endministrator",
+          characterAscension: 4,
+          characterPotential: 2,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            endministrator_essence_disintegration_1: true,
+            endministrator_essence_disintegration_2: true,
+            endministrator_realspace_stasis_1: true,
+            endministrator_realspace_stasis_2: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 9, comboSkill: 12, ultimate: 12 },
+          selectedWeaponId: "eminent_repute",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [3, 3, 9],
+          armor: { gearId: "item_equip_t4_suit_phy01_body_02", subLevels: [3, 0, 3] },
+          gloves: { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [3, 0, 3] },
+          kit1: { gearId: "item_equip_t4_suit_phy01_edc_01", subLevels: [0, 0] },
+          kit2: { gearId: "item_equip_t4_suit_phy01_edc_03", subLevels: [3, 0, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "endministrator::forgeborn_scathe": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+        {
+          id: "slot_4",
+          label: "Character 4",
+          selectedCharId: "gilberta",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            gilberta_messengers_song_1: true,
+            gilberta_messengers_song_2: true,
+            gilberta_belated_reply_1: true,
+            gilberta_belated_reply_2: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 6, comboSkill: 9, ultimate: 10 },
+          selectedWeaponId: "stanza_of_memorials",
+          weaponAscension: 0,
+          weaponPotential: 5,
+          weaponLevel: 20,
+          weaponSkillLevels: [3, 3, 9],
+          armor: { gearId: "item_equip_t4_suit_phy01_body_02", subLevels: [3, 0, 3] },
+          gloves: { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [0, 3, 3] },
+          kit1: { gearId: "item_equip_t4_suit_phy01_edc_01", subLevels: [3, 3] },
+          kit2: { gearId: "item_equip_t4_suit_phy01_edc_01", subLevels: [3, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "gilberta::delivery_guaranteed": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+      ],
+      activeSlotIndex: 0,
+      activeVariantIndex: 0,
+    },
+    plannedBuildState: {
+      slots: [
+        {
+          id: "slot_1",
+          label: "Character 1",
+          selectedCharId: "zhuangfangyi",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: false, TALENT_3: false, TALENT_4: false },
+          uniqueTalentToggles: {
+            zhuangfangyi_force_of_nature_1: true,
+            zhuangfangyi_force_of_nature_2: true,
+            zhuangfangyi_ordained_by_heaven_1: true,
+            zhuangfangyi_ordained_by_heaven_2: true,
+          },
+          characterSkillLevels: { basic: 12, battleSkill: 12, comboSkill: 12, ultimate: 12 },
+          selectedWeaponId: "lone_barge",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 9, 9],
+          armor: { gearId: "item_equip_t4_suit_expend_spell01_body_02", subLevels: [3, 3, 3] },
+          gloves: { gearId: "item_equip_t4_suit_expend_spell01_hand_02", subLevels: [3, 3, 3] },
+          kit1: { gearId: "item_equip_t4_suit_expend_spell01_edc_02", subLevels: [3, 3, 3] },
+          kit2: { gearId: "item_equip_t4_suit_heal01_edc_03", subLevels: [3, 3, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "zhuangfangyi::delivery_guaranteed": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+        {
+          id: "slot_2",
+          label: "Character 2",
+          selectedCharId: "perlica",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            perlica_talent_staggered_damage_1: true,
+            perlica_talent_staggered_damage_2: true,
+            perlica_talent_combo_chain_1: true,
+          },
+          characterSkillLevels: { basic: 1, battleSkill: 1, comboSkill: 1, ultimate: 9 },
+          selectedWeaponId: "detonation_unit",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [7, 5, 9],
+          armor: { gearId: "item_equip_t4_suit_pulse_cryst01_body_01", subLevels: [0, 0, 0] },
+          gloves: { gearId: "item_equip_t3_suit_usp01_hand_01", subLevels: [0, 0, 0] },
+          kit1: { gearId: "item_equip_t3_suit_usp01_edc_03", subLevels: [0, 0, 0] },
+          kit2: { gearId: "item_equip_t3_suit_usp01_edc_03", subLevels: [0, 0, 0] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "perlica::delivery_guaranteed": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+        {
+          id: "slot_3",
+          label: "Character 3",
+          selectedCharId: "endministrator",
+          characterAscension: 4,
+          characterPotential: 2,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            endministrator_essence_disintegration_1: true,
+            endministrator_essence_disintegration_2: true,
+            endministrator_realspace_stasis_1: true,
+            endministrator_realspace_stasis_2: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 9, comboSkill: 12, ultimate: 12 },
+          selectedWeaponId: "eminent_repute",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [3, 3, 9],
+          armor: { gearId: "item_equip_t4_suit_phy01_body_02", subLevels: [3, 0, 3] },
+          gloves: { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [3, 0, 3] },
+          kit1: { gearId: "item_equip_t4_suit_phy01_edc_01", subLevels: [0, 0] },
+          kit2: { gearId: "item_equip_t4_suit_phy01_edc_03", subLevels: [3, 0, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "endministrator::forgeborn_scathe": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+        {
+          id: "slot_4",
+          label: "Character 4",
+          selectedCharId: "gilberta",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            gilberta_messengers_song_1: true,
+            gilberta_messengers_song_2: true,
+            gilberta_belated_reply_1: true,
+            gilberta_belated_reply_2: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 6, comboSkill: 9, ultimate: 10 },
+          selectedWeaponId: "stanza_of_memorials",
+          weaponAscension: 0,
+          weaponPotential: 5,
+          weaponLevel: 20,
+          weaponSkillLevels: [3, 3, 9],
+          armor: { gearId: "item_equip_t4_suit_phy01_body_02", subLevels: [3, 0, 3] },
+          gloves: { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [0, 3, 3] },
+          kit1: { gearId: "item_equip_t4_suit_phy01_edc_01", subLevels: [3, 3] },
+          kit2: { gearId: "item_equip_t4_suit_phy01_edc_01", subLevels: [3, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {
+            "gilberta::delivery_guaranteed": {
+              weaponAscension: 4,
+              weaponPotential: 0,
+              weaponLevel: 90,
+              weaponSkillLevels: [9, 9, 4],
+            },
+          },
+        },
+      ],
+      activeSlotIndex: 0,
+      activeVariantIndex: 0,
+    },
+    rotationState: {
+      schemes: [
+        {
+          id: "rotation_r9uv4v9n",
+          name: "Rotation 1",
+          rotation: {
+            steps: [
+              { id: "step_96jjdbzo", slot: 0, commandId: "zhuangfangyi_ultimate", startTime: -1.7000000000000002 },
+              { id: "step_l49y5g5y", slot: 0, commandId: "zhuangfangyi_ultimate_basic_sequence_1", startTime: -0.1 },
+              { id: "step_8v1b7hmj", slot: 0, commandId: "zhuangfangyi_ultimate_basic_sequence_2", startTime: 0.6000000000000001 },
+              { id: "step_onjilndj", slot: 0, commandId: "zhuangfangyi_ultimate_basic_sequence_3", startTime: 3.6 },
+              { id: "step_gkuscsg5", slot: 1, commandId: "perlica_battle_skill", startTime: 3.5 },
+              { id: "step_l4r8zdwb", slot: 0, commandId: "zhuangfangyi_ultimate_battle_skill", startTime: 2 },
+              { id: "step_w078oa3m", slot: 0, commandId: "zhuangfangyi_ultimate_combo_skill", startTime: 4.6000000000000005 },
+              { id: "step_si4okkx4", slot: 1, commandId: "perlica_combo_skill", startTime: 4.7 },
+              { id: "step_k8kachiu", slot: 2, commandId: "endministrator_combo_skill", startTime: 5.6000000000000005 },
+              { id: "step_otkow04g", slot: 3, commandId: "gilberta_combo_skill", startTime: 5.9 },
+              { id: "step_hjmrm9y5", slot: 3, commandId: "gilberta_ultimate", startTime: 7.6000000000000005 },
+              { id: "step_xxojc2tm", slot: 2, commandId: "endministrator_battle_skill", startTime: 9 },
+              { id: "step_4fjw6bsd", slot: 0, commandId: "zhuangfangyi_ultimate_battle_skill", startTime: 9.1 },
+            ],
+            groups: [],
+            critRiggingRules: [
+              {
+                id: "crit_rig_nsz81mwp",
+                stepId: "step_4fjw6bsd",
+                hitIndex: -2,
+                repeatIndex: 0,
+                executeCritRigId: "final_thunder_strike",
+                mode: "force_crit",
+                enabled: true,
+              },
+              {
+                id: "crit_rig_h9r6dzxz",
+                stepId: "step_4fjw6bsd",
+                hitIndex: -2,
+                repeatIndex: 0,
+                executeCritRigId: "thunder_strike",
+                mode: "force_non_crit",
+                enabled: true,
+              },
+            ],
+          },
+        },
+      ],
+      activeSchemeId: "rotation_r9uv4v9n",
+      enemyLevel: 90,
+    },
+    summary: {
+      totalDamage: 1690360.9125437036,
+      dps: 115778.14469477422,
+      updatedAt: 1781509719501,
+    },
+    damageTallyTiming: {
+      enabled: false,
+      startTime: 0,
+      endTime: 60,
+    },
+    compareSettings: {
+      enabled: false,
+      leftVariantIndex: 0,
+      rightVariantIndex: 1,
+    },
+  }) as unknown as SavedBuild;
 }
 
 function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
@@ -240,7 +455,7 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
         initialSp: 200,
         spRegenRate: 8,
         startingEnergyBySlot: [100, 100, 100, 100],
-        consumableBySlot: [null, null, null, null],
+        consumableBySlot: [build.id === "build_rs8ospee" ? "item_corp3_animal_1" : null, null, null, null],
       },
     },
   };
@@ -342,7 +557,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
 
   function createSeededDefaultBuilds() {
     const first = makeDefaultBuild(1);
-    const example = makeDefaultExampleBuildLastRite();
+    const example = makeDefaultExampleBuildZhuangFangyi();
     seedDefaultRotationUiStateForBuild(example);
     return {
       builds: [example, first],

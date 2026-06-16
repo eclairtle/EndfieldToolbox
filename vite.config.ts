@@ -18,8 +18,6 @@ export default defineConfig({
     watch: {
       ignored: [
         '**/public/avatars/**',
-        '**/public/equipment/**',
-        '**/public/weapons/**',
         '**/public/Icon_Enemy/**',
         '**/public/icons/**',
       ],

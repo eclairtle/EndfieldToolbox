@@ -2,6 +2,7 @@ import { GEAR_SET_BONUSES, getEquippedGearSetName, type GearBase, type GearSetBo
 import type { CommandHitEffectDefinition } from "@/lib/commands";
 import type { ModifierStatKey, ModifierStats } from "@/lib/build/stats";
 import type { CharacterCombatSnapshot, RotationCombatEvent } from "@/lib/combat/rotation";
+import type { CombatEffectTree } from "@/lib/combat/effectTree";
 
 export type ActiveGearSetInfo = GearSetBonus & {
   staticModifiers?: Partial<ModifierStats>;
@@ -24,6 +25,12 @@ const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
     ...GEAR_SET_BONUSES["Eternal Xiranite"]!,
     staticModifiers: {
       FLAT_HP: 1000,
+    },
+  },
+  Xiranflow: {
+    ...GEAR_SET_BONUSES.Xiranflow!,
+    staticModifiers: {
+      ATK_PCT: 0.1,
     },
   },
   "MI Security": {
@@ -64,6 +71,18 @@ const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
   },
   Æthertech: {
     ...GEAR_SET_BONUSES.Æthertech!,
+    staticModifiers: {
+      ATK_PCT: 0.08,
+    },
+  },
+  Qingbo: {
+    ...GEAR_SET_BONUSES.Qingbo!,
+    staticModifiers: {
+      COMBO_COOLDOWN_RATE: 1 / 0.85 - 1,
+    },
+  },
+  "Grizzled Edge": {
+    ...GEAR_SET_BONUSES["Grizzled Edge"]!,
     staticModifiers: {
       ATK_PCT: 0.08,
     },
@@ -139,6 +158,7 @@ export type GearSetListenerContext = {
     applyEffects(args: {
       effects: CommandHitEffectDefinition[];
       stepId?: string;
+      effectTree?: CombatEffectTree;
     }): void;
   };
 };
@@ -189,7 +209,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     if (ctx.event.type === "COMBUSTION_APPLIED") {
       ctx.helpers.applySelfBuff({
         buffId: "set_hot_work_heat",
-        label: "Hot Work: Heat DMG",
+        label: "Hot Work: Heat Damage",
         durationSeconds: 10,
         effects: {
           HEAT_DMG_PCT: 0.5,
@@ -200,7 +220,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     if (ctx.event.type === "CORROSION_APPLIED") {
       ctx.helpers.applySelfBuff({
         buffId: "set_hot_work_nature",
-        label: "Hot Work: Nature DMG",
+        label: "Hot Work: Nature Damage",
         durationSeconds: 10,
         effects: {
           NATURE_DMG_PCT: 0.5,
@@ -300,7 +320,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     if (ctx.helpers.getSelfBuffStackCount("set_mi_security_attack_stack") >= 5) {
       ctx.helpers.applySelfBuff({
         buffId: "set_mi_security_crit_bonus",
-        label: "MI Security Crit",
+        label: "MI Security: Crit Rate",
         durationSeconds: 5,
         effects: {
           CRIT_RATE_PCT: 0.05,
@@ -323,7 +343,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
 
       ctx.helpers.applySelfBuff({
         buffId: "set_bonekrusha_smash_stack",
-        label: "Bonekrushing Smash",
+        label: "Bonekrusha Smash",
         hidden: true,
         durationSeconds: 0,
         infiniteDuration: true,
@@ -387,6 +407,67 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     return;
   }
 
+  if (activeSetName === "Grizzled Edge") {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "PHYSICAL_REACTION_APPLIED") {
+      return;
+    }
+
+    if (ctx.event.label !== "Crush Applied" && ctx.event.label !== "Breach Applied") {
+      return;
+    }
+
+    const consumedStacks = Math.max(0, Math.floor(ctx.event.amount ?? 0));
+    if (consumedStacks <= 0) {
+      return;
+    }
+
+    const specialMultiplier =
+      (
+        ctx.event.enemyHadPhysicalSusceptibility
+        || ctx.event.enemyWasStaggered
+        || ctx.event.enemyHadOriginiumCrystal
+      )
+        ? 1.5
+        : 1;
+    ctx.helpers.applySelfBuff({
+      buffId: "set_grizzled_edge_physical_boost",
+      label: "Grizzled Edge: Physical Damage",
+      durationSeconds: 20,
+      effects: {
+        PHYSICAL_DMG_PCT: 0.06 * consumedStacks * specialMultiplier,
+      },
+    });
+    return;
+  }
+
+  if (activeSetName === "Xiranflow") {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ARTS_REACTION_CONSUMED") {
+      return;
+    }
+
+    if (ctx.event.consumedElement !== "Electric" && ctx.event.consumedElement !== "Nature") {
+      return;
+    }
+
+    const stackCount = Math.max(1, Math.floor(ctx.event.consumedStacks ?? 1));
+    for (let i = 0; i < stackCount; i += 1) {
+      ctx.helpers.applySelfBuff({
+        buffId: "set_xiranflow_reaction_damage_stack",
+        label: "Xiranflow Resonance",
+        durationSeconds: 25,
+        timeScale: "game",
+        effects: {
+          ELECTRIC_DMG_PCT: 0.15,
+          NATURE_DMG_PCT: 0.15,
+        },
+        stackGroup: "set_xiranflow_reaction_damage_stack",
+        maxStacks: 3,
+        refreshExistingStacks: false,
+      });
+    }
+    return;
+  }
+
   if (activeSetName === "Pulser Labs") {
     if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ARTS_REACTION_APPLIED") {
       return;
@@ -395,7 +476,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     if (ctx.event.label.startsWith("Electrification Applied")) {
       ctx.helpers.applySelfBuff({
         buffId: "set_pulser_labs_electric",
-        label: "Pulser Labs: Electric DMG",
+        label: "Pulser Labs: Electric Damage",
         durationSeconds: 10,
         effects: {
           ELECTRIC_DMG_PCT: 0.5,
@@ -407,7 +488,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     if (ctx.event.label.startsWith("Solidification Applied")) {
       ctx.helpers.applySelfBuff({
         buffId: "set_pulser_labs_cryo",
-        label: "Pulser Labs: Cryo DMG",
+        label: "Pulser Labs: Cryo Damage",
         durationSeconds: 10,
         effects: {
           CRYO_DMG_PCT: 0.5,
@@ -447,6 +528,25 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     return;
   }
 
+  if (activeSetName === "Qingbo") {
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "COMBO_SKILL_CAST") {
+      return;
+    }
+
+    ctx.helpers.applySelfBuff({
+      buffId: "set_qingbo_skill_damage_stack",
+      label: "Qingbo: Skill Damage",
+      durationSeconds: 15,
+      effects: {
+        SKILL_DMG_PCT: 0.2,
+      },
+      stackGroup: "set_qingbo_skill_damage_stack",
+      maxStacks: 2,
+      refreshExistingStacks: false,
+    });
+    return;
+  }
+
   if (activeSetName === "Æthertech") {
     if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ENEMY_DEBUFF_APPLIED") {
       return;
@@ -457,7 +557,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
 
     ctx.helpers.applySelfBuff({
       buffId: "set_aethertech_vulnerability",
-      label: "Æthertech",
+      label: "Æthertech: Vulnerability",
       durationSeconds: 15,
       effects: {
         PHYSICAL_DMG_PCT: 0.08,
@@ -471,7 +571,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     if (ctx.helpers.getEnemyVulnerabilityStacks() >= 4) {
       ctx.helpers.applySelfBuff({
         buffId: "set_aethertech_bonus",
-        label: "Æthertech Full Vulnerability Bonus",
+        label: "Æthertech: Full Vulnerability Bonus",
         durationSeconds: 10,
         effects: {
           PHYSICAL_DMG_PCT: 0.16,

@@ -132,6 +132,14 @@ function localizedUniqueSkillDescriptionZhCN(weaponId: string, level: number): s
         `受到庇护的队友受到伤害后，装备者恢复生命值[${(84 * (0.8 + 0.2 * y)).toFixed(0)}+意志×${(0.8 + 0.2 * y).toFixed(1)}]。`,
         "每15秒最多触发一次。",
       ].join("\n");
+    case "lone_barge":
+      return [
+        `电磁伤害+${percent(scaledPercentFromRank1(16, y))}。`,
+        `装备者通过战技消耗法术异常时，战技造成的电磁伤害+${percent(scaledPercentFromRank1(20, y))}，持续20秒。`,
+        "该效果最多叠加2层，每层单独计算持续时间，每0.1秒最多触发一次。",
+        `装备者施放终结技后，战技造成的电磁伤害+${percent(scaledPercentFromRank1(40, y))}，持续25秒。`,
+        "该效果无法叠加。",
+      ].join("\n");
     default:
       return null;
   }

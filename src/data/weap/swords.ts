@@ -70,23 +70,72 @@ export const EMINENT_REPUTE: WeaponBase = {
   tuningMaterials: ["Tachyon Screening Lattice ×16", "Wulingstone ×8"],
   skills: [
     { id: "MAIN_ATTR_UP", name: "Main Attribute Boost [L]", rank: 3, implemented: true },
-    { id: "UNIQUE", name: "Physical DMG Boost [L]", rank: 1, implemented: true },
-    { id: "UNIQUE", name: "Brutality: Disciplinarian", rank: 1, implemented: false },
+    { id: "PHYSICAL_DMG_UP", name: "Physical DMG Boost [L]", rank: 3, implemented: true },
+    { id: "UNIQUE", name: "Brutality: Disciplinarian", rank: 1, implemented: true },
   ],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
-      PHYSICAL_DMG_PCT: scaledPercentFromRank1(5.6, y) / 100,
+      ATK_PCT: scaledPercentFromRank1(10, y) / 100,
     };
   },
   getUniqueSkillDescription: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
+    const baseAtkBuff = scaledPercentFromRank1(5, y);
+    const perConsumedStackBuff = scaledPercentFromRank1(2.5, y);
     return [
-      `Physical DMG Dealt +${percent(scaledPercentFromRank1(5.6, y))}.`,
       `ATK +${percent(scaledPercentFromRank1(10, y))}.`,
-      "After the wielder consumes Vulnerability stack(s), the wielder gains ATK and other operators in the team gain half of this buff for 20s.",
+      `After the wielder consumes Vulnerability stack(s), the wielder gains ATK +[${percent(baseAtkBuff)} + ${percent(perConsumedStackBuff)} x Stacks Consumed] while other operators in the team gain half of this buff for 20s.`,
       "Effects of the same name cannot stack.",
     ].join("\n");
+  },
+  onCombatEvent: (ctx) => {
+    const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
+    if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "PHYSICAL_REACTION_APPLIED") {
+      return;
+    }
+
+    if (ctx.event.label !== "Crush Applied" && ctx.event.label !== "Breach Applied") {
+      return;
+    }
+
+    const consumedStacks = Math.max(0, Math.floor(ctx.event.amount ?? 0));
+    if (consumedStacks <= 0) {
+      return;
+    }
+
+    if (!ctx.helpers.markOnce(`eminent_repute:${ctx.wearer.slot}:${ctx.event.stepId ?? `${ctx.event.time}`}:${ctx.event.label}`)) {
+      return;
+    }
+
+    const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
+    const dynamicAtkBuff = (
+      scaledPercentFromRank1(5, y)
+      + scaledPercentFromRank1(2.5, y) * consumedStacks
+    ) / 100;
+
+    ctx.helpers.applySelfBuff({
+      buffId: "weapon_eminent_repute_self_attack",
+      label: "Eminent Repute",
+      durationSeconds: 20,
+      effects: {
+        ATK_PCT: dynamicAtkBuff,
+      },
+      refreshExistingStacks: true,
+      eventType: "WEAPON_BUFF_APPLIED",
+    });
+
+    ctx.helpers.applyTeamBuffFiltered({
+      buffId: "weapon_eminent_repute_team_attack",
+      label: "Eminent Repute",
+      durationSeconds: 20,
+      shouldApplyTo: (target) => target.slot !== ctx.wearer.slot,
+      effects: {
+        ATK_PCT: dynamicAtkBuff / 2,
+      },
+      refreshExistingStacks: true,
+      eventType: "WEAPON_BUFF_APPLIED",
+    });
   },
 };
 

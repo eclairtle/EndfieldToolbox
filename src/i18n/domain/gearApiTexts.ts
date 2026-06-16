@@ -341,7 +341,23 @@ export const cnGearApiText = {
     "item_equip_t4_suit_usp02_edc_02": "suit_usp02",
     "item_equip_t4_suit_usp02_edc_03": "suit_usp02",
     "item_equip_t4_suit_usp02_hand_01": "suit_usp02",
-    "item_equip_t4_suit_usp02_hand_02": "suit_usp02"
+    "item_equip_t4_suit_usp02_hand_02": "suit_usp02",
+    "item_equip_t4_suit_combo_cd01_body_01": "suit_combo_cd01",
+    "item_equip_t4_suit_combo_cd01_body_02": "suit_combo_cd01",
+    "item_equip_t4_suit_combo_cd01_edc_01": "suit_combo_cd01",
+    "item_equip_t4_suit_combo_cd01_edc_02": "suit_combo_cd01",
+    "item_equip_t4_suit_combo_cd01_edc_03": "suit_combo_cd01",
+    "item_equip_t4_suit_combo_cd01_hand_01": "suit_combo_cd01",
+    "item_equip_t4_suit_combo_cd01_hand_02": "suit_combo_cd01",
+    "item_equip_t4_suit_expend_spell01_body_02": "suit_expend_spell01",
+    "item_equip_t4_suit_expend_spell01_edc_02": "suit_expend_spell01",
+    "item_equip_t4_suit_expend_spell01_hand_02": "suit_expend_spell01",
+    "item_equip_t4_suit_crush_fracture_body_01": "suit_crush_fracture",
+    "item_equip_t4_suit_crush_fracture_body_02": "suit_crush_fracture",
+    "item_equip_t4_suit_crush_fracture_hand_01": "suit_crush_fracture",
+    "item_equip_t4_suit_crush_fracture_hand_02": "suit_crush_fracture",
+    "item_equip_t4_suit_crush_fracture_edc_01": "suit_crush_fracture",
+    "item_equip_t4_suit_crush_fracture_edc_02": "suit_crush_fracture"
   },
   "gearSuitNameBySuitId": {
     "suit_stragi01": "集成重型",
@@ -362,7 +378,10 @@ export const cnGearApiText = {
     "suit_phy01": "点剑",
     "suit_poise01": "轻超域",
     "suit_pulse_cryst01": "脉冲式",
-    "suit_usp02": "长息"
+    "suit_usp02": "长息",
+    "suit_combo_cd01": "清波",
+    "suit_expend_spell01": "壤流",
+    "suit_crush_fracture": "旧锋"
   },
   "gearSetDescriptionBySuitId": {
     "suit_stragi01": "3件套组效果：装备者生命值+500。\n当装备者击败敌人后，回复100点生命值。该效果每5秒最多触发一次。",
@@ -383,6 +402,9 @@ export const cnGearApiText = {
     "suit_phy01": "3件套组效果：装备者失衡效率加成+20%。\n当装备者造成物理异常后，额外造成一次250%攻击力的物理伤害[10点失衡值]。该效果每15秒最多触发一次。",
     "suit_poise01": "3件套组效果：装备者攻击力+8%。\n装备者施加破防后，物理伤害+8%，持续15秒，最多可叠加4层。若使目标达到4层破防，物理伤害额外+16%，持续10秒，该效果无法叠加。",
     "suit_pulse_cryst01": "3件套组效果：装备者源石技艺强度+30。\n当装备者施加导电后，电磁伤害+50%，持续10秒，该效果无法叠加；当装备者施加冻结后，寒冷伤害+50%，持续10秒，该效果无法叠加。",
-    "suit_usp02": "3件套组效果：装备者生命值+1000。\n装备者施加增幅、庇护、脆弱、虚弱后，使其他队友造成的伤害+16%，持续15秒。该效果无法叠加。"
+    "suit_usp02": "3件套组效果：装备者生命值+1000。\n装备者施加增幅、庇护、脆弱、虚弱后，使其他队友造成的伤害+16%，持续15秒。该效果无法叠加。",
+    "suit_combo_cd01": "3件套组效果：装备者连携技冷却缩减+15%。\n当装备者施放连携技时，所有技能伤害+20%，持续15秒。该效果最多叠加2层，每层单独计算持续时间。",
+    "suit_expend_spell01": "3件套组效果：装备者攻击力+10%。\n装备者每次消耗导电或腐蚀后，根据异常等级获得相同层数的强化状态，每层使电磁伤害和自然伤害+15%，持续25秒。强化状态最多存在3层，每层单独计算持续时间。",
+    "suit_crush_fracture": "3件套组效果：装备者攻击力+8%。\n装备者造成猛击、碎甲时，根据消耗的最大破防层数，使自身物理伤害+[6%×消耗层数]，持续20秒。若目标已处于物理脆弱、失衡状态或被附着源石结晶，上述增益效果变为1.5倍。增益效果无法叠加。"
   }
 } as const;

@@ -24,7 +24,13 @@ const props = defineProps<{
   onClose: () => void;
 }>();
 
-const { t } = useLocale();
+const { t, locale } = useLocale();
+
+function modifierLabel(key: string) {
+  void locale.value;
+  const localized = t(`modifiers.${key}` as const);
+  return localized.startsWith("modifiers.") ? (props.modifierLabels[key] ?? key) : localized;
+}
 </script>
 
 <template>
@@ -93,7 +99,7 @@ const { t } = useLocale();
               :key="`atk-${key}`"
               class="flex items-center justify-between gap-2"
             >
-              <span class="truncate">{{ modifierLabels[key] ?? key }}</span>
+              <span class="truncate">{{ modifierLabel(key) }}</span>
               <span class="shrink-0">{{ formatModifierValue(selectedHitDetails.ctx.attackerMods[key], key, key.endsWith('_PCT')) }}</span>
             </div>
           </div>
@@ -106,7 +112,7 @@ const { t } = useLocale();
               :key="`enemy-${key}`"
               class="flex items-center justify-between gap-2"
             >
-              <span class="truncate">{{ modifierLabels[key] ?? key }}</span>
+              <span class="truncate">{{ modifierLabel(key) }}</span>
               <span class="shrink-0">{{ formatModifierValue(selectedHitDetails.ctx.enemyMods[key], key, key.endsWith('_PCT')) }}</span>
             </div>
           </div>

@@ -73,6 +73,12 @@ export const apiSkillTextByLocale = {
         "battleSkill": "Saturated Defense",
         "ultimate": "Frigid Snowfield"
       },
+      "zhuangfangyi": {
+        "comboSkill": "Breath of Transformation",
+        "basic": "Jolting Arts",
+        "battleSkill": "Mantra of Sundering",
+        "ultimate": "Smiting Tempest"
+      },
       "endministrator": {
         "comboSkill": "Sealing Sequence",
         "basic": "Destructive Sequence",
@@ -212,6 +218,12 @@ export const apiSkillTextByLocale = {
         "basic": "失温猛击",
         "battleSkill": "饱和性防御",
         "ultimate": "凛冽寒霜"
+      },
+      "zhuangfangyi": {
+        "comboSkill": "一息万变",
+        "basic": "疾电法",
+        "battleSkill": "惊霆诀",
+        "ultimate": "万钧风雷"
       },
       "endministrator": {
         "comboSkill": "锁闭序列",
@@ -627,6 +639,11 @@ export const apiSkillTextByLocale = {
         "Infliction: Long Time Wish",
         "Agility Boost [L]",
         "Attack Boost [L]"
+      ],
+      "lone_barge": [
+        "Suppression: Streaming Blitz",
+        "Will Boost [L]",
+        "Attack Boost [L]"
       ]
     },
     "zh-CN": {
@@ -703,6 +720,11 @@ export const apiSkillTextByLocale = {
       "grand_vision": [
         "附术·长时宏愿",
         "敏捷提升·大",
+        "攻击提升·大"
+      ],
+      "lone_barge": [
+        "压制·流霆",
+        "意志提升·大",
         "攻击提升·大"
       ]
     }
@@ -783,6 +805,11 @@ export const apiSkillTextByLocale = {
         "Arts Intensity +78>.\nWhen the wielder applies Originium Crystals> or Solidification>, during the next battle skill or ultimate cast within 20s, the wielder gains Physical DMG Dealt +93.6%>.\nEffects of the same name cannot stack.>",
         "Agility +156>",
         "Attack +39%>"
+      ],
+      "lone_barge": [
+        "Electric DMG Dealt +44.8%>.\nWhen the wielder's battle skill consumes> an Arts Reaction>, the wielder gains Battle Skill Electric DMG Dealt +56%> for 20s.\nMax stacks for effects of the same name: 2. Duration of each stack is counted separately. Effect only triggers once every 0.1s.\nAfter the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt +112%> for 25s.\nEffects of the same name cannot stack.>",
+        "Will +156>",
+        "Attack +39%>"
       ]
     },
     "zh-CN": {
@@ -859,6 +886,11 @@ export const apiSkillTextByLocale = {
       "grand_vision": [
         "源石技艺强度+78>。\n装备者施加源石结晶>或冻结>时，接下来20秒内施放的下一次战技或终结技使装备者获得物理伤害+93.6%>。\n同名效果无法叠加。>",
         "敏捷+156>",
+        "攻击力+39%>"
+      ],
+      "lone_barge": [
+        "电磁伤害+44.8%>。\n装备者通过战技消耗>法术异常>时，战技造成的电磁伤害+56%>，持续20秒。\n该效果最多叠加2层，每层单独计算持续时间，每0.1秒最多触发一次。\n装备者施放终结技后，战技造成的电磁伤害+112%>，持续25秒。\n该效果无法叠加。>",
+        "意志+156>",
         "攻击力+39%>"
       ]
     }

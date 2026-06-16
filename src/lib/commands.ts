@@ -25,6 +25,14 @@ export type CommandTransformRule = {
   requiresBuffIdsAll?: string[];
   requiresMeltingFlameStacks?: number;
   requiresEnemyStatusId?: string;
+  overrideSpCost?: number;
+};
+
+export type ExecuteHitCritRigOption = {
+  id: string;
+  label: string;
+  hitNames?: string[];
+  hitRefIds?: string[];
 };
 
 export type TimeScale = "game" | "real";
@@ -46,7 +54,7 @@ export type CombatCondition =
   | {
       type: "require_status";
       statusId: string;
-      target?: "enemy" | "self" | "global";
+      target?: "enemy" | "self" | "global" | "field";
     }
   | {
       type: "require_talent";
@@ -127,6 +135,8 @@ type CommandHitEffectCore =
       forceApply?: boolean;
       baseMultiplier?: number;
       debuffScaleMultiplier?: number;
+      customBaseDebuffAmount?: number;
+      customBaseTickMultiplier?: number;
     }
   | {
       type: "APPLY_CUSTOM_REACTION";
@@ -175,6 +185,12 @@ type CommandHitEffectCore =
       effects?: Partial<ModifierStats>;
       durationSeconds: number;
       timeScale?: TimeScale;
+      hidden?: boolean;
+      fieldStatus?: boolean;
+      stacks?: number;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      independentStacks?: boolean;
       pauseStatusIds?: string[];
       periods?: number;
       maxPeriods?: number;
@@ -211,6 +227,7 @@ type CommandHitEffectCore =
       type: "REMOVE_STATUS";
       target: "enemy" | "self" | "global";
       statusId: string;
+      fieldStatus?: boolean;
     }
   | {
       type: "EXECUTE_HIT";
@@ -301,6 +318,7 @@ export type CommandHitDefinition = {
   ignoreUltimateGainEfficiency?: boolean;
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
+  ignoreEnemyInvulnerability?: boolean;
   noCrit?: boolean;
   accumulator?: HitAccumulatorDefinition;
   effects?: CommandHitEffectDefinition[];
@@ -343,6 +361,7 @@ export type CommandDefinition = {
   comboCooldownTimeScale?: TimeScale;
   comboCooldownStartsAt?: ComboCooldownStartTiming;
   comboCooldownOwnerCommandId?: string;
+  comboTriggerId?: string;
   comboWindowDelaySeconds?: ScalingTable;
   comboWindowDurationSeconds?: ScalingTable;
   perfectTimingDelaySeconds?: ScalingTable;
@@ -358,6 +377,7 @@ export type CommandDefinition = {
   splitHitMultiplierEvenly?: boolean;
   genericActionType?: GenericActionType;
   variant?: CommandVariantType;
+  enhanced?: boolean;
   transforms?: CommandTransformRule[];
   requiresControlledOperator?: boolean;
   showNameInHitTimeline?: boolean;
@@ -369,6 +389,8 @@ export type CommandDefinition = {
   commandModifiers?: Partial<ModifierStats>;
   reactionHits?: boolean;
   executeHits?: boolean;
+  executeHitCritRigOptions?: ExecuteHitCritRigOption[];
+  manualVariantCommandIds?: string[];
   initialEffects?: CommandHitEffectDefinition[];
   hits: CommandHitDefinition[];
 };
@@ -423,6 +445,7 @@ export type ResolvedCommandDefinition = {
   comboCooldownTimeScale: TimeScale;
   comboCooldownStartsAt: ComboCooldownStartTiming;
   comboCooldownOwnerCommandId?: string;
+  comboTriggerId?: string;
   comboWindowDelaySeconds: ScalingTable;
   comboWindowDurationSeconds: ScalingTable;
   perfectTimingDelaySeconds: ScalingTable;
@@ -437,6 +460,7 @@ export type ResolvedCommandDefinition = {
   splitMultiplier: boolean;
   genericActionType?: GenericActionType;
   variant?: CommandVariantType;
+  enhanced: boolean;
   transforms: CommandTransformRule[];
   requiresControlledOperator: boolean;
   showNameInHitTimeline: boolean;
@@ -448,6 +472,7 @@ export type ResolvedCommandDefinition = {
   commandModifiers: Partial<ModifierStats>;
   reactionHits: boolean;
   executeHits: boolean;
+  manualVariantCommandIds: string[];
   initialEffects: CommandHitEffectDefinition[];
   hits: ResolvedCommandHit[];
 };
@@ -473,6 +498,7 @@ export function resolveCommandDefinition(
     comboCooldownTimeScale: command.comboCooldownTimeScale ?? "real",
     comboCooldownStartsAt: command.comboCooldownStartsAt ?? "start",
     comboCooldownOwnerCommandId: command.comboCooldownOwnerCommandId,
+    comboTriggerId: command.comboTriggerId,
     comboWindowDelaySeconds: command.comboWindowDelaySeconds ?? flat12(0),
     comboWindowDurationSeconds: command.comboWindowDurationSeconds ?? flat12(COMBO_READY_TIMEOUT_SECONDS_FALLBACK),
     perfectTimingDelaySeconds: command.perfectTimingDelaySeconds ?? flat12(0),
@@ -487,6 +513,7 @@ export function resolveCommandDefinition(
     splitMultiplier,
     genericActionType: command.genericActionType,
     variant: command.variant,
+    enhanced: command.enhanced ?? Boolean(command.variant),
     transforms: command.transforms ?? [],
     requiresControlledOperator: command.requiresControlledOperator ?? false,
     showNameInHitTimeline: command.showNameInHitTimeline ?? false,
@@ -498,6 +525,7 @@ export function resolveCommandDefinition(
     commandModifiers: command.commandModifiers ?? {},
     reactionHits: command.reactionHits ?? inferReactionHitsFlag(command),
     executeHits: command.executeHits ?? inferExecuteHitsFlag(command),
+    manualVariantCommandIds: command.manualVariantCommandIds ?? [],
     initialEffects: command.initialEffects ?? [],
     hits: command.hits.map((hit) => ({
       name: hit.name,
@@ -564,6 +592,7 @@ export type ResolvedCommandHitAtLevel = {
   ignoreUltimateGainEfficiency: boolean;
   attackType: AttackType;
   damageType: ElementType;
+  ignoreEnemyInvulnerability: boolean;
   noCrit: boolean;
   accumulator?: ResolvedHitAccumulatorAtLevel;
   effects: CommandHitEffectDefinition[];
@@ -596,6 +625,7 @@ export type ResolvedCommandAtLevel = {
   comboCooldownTimeScale: TimeScale;
   comboCooldownStartsAt: ComboCooldownStartTiming;
   comboCooldownOwnerCommandId?: string;
+  comboTriggerId?: string;
   comboWindowDelaySeconds: number;
   comboWindowDurationSeconds: number;
   perfectTimingDelaySeconds: number;
@@ -610,6 +640,7 @@ export type ResolvedCommandAtLevel = {
   splitMultiplier: boolean;
   genericActionType?: GenericActionType;
   variant?: CommandVariantType;
+  enhanced: boolean;
   transforms: CommandTransformRule[];
   requiresControlledOperator: boolean;
   showNameInHitTimeline: boolean;
@@ -621,6 +652,8 @@ export type ResolvedCommandAtLevel = {
   commandModifiers: Partial<ModifierStats>;
   reactionHits: boolean;
   executeHits: boolean;
+  executeHitCritRigOptions: ExecuteHitCritRigOption[];
+  manualVariantCommandIds: string[];
   initialEffects: CommandHitEffectDefinition[];
   hits: ResolvedCommandHitAtLevel[];
 };
@@ -829,6 +862,7 @@ export function resolveCommandAtLevel(
     comboCooldownTimeScale: command.comboCooldownTimeScale ?? "real",
     comboCooldownStartsAt: command.comboCooldownStartsAt ?? "start",
     comboCooldownOwnerCommandId: command.comboCooldownOwnerCommandId,
+    comboTriggerId: command.comboTriggerId,
     comboWindowDelaySeconds: command.comboWindowDelaySeconds
       ? resolveTable(command.comboWindowDelaySeconds, level)
       : 0,
@@ -855,6 +889,7 @@ export function resolveCommandAtLevel(
     splitMultiplier,
     genericActionType: command.genericActionType,
     variant: command.variant,
+    enhanced: command.enhanced ?? Boolean(command.variant),
     transforms: command.transforms ?? [],
     requiresControlledOperator: command.requiresControlledOperator ?? false,
     showNameInHitTimeline: command.showNameInHitTimeline ?? false,
@@ -866,6 +901,8 @@ export function resolveCommandAtLevel(
     commandModifiers: command.commandModifiers ?? {},
     reactionHits: command.reactionHits ?? inferReactionHitsFlag(command),
     executeHits: command.executeHits ?? inferExecuteHitsFlag(command),
+    executeHitCritRigOptions: command.executeHitCritRigOptions ?? [],
+    manualVariantCommandIds: command.manualVariantCommandIds ?? [],
     initialEffects: (command.initialEffects ?? []).map((effect) => resolveHitEffectAtLevel(effect, level)),
     hits: activeHits.map((hit) => ({
       name: hit.name,
@@ -885,6 +922,7 @@ export function resolveCommandAtLevel(
       ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency ?? false,
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,
+      ignoreEnemyInvulnerability: hit.ignoreEnemyInvulnerability ?? false,
       noCrit: hit.noCrit ?? false,
       accumulator: hit.accumulator
         ? {
@@ -944,6 +982,7 @@ export function resolveExecuteHitsAtLevel(
         ignoreUltimateGainEfficiency: executeHit.ignoreUltimateGainEfficiency ?? false,
         attackType: executeHit.attackType,
         damageType: executeHit.damageType,
+        ignoreEnemyInvulnerability: executeHit.ignoreEnemyInvulnerability ?? false,
         noCrit: executeHit.noCrit ?? false,
         accumulator: executeHit.accumulator
           ? {
@@ -1038,7 +1077,13 @@ export function resolveCommandTransform(
       continue;
     }
 
-    resolvedCommand = commands.find((command) => command.id === rule.toCommandId) ?? baseCommand;
+    const transformedCommand = commands.find((command) => command.id === rule.toCommandId) ?? baseCommand;
+    resolvedCommand = rule.overrideSpCost == null
+      ? transformedCommand
+      : {
+          ...transformedCommand,
+          spCost: rule.overrideSpCost,
+        };
     break;
   }
 

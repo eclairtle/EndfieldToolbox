@@ -13,6 +13,7 @@ export type UnifiedStatusKind =
   | "special_stack";
 
 export type UnifiedCombatStatus = {
+  instanceId: string;
   id: string;
   label: string;
   scope: UnifiedStatusScope;
@@ -23,5 +24,26 @@ export type UnifiedCombatStatus = {
   targetSlot?: PartySlot;
   stacks?: number;
   hidden?: boolean;
+  fieldStatus?: boolean;
   metadata?: Record<string, unknown>;
+};
+
+export type UnifiedStatusChangeType =
+  | "added"
+  | "removed"
+  | "refreshed"
+  | "expired"
+  | "replaced"
+  | "stack_changed"
+  | "updated";
+
+export type UnifiedStatusChangeLogEntry = {
+  sequence: number;
+  time: number;
+  gameTime: number;
+  stepId?: string;
+  changeType: UnifiedStatusChangeType;
+  reason: string;
+  status: UnifiedCombatStatus;
+  previousStatus?: UnifiedCombatStatus;
 };

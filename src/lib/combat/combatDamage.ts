@@ -27,6 +27,17 @@ function getAttackTypeBonus(attackType: AttackType, mods: ModifierStats): number
   }
 }
 
+function getAttackDamageTypeBonus(
+  attackType: AttackType,
+  damageType: ElementType,
+  mods: ModifierStats,
+): number {
+  if (attackType === "BATTLE_SKILL" && damageType === "Electric") {
+    return mods.BATTLE_SKILL_ELECTRIC_DMG_PCT;
+  }
+  return 0;
+}
+
 function getFinalStrikeBonus(
   attackType: AttackType,
   basicAttackVariant: ResolvedCommandAtLevel["basicAttackVariant"] | undefined,
@@ -89,7 +100,21 @@ export function getTotalDamageBonus(
   damageType: ElementType,
   mods: ModifierStats,
 ): number {
-  return mods.ALL_DMG_PCT + getAttackTypeBonus(attackType, mods) + getDamageTypeBonus(damageType, mods);
+  return (
+    mods.ALL_DMG_PCT
+    + getAttackTypeBonus(attackType, mods)
+    + getDamageTypeBonus(damageType, mods)
+    + getAttackDamageTypeBonus(attackType, damageType, mods)
+  );
+}
+
+function getResolvedHitDamageBonus(
+  attackType: AttackType,
+  damageType: ElementType,
+  basicAttackVariant: ResolvedCommandAtLevel["basicAttackVariant"] | undefined,
+  mods: ModifierStats,
+): number {
+  return getTotalDamageBonus(attackType, damageType, mods) + getFinalStrikeBonus(attackType, basicAttackVariant, mods);
 }
 
 export function getAverageCritMultiplier(mods: ModifierStats): number {
@@ -222,11 +247,12 @@ export function calculateResolvedHitDamage(args: {
     enemyMods,
   } = args;
 
-  const dmgBonus =
-    attackerMods.ALL_DMG_PCT +
-    getAttackTypeBonus(attackType, attackerMods) +
-    getFinalStrikeBonus(attackType, args.basicAttackVariant, attackerMods) +
-    getDamageTypeBonus(damageType, attackerMods);
+  const dmgBonus = getResolvedHitDamageBonus(
+    attackType,
+    damageType,
+    args.basicAttackVariant,
+    attackerMods,
+  );
   const dmgBonusMultiplier = floorDamageMultiplier(1 + dmgBonus);
   const dmgAmpMultiplier = floorDamageMultiplier(1 + getDamageAmpBonus(damageType, attackerMods));
 
@@ -289,7 +315,7 @@ export function calculateReactionDamage(args: {
   const critRate = args.noCrit ? 0 : args.attackerMods.CRIT_RATE_PCT;
   const critDamageBonus = args.attackerMods.CRIT_DMG_PCT;
   const artsIntensity = Math.max(0, args.attackerMods.ARTS_INTENSITY);
-  const dmgBonus = args.attackerMods.ALL_DMG_PCT + getDamageTypeBonus(args.damageType, args.attackerMods);
+  const dmgBonus = getTotalDamageBonus("REACTION", args.damageType, args.attackerMods);
   const dmgBonusMultiplier = floorDamageMultiplier(1 + dmgBonus);
   const dmgAmpMultiplier = floorDamageMultiplier(1 + getDamageAmpBonus(args.damageType, args.attackerMods));
 

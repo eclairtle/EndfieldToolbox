@@ -234,6 +234,7 @@ const GILBERTA_COMMANDS: CommandDefinition[] = [
           label: "Gravity Field",
           durationSeconds: 5,
           timeScale: "game",
+          fieldStatus: true,
           periods: 10,
           initialEffects: [
             {

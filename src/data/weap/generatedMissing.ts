@@ -1,6 +1,11 @@
 import type { WeaponBase } from "@/data/weapons";
 import { ATK_TABLE_49_485, ATK_TABLE_50_490, ATK_TABLE_50_495, ATK_TABLE_51_500, ATK_TABLE_51_505, ATK_TABLE_52_510, ATK_TABLE_42_411 } from "@/data/weap/baseAtkTables";
 
+// This file is a temporary holding area for generated or stubbed weapons.
+// When a weapon is promoted to a maintained implementation, move it into its
+// category file (swords/greatswords/polearms/handcannons/artsunits) and remove
+// it from GENERATED_MISSING_WEAPONS.
+
 function pickUniqueDescription(level: number, descriptions: readonly string[]): string | null {
   if (descriptions.length === 0) return null;
   const idx = Math.max(0, Math.min(descriptions.length - 1, Math.floor(level) - 1));
@@ -812,70 +817,6 @@ export const JIMINY_12: WeaponBase = {
     { id: "NotImplemented", name: "Skill 3", rank: 1, implemented: false },
   ],
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, JIMINY_12_UNIQUE_DESCRIPTIONS),
-};
-
-const LONE_BARGE_UNIQUE_DESCRIPTIONS = [
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-  `Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
-When the wielder's battle skill <#ba.consume>consumes</><#ba.spellstatus> Arts Reactions</>, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up2:0.0%}</> for {duration:0}s.
-<@ba.info>This effect can reach a max of {max_stack:0} stacks and can only trigger once every 0.1s. Duration of each stack is counted separately.</>
-After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt <@ba.vup>+{pulse_dmg_up3:0.0%}</> for {duration2:0}s.
-<@ba.info>This effect cannot stack.</>`,
-] as const;
-
-export const LONE_BARGE: WeaponBase = {
-  id: "lone_barge",
-  name: "Lone Barge",
-  rarity: 6,
-  imagePath: "/weapons/funnel/wpn_funnel_0015.webp",
-  weaponType: "ARTS_UNIT",
-  baseAtkTable: ATK_TABLE_52_510,
-  tuningMaterials: ["item_weapon_break_high ×30", "item_char_skill_specialize_1 ×16"],
-  skills: [
-    { id: "WIL_UP", name: "Will Boost [L]", rank: 3, implemented: true },
-    { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
-    { id: "UNIQUE", name: "Suppression: Streaming Blitz", rank: 1, implemented: true },
-  ],
-  getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, LONE_BARGE_UNIQUE_DESCRIPTIONS),
 };
 
 const LONG_ROAD_UNIQUE_DESCRIPTIONS = [
@@ -2061,7 +2002,6 @@ export const GENERATED_MISSING_WEAPONS: WeaponBase[] = [
   HYPERNOVA_AUTO,
   INDUSTRY_01,
   JIMINY_12,
-  LONE_BARGE,
   LONG_ROAD,
   NAVIGATOR,
   NEVER_REST,

@@ -38,6 +38,7 @@ export const MODIFIER_STAT_KEYS = [
   "CRIT_RATE_PCT",
   "CRIT_DMG_PCT",
   "ULT_GAIN_PCT",
+  "COMBO_COOLDOWN_RATE",
   "ULTIMATE_COST_REDUCTION_PCT",
   "ALL_ATTR_PCT",
   "STR_PCT",
@@ -73,6 +74,7 @@ export const MODIFIER_STAT_KEYS = [
   "FINAL_STRIKE_DMG_PCT",
   "SKILL_DMG_PCT",
   "BATTLE_SKILL_DMG_PCT",
+  "BATTLE_SKILL_ELECTRIC_DMG_PCT",
   "COMBO_SKILL_DMG_PCT",
   "ULTIMATE_DMG_PCT",
   "DMG_TAKEN_PCT",
@@ -144,6 +146,7 @@ export function makeBaseModifierStats(): ModifierStats {
     CRIT_RATE_PCT: 0.05,              // 5%
     CRIT_DMG_PCT: 0.50,               // 50%
     ULT_GAIN_PCT: 1.0,                // 100%
+    COMBO_COOLDOWN_RATE: 1.0,         // 100%
     ULTIMATE_COST_REDUCTION_PCT: 0,
 
     ALL_ATTR_PCT: 0,
@@ -180,6 +183,7 @@ export function makeBaseModifierStats(): ModifierStats {
     FINAL_STRIKE_DMG_PCT: 0,
     SKILL_DMG_PCT: 0,
     BATTLE_SKILL_DMG_PCT: 0,
+    BATTLE_SKILL_ELECTRIC_DMG_PCT: 0,
     COMBO_SKILL_DMG_PCT: 0,
     ULTIMATE_DMG_PCT: 0,
     DMG_TAKEN_PCT: 0,
@@ -264,7 +268,7 @@ export type FinalStats = {
   level: number;
   weaponLevel: number;
 
-  attrs: Attrs;          // STR/AGI/INT/WIL after level scaling
+  attrs: Attrs;          // STR/AGI/INT/WIL before attribute % modifiers
   baseATK: number;       // scaled base ATK (before weapon)
   weaponATK: number;     // weapon base atk at weaponLevel
 
@@ -502,7 +506,7 @@ export function computeFinalStats(args: {
   return {
     level,
     weaponLevel,
-    attrs,
+    attrs: attrsBeforePercent,
     baseATK,
     weaponATK,
     attributeBonus: attrBonus,

@@ -28,7 +28,7 @@ const TANGTANG_ULTIMATE_STATUS_MAX_PERIODS = 7;
 const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
     if (ctx.event.type === "DIVE_ATTACK_HIT" && ctx.event.slot === ctx.self.slot) {
-      if (!ctx.state.hasStatus({ statusId: TANGTANG_ULTIMATE_STATUS_ID, target: "global" })) {
+      if (!ctx.state.hasStatus({ statusId: TANGTANG_ULTIMATE_STATUS_ID, target: "field" })) {
         return;
       }
 
@@ -48,6 +48,7 @@ const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
           type: "REMOVE_STATUS" as const,
           target: "global" as const,
           statusId: TANGTANG_ULTIMATE_STATUS_ID,
+          fieldStatus: true,
         },
         {
           type: "EXECUTE_HIT" as const,
@@ -436,6 +437,7 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
             label: "OLDEN STARE (Vulnerable)",
             durationSeconds: TANGTANG_ULTIMATE_VULNERABLE_DURATION_SECONDS,
             timeScale: "game",
+            fieldStatus: true,
           },
           {
             type: "APPLY_STATUS",
@@ -444,6 +446,7 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
             label: "OLDEN STARE",
             durationSeconds: TANGTANG_ULTIMATE_STATUS_DURATION_SECONDS,
             timeScale: "game",
+            fieldStatus: true,
             periods: TANGTANG_ULTIMATE_STATUS_PERIODS,
             maxPeriods: TANGTANG_ULTIMATE_STATUS_MAX_PERIODS,
             initialEffects: [

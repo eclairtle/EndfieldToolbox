@@ -7,6 +7,7 @@ import {
   ATK_TABLE_50_490,
   ATK_TABLE_50_495,
   ATK_TABLE_51_500,
+  ATK_TABLE_52_510,
 } from "@/data/weap/baseAtkTables";
 
 function percent(value: number) {
@@ -269,6 +270,83 @@ export const CHIVALRIC_VIRTUES: WeaponBase = {
       },
       eventType: "WEAPON_BUFF_APPLIED",
     });
+  },
+};
+
+export const LONE_BARGE: WeaponBase = {
+  id: "lone_barge",
+  name: "Lone Barge",
+  rarity: 6,
+  imagePath: "/weapons/funnel/wpn_funnel_0015.webp",
+  weaponType: "ARTS_UNIT",
+  baseAtkTable: ATK_TABLE_52_510,
+  tuningMaterials: ["item_weapon_break_high ×30", "item_char_skill_specialize_1 ×16"],
+  skills: [
+    { id: "WIL_UP", name: "Will Boost [L]", rank: 3, implemented: true },
+    { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
+    { id: "UNIQUE", name: "Suppression: Streaming Blitz", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return {
+      ELECTRIC_DMG_PCT: scaledPercentFromRank1(16, y) / 100,
+    };
+  },
+  getUniqueSkillDescription: (uniqueSkillLevel) => {
+    const y = skillY(uniqueSkillLevel);
+    return [
+      `Electric DMG Dealt +${percent(scaledPercentFromRank1(16, y))}.`,
+      `When the wielder's battle skill consumes Arts Reactions, the wielder gains Battle Skill Electric DMG Dealt +${percent(scaledPercentFromRank1(20, y))} for 20s.`,
+      `Max stacks for effects of the same name: 2. Duration of each stack is counted separately. Effect only triggers once every 0.1s.`,
+      `After the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt +${percent(scaledPercentFromRank1(40, y))} for 25s.`,
+      "Effects of the same name cannot stack.",
+    ].join("\n");
+  },
+  onCombatEvent: (ctx) => {
+    const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
+    if (sourceSlot !== ctx.wearer.slot) {
+      return;
+    }
+
+    const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
+
+    if (
+      ctx.event.type === "ARTS_REACTION_CONSUMED"
+      && ctx.event.commandAttackType === "BATTLE_SKILL"
+      && ctx.helpers.tryActivateCooldown({
+        key: "weapon_lone_barge_reaction_consume",
+        durationSeconds: 0.1,
+        timeScale: "real",
+      })
+    ) {
+      ctx.helpers.applySelfBuff({
+        buffId: "weapon_lone_barge_battle_skill_electric_stack",
+        label: "Streaming Blitz",
+        durationSeconds: 20,
+        timeScale: "game",
+        effects: {
+          BATTLE_SKILL_ELECTRIC_DMG_PCT: scaledPercentFromRank1(20, y) / 100,
+        },
+        stackGroup: "weapon_lone_barge_battle_skill_electric_stack",
+        maxStacks: 2,
+        refreshExistingStacks: false,
+        eventType: "WEAPON_BUFF_APPLIED",
+      });
+      return;
+    }
+
+    if (ctx.event.type === "ULTIMATE_CAST") {
+      ctx.helpers.applySelfBuff({
+        buffId: "weapon_lone_barge_ultimate_battle_skill_electric",
+        label: "Streaming Blitz: Ultimate",
+        durationSeconds: 25,
+        timeScale: "game",
+        effects: {
+          BATTLE_SKILL_ELECTRIC_DMG_PCT: scaledPercentFromRank1(40, y) / 100,
+        },
+        eventType: "WEAPON_BUFF_APPLIED",
+      });
+    }
   },
 };
 

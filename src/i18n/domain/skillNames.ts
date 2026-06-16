@@ -60,6 +60,7 @@ const zhCNCharacterUniqueTalentListOverrides: Record<string, string[]> = {
   ember: ["陷阵之志", "以铁还铁"],
   lifeng: ["顿悟", "伏魔"],
   snowshine: ["极地生存", "救援专家"],
+  zhuangfangyi: ["天地造化", "承天之佑"],
   endministrator: ["本质瓦解", "现实静滞"],
   dapan: ["勾芡", "尝尝咸淡"],
   perlica: ["歼灭协议", "循环协议"],
@@ -71,6 +72,7 @@ const zhCNCharacterUniqueTalentListOverrides: Record<string, string[]> = {
   chenqianyu: ["斩锋", "破势"],
   xaihi: ["启动进程", "协议冻结"],
   tangtang: ["肝胆相照", "呼风唤浪"],
+  pogranichnik: ["活着的旗帜", "战术教导"],
 };
 
 function normalizeTalentBaseName(name: string) {

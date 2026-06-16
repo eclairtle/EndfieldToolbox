@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useLocale } from "@/i18n/useLocale";
+import { getCritRigModeFromRules } from "@/lib/combat/critRigging";
 import type {
   CharacterCombatSnapshot,
   CritRiggingRule,
@@ -29,9 +30,10 @@ const props = defineProps<{
   selectedStep: RotationStep | null;
   selectedStepAction: CompiledRotationAction | null;
   selectedStepCommand: CharacterCombatSnapshot["commands"][number] | null;
+  selectedStepVariantOptions: CharacterCombatSnapshot["commands"][number][];
   selectedStepValidation: string | null;
   selectedStepCritRigRules: CritRiggingRule[];
-  selectedStepHitRigOptions: Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute" }>;
+  selectedStepHitRigOptions: Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute"; executeCritRigId?: string }>;
   timeExtensions: RotationTimeExtension[];
   getEnemyCommandValidation: (commandPlacementId: string) => string | null;
   getLocalizedCommandBelongsType: (command: CharacterCombatSnapshot["commands"][number] | null | undefined) => string;
@@ -51,6 +53,7 @@ const props = defineProps<{
   onUpdateSelectedStepCritRigging: (args: {
     hitIndex: number;
     repeatIndex: number;
+    executeCritRigId?: string;
     mode: "none" | "force_crit" | "force_non_crit";
   }) => void;
 }>();
@@ -58,9 +61,19 @@ const props = defineProps<{
 const { t } = useLocale();
 const critRiggingExpanded = ref(false);
 
-function getCritRigMode(hitIndex: number, repeatIndex: number): "none" | "force_crit" | "force_non_crit" {
-  const rule = props.selectedStepCritRigRules.find((entry) => entry.hitIndex === hitIndex && entry.repeatIndex === repeatIndex);
-  return rule?.mode ?? "none";
+function getCritRigMode(
+  hitIndex: number,
+  repeatIndex: number,
+  executeCritRigId?: string,
+): "none" | "force_crit" | "force_non_crit" {
+  const stepId = props.selectedStep?.id;
+  if (!stepId) {
+    return "none";
+  }
+  return getCritRigModeFromRules(
+    props.selectedStepCritRigRules,
+    { stepId, hitIndex, repeatIndex, executeCritRigId },
+  ) ?? "none";
 }
 
 function getSwapBuildTarget(fromVariant: number): number {
@@ -292,6 +305,30 @@ function updateSwapBuildTarget(fromVariant: number, toVariant: number) {
         >
       </label>
 
+      <label
+        v-if="selectedStep && selectedStepVariantOptions.length > 1"
+        class="block"
+      >
+        <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.commandVariant") }}</div>
+        <select
+          :value="selectedStep.commandId"
+          class="w-full rounded-lg border border-[#d7d7d7] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#c8d13c]"
+          @change="
+            onUpdateSelectedStep({
+              commandId: ($event.target as HTMLSelectElement).value,
+            })
+          "
+        >
+          <option
+            v-for="variantCommand in selectedStepVariantOptions"
+            :key="variantCommand.id"
+            :value="variantCommand.id"
+          >
+            {{ getLocalizedCommandName(variantCommand, selectedStepAction ? getCharacterIdBySlot(selectedStepAction.slot) : undefined, variantCommand.name) }}
+          </option>
+        </select>
+      </label>
+
       <div class="grid grid-cols-1 gap-2 text-sm text-[#444]">
         <label class="inline-flex items-center gap-2 rounded-lg border border-[#ececec] bg-white px-3 py-2">
           <input
@@ -361,17 +398,18 @@ function updateSwapBuildTarget(fromVariant: number, toVariant: number) {
         <div v-else class="space-y-2">
           <label
             v-for="hitOption in selectedStepHitRigOptions"
-            :key="`crit-rig-${hitOption.rigType ?? 'normal'}-${hitOption.hitIndex}-${hitOption.repeatIndex}`"
+            :key="`crit-rig-${hitOption.rigType ?? 'normal'}-${hitOption.hitIndex}-${hitOption.repeatIndex}-${hitOption.executeCritRigId ?? ''}`"
             class="flex items-center justify-between gap-3 text-sm"
           >
             <span class="text-[#333]">{{ hitOption.label }}</span>
             <select
-              :value="getCritRigMode(hitOption.hitIndex, hitOption.repeatIndex)"
+              :value="getCritRigMode(hitOption.hitIndex, hitOption.repeatIndex, hitOption.executeCritRigId)"
               class="h-9 min-w-[148px] rounded-lg border border-[#d7d7d7] bg-white px-2 text-sm outline-none transition focus:border-[#c8d13c]"
               @change="
                 onUpdateSelectedStepCritRigging({
                   hitIndex: hitOption.hitIndex,
                   repeatIndex: hitOption.repeatIndex,
+                  executeCritRigId: hitOption.executeCritRigId,
                   mode: ($event.target as HTMLSelectElement).value as 'none' | 'force_crit' | 'force_non_crit',
                 })
               "

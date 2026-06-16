@@ -6,30 +6,234 @@ const ALESH_TALENT_1_1 = "alesh_talent_energy_reaction_1";
 const ALESH_TALENT_1_2 = "alesh_talent_energy_reaction_2";
 const ALESH_TALENT_2_1 = "alesh_talent_rarefin_scaling_1";
 const ALESH_TALENT_2_2 = "alesh_talent_rarefin_scaling_2";
+const ALESH_POTENTIAL_3_TEAM_ATK_BUFF = "alesh_potential_3_team_attack";
 const ALESH_TALENT_1_ICD_STATUS = "alesh_talent_1_icd";
-const ALESH_TALENT_1_ENERGY_HIT_ID = "alesh_talent_1_energy";
-const ALESH_TALENT_1_SELF_ENERGY_HIT_ID = "alesh_talent_1_self_energy";
+const ALESH_TALENT_1_BASE_ENERGY_1_HIT_ID = "alesh_talent_1_base_energy_1";
+const ALESH_TALENT_1_SELF_BONUS_1_HIT_ID = "alesh_talent_1_self_bonus_1";
+const ALESH_TALENT_1_BASE_ENERGY_2_HIT_ID = "alesh_talent_1_base_energy_2";
+const ALESH_TALENT_1_SELF_BONUS_2_HIT_ID = "alesh_talent_1_self_bonus_2";
+const ALESH_BATTLE_SKILL_ID = "alesh_battle_skill";
+const ALESH_COMBO_SKILL_ID = "alesh_combo_skill";
+const ALESH_COMBO_SKILL_RARE_FIN_ID = "alesh_combo_skill_rare_fin";
+const ALESH_COMBO_TRIGGER_ID = "alesh_combo_augur_angling";
+const ALESH_COMBO_COOLDOWN_OWNER_ID = "alesh_combo_augur_angling";
+const ALESH_COMBO_VARIANT_COMMAND_IDS = [ALESH_COMBO_SKILL_ID, ALESH_COMBO_SKILL_RARE_FIN_ID];
 
 const ALESH_COMMANDS: CommandDefinition[] = [
-  { id: "alesh_basic_sequence", name: "Basic Attack Sequence", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "cycling", durationFrames: flat12(192), spCost: flat12(0), hits: [
-      { name: "Hit 1", multiplier: pct([18, 19, 21, 23, 25, 26, 28, 30, 32, 34, 36, 39]), offsetFrames: flat12(14) },
-      { name: "Hit 2", multiplier: pct([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 23]), offsetFrames: flat12(36) },
-      { name: "Hit 3", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), offsetFrames: flat12(74) },
-      { name: "Hit 4", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), offsetFrames: flat12(112) },
-      { name: "Hit 5", multiplier: pct([55, 61, 66, 72, 77, 83, 88, 94, 99, 106, 114, 124]), offsetFrames: flat12(164) },
-  ] },
-  { id: "alesh_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
-  { id: "alesh_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
-  { id: "alesh_battle_skill", name: "Battle Skill", skill: "battleSkill", attackType: "BATTLE_SKILL", damageType: "Cryo", mode: "single", durationFrames: flat12(100), spCost: flat12(100), energyGain: flat12(0), hits: [{ multiplier: pct([200, 220, 240, 260, 280, 300, 320, 340, 360, 385, 415, 450]), stagger: flat12(10), offsetFrames: flat12(54) }] },
-  { id: "alesh_combo_skill", name: "Combo Skill", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Physical", mode: "single", durationFrames: flat12(78), spCost: flat12(0), hits: [{ multiplier: pct([133, 147, 160, 173, 187, 200, 213, 227, 240, 257, 277, 300]), stagger: flat12(10), offsetFrames: flat12(76) }] },
-  { id: "alesh_ultimate", name: "Ultimate", skill: "ultimate", attackType: "ULTIMATE", damageType: "Cryo", mode: "single", durationFrames: flat12(192), spCost: flat12(0), energyCost: flat12(85), hits: [
-      { name: "Seq 1", multiplier: pct([436, 479, 523, 566, 610, 653, 697, 741, 784, 839, 904, 980]), offsetFrames: flat12(180) },
-  ] },
+  {
+    id: "alesh_basic_sequence",
+    name: "Basic Attack Sequence",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "cycling",
+    basicAttackVariant: "sequence",
+    durationFrames: flat12(191.88),
+    spCost: flat12(0),
+    expandsToCommandIds: [
+      "alesh_basic_sequence_1",
+      "alesh_basic_sequence_2",
+      "alesh_basic_sequence_3",
+      "alesh_basic_sequence_4",
+      "alesh_basic_sequence_5",
+    ],
+    hits: [],
+  },
+  {
+    id: "alesh_basic_sequence_1",
+    name: "Basic Attack Sequence I",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 1,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(25.8),
+    spCost: flat12(0),
+    hits: [{ name: "Hit 1", multiplier: pct([18, 19, 21, 23, 25, 26, 28, 30, 32, 34, 36, 39]), offsetFrames: flat12(13.8) }],
+  },
+  {
+    id: "alesh_basic_sequence_2",
+    name: "Basic Attack Sequence II",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 2,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(22.02),
+    spCost: flat12(0),
+    hits: [{ name: "Hit 1", multiplier: pct([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 23]), offsetFrames: flat12(10.2) }],
+  },
+  {
+    id: "alesh_basic_sequence_3",
+    name: "Basic Attack Sequence III",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 3,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(34.02),
+    spCost: flat12(0),
+    hits: [{ name: "Hit 1", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), offsetFrames: flat12(25.8) }],
+  },
+  {
+    id: "alesh_basic_sequence_4",
+    name: "Basic Attack Sequence IV",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "sequence_segment",
+    sequenceSegmentIndex: 4,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(46.02),
+    spCost: flat12(0),
+    hits: [{ name: "Hit 1", multiplier: pct([28, 30, 33, 36, 39, 41, 44, 47, 50, 53, 57, 62]), offsetFrames: flat12(30) }],
+  },
+  {
+    id: "alesh_basic_sequence_5",
+    name: "Final Strike",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    hiddenInLibrary: true,
+    basicAttackVariant: "final_strike",
+    sequenceSegmentIndex: 5,
+    sequenceSegmentTotal: 5,
+    durationFrames: flat12(64.02),
+    spCost: flat12(0),
+    hits: [
+      {
+        name: "Hit 1",
+        multiplier: pct([55, 61, 66, 72, 77, 83, 88, 94, 99, 106, 114, 124]),
+        stagger: flat12(17),
+        spGenerated: flat12(19),
+        requiresControlledOperator: true,
+        offsetFrames: flat12(36),
+      },
+    ],
+  },
+  {
+    id: "alesh_basic_finisher",
+    name: "Finisher",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "single",
+    basicAttackVariant: "finisher",
+    durationFrames: flat12(60),
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }],
+  },
+  {
+    id: "alesh_basic_dive",
+    name: "Dive Attack",
+    skill: "basic",
+    attackType: "BASIC_ATTACK",
+    damageType: "Physical",
+    mode: "single",
+    basicAttackVariant: "dive_attack",
+    durationFrames: flat12(60),
+    spCost: flat12(0),
+    hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }],
+  },
+  {
+    id: ALESH_BATTLE_SKILL_ID,
+    name: "Unconventional Lure",
+    skill: "battleSkill",
+    attackType: "BATTLE_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    durationFrames: flat12(100.2),
+    spCost: flat12(100),
+    energyGain: flat12(0),
+    hits: [
+      {
+        name: "Ice Slam",
+        multiplier: pct([200, 220, 240, 260, 280, 300, 320, 340, 360, 385, 415, 450]),
+        stagger: flat12(10),
+        offsetFrames: flat12(54),
+      },
+    ],
+  },
+  {
+    id: ALESH_COMBO_SKILL_ID,
+    name: "Auger Angling",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    durationFrames: flat12(78),
+    spCost: flat12(0),
+    comboCooldownSeconds: flat12(9),
+    comboCooldownOwnerCommandId: ALESH_COMBO_COOLDOWN_OWNER_ID,
+    comboTriggerId: ALESH_COMBO_TRIGGER_ID,
+    manualVariantCommandIds: ALESH_COMBO_VARIANT_COMMAND_IDS,
+    hits: [
+      {
+        name: "Regular Catch",
+        multiplier: pct([133, 147, 160, 173, 187, 200, 213, 227, 240, 257, 277, 300]),
+        stagger: flat12(10),
+        spReturned: flat12(10),
+        offsetFrames: flat12(76.2),
+      },
+    ],
+  },
+  {
+    id: ALESH_COMBO_SKILL_RARE_FIN_ID,
+    name: "Auger Angling: Rare Fin",
+    skill: "comboSkill",
+    attackType: "COMBO_SKILL",
+    damageType: "Physical",
+    mode: "single",
+    enhanced: true,
+    durationFrames: flat12(78),
+    spCost: flat12(0),
+    comboCooldownSeconds: flat12(9),
+    comboCooldownOwnerCommandId: ALESH_COMBO_COOLDOWN_OWNER_ID,
+    comboTriggerId: ALESH_COMBO_TRIGGER_ID,
+    manualVariantCommandIds: ALESH_COMBO_VARIANT_COMMAND_IDS,
+    hits: [
+      {
+        name: "Rare Fin Catch",
+        multiplier: pct([213, 235, 256, 277, 299, 320, 341, 363, 384, 411, 443, 480]),
+        stagger: flat12(10),
+        spReturned: flat12(20),
+        offsetFrames: flat12(76.2),
+      },
+    ],
+  },
+  {
+    id: "alesh_ultimate",
+    name: "One Monster Catch!",
+    skill: "ultimate",
+    attackType: "ULTIMATE",
+    damageType: "Cryo",
+    mode: "single",
+    durationFrames: flat12(192),
+    spCost: flat12(0),
+    energyCost: flat12(85),
+    hits: [
+      {
+        name: "Monster Catch",
+        multiplier: pct([436, 479, 523, 566, 610, 653, 697, 741, 784, 839, 904, 980]),
+        stagger: flat12(20),
+        spReturned: flat12(20),
+        offsetFrames: flat12(180),
+        effects: [{ type: "APPLY_ARTS_INFLICTION", element: "Cryo", stacks: 1 }],
+      },
+    ],
+  },
 ];
 
 const ALESH_EXECUTE_HITS: ExecuteHitDefinition[] = [
   {
-    id: ALESH_TALENT_1_ENERGY_HIT_ID,
+    id: ALESH_TALENT_1_BASE_ENERGY_1_HIT_ID,
     name: "Alesh Talent 1 Energy",
     skill: "comboSkill",
     attackType: "GENERIC",
@@ -41,7 +245,7 @@ const ALESH_EXECUTE_HITS: ExecuteHitDefinition[] = [
     offsetFrames: flat12(0),
   },
   {
-    id: ALESH_TALENT_1_SELF_ENERGY_HIT_ID,
+    id: ALESH_TALENT_1_SELF_BONUS_1_HIT_ID,
     name: "Alesh Talent 1 Self Bonus Energy",
     skill: "comboSkill",
     attackType: "GENERIC",
@@ -52,11 +256,99 @@ const ALESH_EXECUTE_HITS: ExecuteHitDefinition[] = [
     multiplier: flat12(0),
     offsetFrames: flat12(0),
   },
+  {
+    id: ALESH_TALENT_1_BASE_ENERGY_2_HIT_ID,
+    name: "Alesh Talent 1 Energy II",
+    skill: "comboSkill",
+    attackType: "GENERIC",
+    damageType: "Cryo",
+    commandId: "__alesh_talent_1",
+    commandName: "Alesh Talent 1",
+    energyReturn: flat12(4),
+    multiplier: flat12(0),
+    offsetFrames: flat12(0),
+  },
+  {
+    id: ALESH_TALENT_1_SELF_BONUS_2_HIT_ID,
+    name: "Alesh Talent 1 Self Bonus Energy II",
+    skill: "comboSkill",
+    attackType: "GENERIC",
+    damageType: "Cryo",
+    commandId: "__alesh_talent_1",
+    commandName: "Alesh Talent 1",
+    energyReturn: flat12(8),
+    multiplier: flat12(0),
+    offsetFrames: flat12(0),
+  },
 ];
 
 const ALESH_HOOKS: CharacterCombatHooks = {
+  onResolvedHit: (ctx) => {
+    if (!ctx.flags.dealsDamage || ctx.source.slot !== ctx.self.slot) {
+      return;
+    }
+
+    if (ctx.source.commandId === ALESH_BATTLE_SKILL_ID) {
+      const currentInfliction = ctx.state.getEnemyArtsInfliction();
+      if (currentInfliction?.element !== "Cryo") {
+        return;
+      }
+      const consumedStacks = Math.max(1, Math.min(4, currentInfliction.stacks));
+      ctx.state.setEnemyArtsInfliction(null);
+      ctx.state.applyEffects({
+        effects: [
+          {
+            type: "APPLY_REACTION",
+            reaction: "Solidification",
+            level: consumedStacks,
+            durationSeconds: 5,
+            forceApply: true,
+            reactionDamage: false,
+          },
+        ],
+        stepId: `${ctx.stepId}:alesh_battle_skill_freeze`,
+        effectTree: ctx.effectTree,
+      });
+      ctx.state.grantReturnedSp(
+        consumedStacks * 10 + (ctx.state.isSelfPotentialActive(1) ? 10 : 0),
+        "Unconventional Lure SP Recovery",
+      );
+      return;
+    }
+
+    if (ctx.source.commandId === ALESH_COMBO_SKILL_RARE_FIN_ID && ctx.state.isSelfPotentialActive(3)) {
+      ctx.state.applySelfBuff({
+        buffId: ALESH_POTENTIAL_3_TEAM_ATK_BUFF,
+        label: "Rare Fin Harvest",
+        durationSeconds: 10,
+        timeScale: "game",
+        effects: { ATK_PCT: 0.15 },
+      });
+      ctx.state.applyOtherTeammatesBuff({
+        buffId: ALESH_POTENTIAL_3_TEAM_ATK_BUFF,
+        label: "Rare Fin Harvest",
+        durationSeconds: 10,
+        timeScale: "game",
+        effects: { ATK_PCT: 0.15 },
+      });
+    }
+  },
   onEvent: (ctx) => {
-    if (ctx.event.type !== "ARTS_REACTION_APPLIED" || !ctx.event.label.startsWith("Solidification Applied")) {
+    if (
+      ctx.event.type === "ARTS_REACTION_CONSUMED"
+      || (ctx.event.type === "PHYSICAL_REACTION_APPLIED" && ctx.event.enemyHadOriginiumCrystal === true)
+    ) {
+      ctx.state.triggerSelfCombo({
+        label: "Alesh Combo Triggered",
+        sourceEventType: ctx.event.type,
+        comboCommandId: ALESH_COMBO_SKILL_ID,
+      });
+    }
+
+    const isSolidificationApplied =
+      ctx.event.type === "ARTS_REACTION_APPLIED" && ctx.event.label.startsWith("Solidification Applied");
+    const isOriginiumCrystalApplied = ctx.event.type === "ORIGINIUM_CRYSTAL_APPLIED";
+    if (!isSolidificationApplied && !isOriginiumCrystalApplied) {
       return;
     }
     if (!ctx.state.isSelfUniqueTalentEnabled(ALESH_TALENT_1_1) && !ctx.state.isSelfUniqueTalentEnabled(ALESH_TALENT_1_2)) {
@@ -65,10 +357,10 @@ const ALESH_HOOKS: CharacterCombatHooks = {
     if (ctx.state.hasStatus({ statusId: ALESH_TALENT_1_ICD_STATUS, target: "self" })) {
       return;
     }
+
     const isTier2 = ctx.state.isSelfUniqueTalentEnabled(ALESH_TALENT_1_2);
-    const energyHit = isTier2 ? ALESH_TALENT_1_SELF_ENERGY_HIT_ID : ALESH_TALENT_1_ENERGY_HIT_ID;
-    const selfBonusHit = isTier2 ? ALESH_TALENT_1_SELF_ENERGY_HIT_ID : ALESH_TALENT_1_ENERGY_HIT_ID;
-    const isSelfApplied = ctx.event.sourceSlot === ctx.self.slot;
+    const baseEnergyHit = isTier2 ? ALESH_TALENT_1_BASE_ENERGY_2_HIT_ID : ALESH_TALENT_1_BASE_ENERGY_1_HIT_ID;
+    const selfBonusHit = isTier2 ? ALESH_TALENT_1_SELF_BONUS_2_HIT_ID : ALESH_TALENT_1_SELF_BONUS_1_HIT_ID;
 
     ctx.state.applyEffects({
       effects: [
@@ -80,10 +372,13 @@ const ALESH_HOOKS: CharacterCombatHooks = {
           durationSeconds: 3,
           timeScale: "real",
         },
-        { type: "EXECUTE_HIT", hitRefId: energyHit, inheritSourceBonuses: false },
-        ...(isSelfApplied ? [{ type: "EXECUTE_HIT" as const, hitRefId: selfBonusHit, inheritSourceBonuses: false }] : []),
+        { type: "EXECUTE_HIT", hitRefId: baseEnergyHit, inheritSourceBonuses: false },
+        ...(ctx.event.sourceSlot === ctx.self.slot
+          ? [{ type: "EXECUTE_HIT" as const, hitRefId: selfBonusHit, inheritSourceBonuses: false }]
+          : []),
       ],
       stepId: `${ctx.event.stepId ?? "event"}:alesh_t1`,
+      effectTree: ctx.event.effectTree,
     });
   },
 };
@@ -120,32 +415,7 @@ export const ALESH: CharacterBase = {
   },
   mutateResolvedCommands: (commands, ctx) => {
     const potentialLevel = ctx.buildState.potentialLevel ?? 0;
-    const hasTalent2_2 = Boolean(ctx.buildState.uniqueTalentToggles?.[ALESH_TALENT_2_2]);
-    const hasTalent2_1 = hasTalent2_2 || Boolean(ctx.buildState.uniqueTalentToggles?.[ALESH_TALENT_2_1]);
     return commands.map((command) => {
-      if (command.id === "alesh_combo_skill" && hasTalent2_1) {
-        // Rare Fin chance scales with INT; build state does not expose live attrs here,
-        // so we model a conservative expected value based on talent tier only.
-        const probAddPerRate = hasTalent2_2 ? 0.005 : 0.002;
-        const bonusChance = Math.min(0.3, (hasTalent2_2 ? 0.15 : 0.1));
-        const expectedMultiplier = 1 + bonusChance * ((2.13 / 1.33) - 1);
-        return {
-          ...command,
-          hits: command.hits.map((hit) => ({
-            ...hit,
-            multiplier: hit.multiplier * expectedMultiplier,
-          })),
-        };
-      }
-      if (command.id === "alesh_battle_skill" && potentialLevel >= 1) {
-        return {
-          ...command,
-          hits: command.hits.map((hit) => ({
-            ...hit,
-            spReturned: (hit.spReturned ?? 0) + 10,
-          })),
-        };
-      }
       if (command.id === "alesh_ultimate" && potentialLevel >= 4) {
         return {
           ...command,

@@ -124,6 +124,8 @@ import * as artsunit from "./weap/artsunits";
 import * as polearm from "./weap/polearms";
 import { GENERATED_MISSING_WEAPONS } from "./weap/generatedMissing";
 
+// Keep GENERATED_MISSING_WEAPONS for stubs and unpromoted entries only.
+// When a weapon gets a real implementation, move it into its typed category file.
 export const WEAPONS: WeaponBase[] = [
   sword.FORGEBORN_SCATHE,
   sword.THERMITE_CUTTER,
@@ -144,6 +146,7 @@ export const WEAPONS: WeaponBase[] = [
   artsunit.DETONATION_UNIT,
   artsunit.DREAMS_OF_THE_STARRY_BEACH,
   artsunit.CHIVALRIC_VIRTUES,
+  artsunit.LONE_BARGE,
   artsunit.MONAIHE,
   artsunit.WILD_WANDERER,
   ...GENERATED_MISSING_WEAPONS,

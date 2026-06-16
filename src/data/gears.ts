@@ -20,6 +20,9 @@ import { SWORDMANCER, SWORDMANCER_SET_BONUS } from "@/data/gearSets/swordmancer"
 import { THERTECH, THERTECH_SET_BONUS } from "@/data/gearSets/thertech";
 import { PULSER_LABS, PULSER_LABS_SET_BONUS } from "@/data/gearSets/pulser_labs";
 import { ETERNAL_XIRANITE, ETERNAL_XIRANITE_SET_BONUS } from "@/data/gearSets/eternal_xiranite";
+import { XIRANFLOW, XIRANFLOW_SET_BONUS } from "@/data/gearSets/xiranflow";
+import { QINGBO, QINGBO_SET_BONUS } from "@/data/gearSets/qingbo";
+import { GRIZZLED_EDGE, GRIZZLED_EDGE_SET_BONUS } from "@/data/gearSets/grizzled_edge";
 
 export type GearSlot = "ARMOR" | "GLOVES" | "KIT";
 
@@ -64,6 +67,9 @@ export const GEAR_SET_BONUSES: Record<string, GearSetBonus> = {
   "Æthertech": THERTECH_SET_BONUS,
   "Pulser Labs": PULSER_LABS_SET_BONUS,
   "Eternal Xiranite": ETERNAL_XIRANITE_SET_BONUS,
+  Xiranflow: XIRANFLOW_SET_BONUS,
+  Qingbo: QINGBO_SET_BONUS,
+  "Grizzled Edge": GRIZZLED_EDGE_SET_BONUS,
 };
 
 export const GEARS: GearBase[] = [
@@ -86,7 +92,10 @@ export const GEARS: GearBase[] = [
   ...SWORDMANCER,
   ...THERTECH,
   ...PULSER_LABS,
-  ...ETERNAL_XIRANITE
+  ...ETERNAL_XIRANITE,
+  ...XIRANFLOW,
+  ...QINGBO,
+  ...GRIZZLED_EDGE,
 ];
 
 export function isGearUpgradable(gear: GearBase): boolean {

@@ -52,6 +52,7 @@ import { useLocale } from "@/i18n/useLocale";
 import type { CharacterSkillKey } from "@/lib/build/characterSkills";
 import { getCharacterDisplayName } from "@/i18n/domain/displayNames";
 import { getCharacterSkillDisplayName } from "@/i18n/domain/skillNames";
+import { getLocalizedHitName } from "@/i18n/domain/hitNames";
 import { getLocalizedStatusBuffLabel } from "@/i18n/domain/statusBuffLabels";
 import RotationSelectedCommandPanel from "@/components/workspaces/rotation/RotationSelectedCommandPanel.vue";
 import RotationHitDetailsModal from "@/components/workspaces/rotation/RotationHitDetailsModal.vue";
@@ -407,6 +408,19 @@ function toggleContractLevel(contractId: string, level: number) {
 }
 const commandListExpanded = ref(true);
 const statusListExpanded = ref(true);
+const enemyTimelineIconBroken = ref(false);
+const ENEMY_COMMAND_LABELS_ZH: Record<string, string> = {
+  "Dummy Attack": "占位攻击",
+  "Opening Attack": "开场攻击",
+  "Phase Transition": "阶段切换",
+};
+
+function getLocalizedEnemyCommandLabel(label: string) {
+  return locale.value === "zh-CN"
+    ? (ENEMY_COMMAND_LABELS_ZH[label] ?? label)
+    : label;
+}
+
 const enemyCommandDefinitions = computed(() => getEnemyCommandDefinitions(props.selectedEnemyId));
 const enemyCommands = ref<EnemyCommandPlacement[]>([]);
 
@@ -435,6 +449,7 @@ function syncEnemyCommandsFromLayouts() {
 watch(
   [() => activeScheme.value.id, () => props.selectedEnemyId],
   () => {
+    enemyTimelineIconBroken.value = false;
     syncEnemyCommandsFromLayouts();
   },
   { immediate: true },
@@ -464,7 +479,7 @@ const enemyTimelineCommands = computed(() => {
       const startTime = roundToSnap(entry.startTime);
       return {
         ...entry,
-        label: definition.label,
+        label: getLocalizedEnemyCommandLabel(definition.label),
         startTime,
         endTime: startTime + definition.durationSeconds,
         interruptible: definition.interruptible !== false,
@@ -740,10 +755,16 @@ function buildModifierEntriesFromEffects(effects: Partial<ModifierStats> | undef
     .filter(([, value]) => typeof value === "number" && Math.abs(value) > 1e-9)
     .map(([key, value]) => ({
       key: key as ModifierStatKey,
-      label: modifierLabels[key as ModifierStatKey] ?? key,
+      label: modifierLabel(key as ModifierStatKey),
       value: value as number,
       isPercent: key.endsWith("_PCT"),
     }));
+}
+
+function modifierLabel(key: ModifierStatKey) {
+  void locale.value;
+  const localized = t(`modifiers.${key}` as const);
+  return localized.startsWith("modifiers.") ? (modifierLabels[key] ?? key) : localized;
 }
 
 function groupStatusItems(items: RawStatusDisplayItem[]): GroupedStatusDisplayItem[] {
@@ -803,7 +824,7 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
   if (sidebarMode.value === "enemy") {
     const items: RawStatusDisplayItem[] = [];
     for (const debuff of currentEnemyState.value.activeDebuffs) {
-      const debuffName = localizeStatusOrBuffLabel(debuff.label) || modifierLabels[debuff.stat] || debuff.stat;
+      const debuffName = localizeStatusOrBuffLabel(debuff.label) || modifierLabel(debuff.stat);
       const remainingSeconds = Math.max(
         0,
         debuff.expiresAt - (debuff.timeScale === "real" ? cursorTime.value : cursorGameTime),
@@ -814,7 +835,7 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
         remainingSeconds,
         modifierEntries: [{
           key: debuff.stat,
-          label: modifierLabels[debuff.stat] ?? debuff.stat,
+          label: modifierLabel(debuff.stat),
           value: debuff.value,
           isPercent: debuff.stat.endsWith("_PCT"),
         }],
@@ -876,6 +897,20 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
   }
 
   for (const status of actorState.activeTeamStatuses) {
+    const remainingSeconds = Math.max(
+      0,
+      status.expiresAt - (status.timeScale === "real" ? cursorTime.value : cursorGameTime),
+    );
+    items.push({
+      label: localizeStatusOrBuffLabel(status.label),
+      remainingSeconds,
+    });
+  }
+
+  for (const status of actorState.activeStatuses) {
+    if (status.hidden) {
+      continue;
+    }
     const remainingSeconds = Math.max(
       0,
       status.expiresAt - (status.timeScale === "real" ? cursorTime.value : cursorGameTime),
@@ -1016,6 +1051,25 @@ const selectedStepCommand = computed(() => {
   return actor?.commands.find((command) => command.id === step.commandId) ?? null;
 });
 
+const selectedStepVariantOptions = computed(() => {
+  const step = selectedStep.value;
+  const command = selectedStepCommand.value;
+  if (!step || !command || selectedCommandsCount.value !== 1) {
+    return [] as CharacterCombatSnapshot["commands"];
+  }
+  const variantIds = command.manualVariantCommandIds;
+  if (!variantIds || variantIds.length <= 1) {
+    return [] as CharacterCombatSnapshot["commands"];
+  }
+  const actor = partyBySlot.value.get(step.slot);
+  if (!actor) {
+    return [] as CharacterCombatSnapshot["commands"];
+  }
+  return variantIds
+    .map((commandId) => actor.commands.find((entry) => entry.id === commandId) ?? null)
+    .filter((entry): entry is CharacterCombatSnapshot["commands"][number] => entry != null);
+});
+
 const selectedStepAction = computed(() => {
   if (selectedCommandsCount.value !== 1) {
     return null;
@@ -1045,18 +1099,30 @@ const selectedStepCritRigRules = computed(() => {
 const selectedStepHitRigOptions = computed(() => {
   const command = selectedStepCommand.value;
   if (!command) {
-    return [] as Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute" }>;
+    return [] as Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute"; executeCritRigId?: string }>;
   }
-  const options: Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute" }> = [];
+  const characterId = partyBySlot.value.get(
+    (selectedStepAction.value?.slot ?? selectedStep.value?.slot ?? 0) as PartySlot,
+  )?.characterId;
+  const options: Array<{ hitIndex: number; repeatIndex: number; label: string; rigType?: "normal" | "reaction" | "execute"; executeCritRigId?: string }> = [];
   command.hits.forEach((hit, hitIndex) => {
+    if (hit.damageType === "Healing" || hit.noCrit || (hit.multiplier <= 0 && hit.flatAmount <= 0)) {
+      return;
+    }
     const repeatTimes = Math.max(1, hit.times ?? 1);
     for (let repeatIndex = 0; repeatIndex < repeatTimes; repeatIndex += 1) {
+      const rawLabel = repeatTimes > 1
+        ? `${hit.name ?? `Hit ${hitIndex + 1}`} #${repeatIndex + 1}`
+        : (hit.name ?? `Hit ${hitIndex + 1}`);
       options.push({
         hitIndex,
         repeatIndex,
-        label: repeatTimes > 1
-          ? `${hit.name ?? `Hit ${hitIndex + 1}`} #${repeatIndex + 1}`
-          : (hit.name ?? `Hit ${hitIndex + 1}`),
+        label: getLocalizedHitName({
+          hitName: rawLabel,
+          hitIndex,
+          damageType: hit.damageType,
+          characterId,
+        }),
         rigType: "normal",
       });
     }
@@ -1065,17 +1131,31 @@ const selectedStepHitRigOptions = computed(() => {
     options.push({
       hitIndex: CRIT_RIG_HIT_INDEX_REACTION,
       repeatIndex: 0,
-      label: "Reaction Hits",
+      label: t("rotation.reactionHits"),
       rigType: "reaction",
     });
   }
-  if (command.executeHits) {
+  if (command.executeHits && command.id === "zhuangfangyi_ultimate_battle_skill") {
     options.push({
       hitIndex: CRIT_RIG_HIT_INDEX_EXECUTE,
       repeatIndex: 0,
-      label: "Execute Hits",
+      label: t("rotation.executeHits"),
       rigType: "execute",
     });
+  }
+  if (command.executeHitCritRigOptions.length > 0) {
+    for (const option of command.executeHitCritRigOptions) {
+      options.push({
+        hitIndex: CRIT_RIG_HIT_INDEX_EXECUTE,
+        repeatIndex: 0,
+        label: getLocalizedHitName({
+          hitName: option.label,
+          characterId,
+        }),
+        rigType: "execute",
+        executeCritRigId: option.id,
+      });
+    }
   }
   return options;
 });
@@ -1471,7 +1551,7 @@ const selectedCharacterLiveState = computed(() => {
     .filter((key) => Math.abs(liveMods[key] - defaultModifierStats[key]) > 1e-9)
     .map((key) => ({
       key,
-      label: modifierLabels[key] ?? key,
+      label: modifierLabel(key),
       value: liveMods[key],
       isPercent: key.endsWith("_PCT"),
     }));
@@ -2033,6 +2113,23 @@ function getPrimaryCommandForSlot(
   return candidates[0] ?? null;
 }
 
+function getComboTriggerLineageIds(
+  actor: CharacterCombatSnapshot | null | undefined,
+  comboCommandId: string | null | undefined,
+): Set<string> {
+  if (!actor || !comboCommandId) {
+    return new Set();
+  }
+  const matchedCommand = actor.commands.find((command) => command.id === comboCommandId && command.attackType === "COMBO_SKILL");
+  const comboTriggerId = matchedCommand?.comboTriggerId ?? matchedCommand?.id ?? comboCommandId;
+  return new Set(
+    actor.commands
+      .filter((command) => command.attackType === "COMBO_SKILL")
+      .filter((command) => (command.comboTriggerId ?? command.id) === comboTriggerId || command.id === comboTriggerId)
+      .map((command) => command.id),
+  );
+}
+
 function getActiveTriggeredComboWindowForSlot(slot: PartySlot, atTime: number) {
   return [...simulation.value.comboWindows]
     .filter((window) => {
@@ -2248,8 +2345,19 @@ type ControlSwitchMarker = {
   time: number;
 };
 
-function getCommandForAction(action: RotationSimulationResult["actions"][number]) {
+function getRawCommandForAction(action: { slot: PartySlot; commandId: string }) {
   return partyBySlot.value.get(action.slot)?.commands.find((entry) => entry.id === action.commandId) ?? null;
+}
+
+function getCommandForAction(action: RotationSimulationResult["actions"][number]) {
+  const actor = partyBySlot.value.get(action.slot);
+  if (!actor) {
+    return null;
+  }
+  const commandState = getCommandStateAtTime(action.slot, action.realStartTime);
+  return resolveCommandTransform(actor.commands, action.commandId, commandState)
+    ?? getRawCommandForAction(action)
+    ?? null;
 }
 
 function getControlStateAtRealTime(targetTime: number): ControlStateSnapshot {
@@ -2261,7 +2369,7 @@ function getControlStateAtRealTime(targetTime: number): ControlStateSnapshot {
   const switchBackLockedUntilBySlot = new Map<PartySlot, number>();
 
   for (const action of switchActions) {
-    const command = getCommandForAction(action);
+    const command = getRawCommandForAction(action);
     if (command?.genericActionType !== "switch") {
       continue;
     }
@@ -2531,8 +2639,7 @@ const cursorCombatState = computed(() => {
   > = [];
 
   for (const action of simulation.value.actions) {
-    const actor = partyBySlot.value.get(action.slot);
-    const command = actor?.commands.find((entry) => entry.id === action.commandId);
+    const command = getCommandForAction(action);
     if (!command) {
       continue;
     }
@@ -2704,6 +2811,7 @@ const cursorCombatState = computed(() => {
       comboBySlot.set(display.slot, { readyRatio: 1, label: t("rotation.noCombo"), mode: "normal" });
       continue;
     }
+    const comboLineageIds = getComboTriggerLineageIds(display.actor, display.comboCommandId);
 
     const activeWindow = [...simulation.value.comboWindows]
       .filter((window) => {
@@ -2736,7 +2844,7 @@ const cursorCombatState = computed(() => {
       .filter(
         (action) =>
           action.slot === display.slot &&
-          action.commandId === display.comboCommandId &&
+          comboLineageIds.has(action.commandId) &&
           action.realStartTime <= targetTime,
       )
       .sort((a, b) => b.realStartTime - a.realStartTime)[0];
@@ -2746,7 +2854,9 @@ const cursorCombatState = computed(() => {
       continue;
     }
 
-    const comboCommand = display.actor?.commands.find((command) => command.id === display.comboCommandId);
+    const comboCommand = display.actor?.commands.find((command) =>
+      command.id === display.comboCommandId || (comboLineageIds.has(command.id) && (command.comboCooldownOwnerCommandId ?? command.id) === command.id),
+    );
     if (
       comboCommand?.comboCooldownStartsAt === "end"
       && comboAction.realStartTime <= targetTime
@@ -2897,9 +3007,8 @@ const actionValidationByStep = computed(() => {
     }
 
     const action = event.action;
-    const actor = partyBySlot.value.get(action.slot);
-    const command = actor?.commands.find((entry) => entry.id === action.commandId);
-    if (!actor || !command) {
+    const command = getCommandForAction(action);
+    if (!command) {
       continue;
     }
 
@@ -2948,13 +3057,14 @@ const actionValidationByStep = computed(() => {
     }
 
     if (command.attackType === "COMBO_SKILL") {
+      const comboLineageIds = getComboTriggerLineageIds(partyBySlot.value.get(action.slot), command.id);
       const matchingWindow = simulation.value.comboWindows.find((window) => {
         const activeUntil = window.consumedAt != null
           ? Math.min(window.expiresAt, window.consumedAt)
           : window.expiresAt;
         return (
           window.slot === action.slot &&
-          window.commandId === action.commandId &&
+          comboLineageIds.has(window.commandId) &&
           Math.abs((window.consumedAt ?? -999) - action.realStartTime) < 0.001 &&
           window.readyAt <= action.realStartTime &&
           action.realStartTime <= activeUntil + 0.001
@@ -2966,7 +3076,7 @@ const actionValidationByStep = computed(() => {
           .filter(
             (entry) =>
               entry.slot === action.slot &&
-              entry.commandId === action.commandId &&
+              comboLineageIds.has(entry.commandId) &&
               entry.realStartTime < action.realStartTime,
           )
           .sort((a, b) => b.realStartTime - a.realStartTime)[0];
@@ -3210,6 +3320,7 @@ function clearRotation() {
 function updateSelectedStepCritRigging(args: {
   hitIndex: number;
   repeatIndex: number;
+  executeCritRigId?: string;
   mode: "none" | "force_crit" | "force_non_crit";
 }) {
   const stepId = selectedStep.value?.id;
@@ -3218,7 +3329,10 @@ function updateSelectedStepCritRigging(args: {
   }
   const rules = [...(rotation.value.critRiggingRules ?? [])];
   const existingIndex = rules.findIndex((rule) =>
-    rule.stepId === stepId && rule.hitIndex === args.hitIndex && rule.repeatIndex === args.repeatIndex,
+    rule.stepId === stepId
+    && rule.hitIndex === args.hitIndex
+    && rule.repeatIndex === args.repeatIndex
+    && rule.executeCritRigId === args.executeCritRigId,
   );
   if (args.mode === "none") {
     if (existingIndex >= 0) {
@@ -3230,6 +3344,7 @@ function updateSelectedStepCritRigging(args: {
       stepId,
       hitIndex: args.hitIndex,
       repeatIndex: args.repeatIndex,
+      executeCritRigId: args.executeCritRigId,
       mode: args.mode,
       enabled: true,
     };
@@ -3897,9 +4012,18 @@ function formatSkillTypeLabel(attackType: string, commandName?: string): string 
   }
 }
 
-function getActionCommand(action: { slot: PartySlot; commandId: string }) {
+function getActionCommand(action: { slot: PartySlot; commandId: string; realStartTime?: number }) {
   const actor = partyBySlot.value.get(action.slot);
-  return actor?.commands.find((entry) => entry.id === action.commandId) ?? null;
+  if (!actor) {
+    return null;
+  }
+  if (typeof action.realStartTime === "number") {
+    const commandState = getCommandStateAtTime(action.slot, action.realStartTime);
+    return resolveCommandTransform(actor.commands, action.commandId, commandState)
+      ?? getRawCommandForAction(action)
+      ?? null;
+  }
+  return getRawCommandForAction(action);
 }
 
 function toRomanNumeral(value: number): string {
@@ -4000,7 +4124,7 @@ function getCommandDisplayType(command: CharacterCombatSnapshot["commands"][numb
     return t("builder.battleSkill");
   }
 
-  const enhancedPrefix = command.variant ? "*" : "";
+  const enhancedPrefix = command.enhanced ? "*" : "";
 
   if (command.attackType === "BASIC_ATTACK") {
     switch (command.basicAttackVariant) {
@@ -4597,21 +4721,21 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
 
             <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb]">
               <div class="flex items-center justify-between px-4 py-3">
-                <span class="text-sm font-semibold text-[#1b1b1b]">Enemy Commands</span>
+                <span class="text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.enemyCommands") }}</span>
                 <div class="flex items-center gap-2">
                   <button
                     type="button"
                     class="rounded-md border border-[#d4d4d4] bg-white px-2 py-1 text-xs text-[#444] transition hover:bg-[#f7f7f7]"
                     @click="resetEnemyCommandsToDefault"
                   >
-                    Reset
+                    {{ t("ui.reset") }}
                   </button>
                   <button
                     type="button"
                     class="rounded-md border border-[#ecd0d0] bg-[#fff5f5] px-2 py-1 text-xs text-[#9a3131] transition hover:bg-[#ffecec]"
                     @click="clearEnemyCommands"
                   >
-                    Clear
+                    {{ t("ui.clear") }}
                   </button>
                 </div>
               </div>
@@ -4626,11 +4750,11 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   @dragstart="startLibraryEnemyCommandDrag(command.id)"
                   @dragend="clearLibraryCommandDrag"
                 >
-                  <div class="font-medium text-[#1b1b1b]">{{ command.label }}</div>
+                  <div class="font-medium text-[#1b1b1b]">{{ getLocalizedEnemyCommandLabel(command.label) }}</div>
                   <div class="text-xs text-[#777]">{{ command.durationSeconds.toFixed(1) }}s</div>
                 </button>
                 <div class="rounded-lg border border-dashed border-[#d8d8d8] bg-white px-3 py-2 text-xs text-[#666]">
-                  Select an enemy command on the timeline to edit interruption settings.
+                  {{ t("rotation.selectEnemyCommandHint") }}
                 </div>
               </div>
             </section>
@@ -4886,7 +5010,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     <div class="truncate font-medium text-[#2b2b2b]">{{ item.label }}</div>
                     <div v-if="item.details" class="truncate text-[11px] text-[#6b6b6b]">{{ item.details }}</div>
                     <div v-if="item.modifierEntries.length > 0" class="mt-0.5 text-[11px] text-[#75801f]">
-                      Click to view buffs
+                      {{ t("rotation.clickToViewBuffs") }}
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-1 text-[11px] text-[#666]">
@@ -5554,8 +5678,17 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               @click="sidebarMode = 'enemy'"
             >
               <div class="grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-2">
-                <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#1b1b1b] text-xs font-semibold text-white">
-                  {{ getAvatarInitials(props.enemyName) }}
+                <div class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#1b1b1b] text-xs font-semibold text-white">
+                  <img
+                    v-if="!enemyTimelineIconBroken"
+                    :src="getEnemyIconPath(props.selectedEnemyId)"
+                    :alt="props.enemyName"
+                    class="h-full w-full object-cover"
+                    @error="enemyTimelineIconBroken = true"
+                  >
+                  <span v-else class="absolute inset-0 flex items-center justify-center">
+                    {{ getAvatarInitials(props.enemyName) }}
+                  </span>
                 </div>
                 <div class="min-w-0 self-center">
                   <div class="truncate text-sm font-medium text-[#1b1b1b]">
@@ -5842,10 +5975,12 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 </div>
                 <div class="truncate text-sm font-medium text-[#1b1b1b]">
                   {{ getTimelineCommandTypeLabel(entry) }} / {{
-                    entry.hitName
-                      ?? (entry.damageType === "Healing"
-                        ? t("rotation.healingLabel", { index: entry.hitIndex + 1 })
-                        : t("rotation.hitLabel", { index: entry.hitIndex + 1 }))
+                    getLocalizedHitName({
+                      hitName: entry.hitName,
+                      hitIndex: entry.hitIndex,
+                      damageType: entry.damageType,
+                      characterId: partyBySlot.get(entry.slot)?.characterId,
+                    })
                   }}
                 </div>
               </div>
@@ -6044,7 +6179,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
         <div class="mt-1 flex items-center justify-between gap-3">
           <div class="text-lg font-semibold">{{ t("rotation.outputAndStep") }}</div>
           <div class="text-xs font-medium text-[#666]">
-            Total Steps: {{ validStepCount }}/256
+            {{ t("rotation.totalSteps", { count: validStepCount, max: 256 }) }}
           </div>
         </div>
       </div>
@@ -6154,6 +6289,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           :selected-step="selectedStep"
           :selected-step-action="selectedStepAction"
           :selected-step-command="selectedStepCommand"
+          :selected-step-variant-options="selectedStepVariantOptions"
           :selected-step-validation="selectedStepValidation"
           :selected-step-crit-rig-rules="selectedStepCritRigRules"
           :selected-step-hit-rig-options="selectedStepHitRigOptions"
@@ -6189,7 +6325,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
       <div class="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#d6d6d6] bg-white p-4 shadow-xl">
         <div class="mb-3 flex items-start justify-between gap-4">
           <div>
-            <div class="text-sm font-semibold text-[#1b1b1b]">Status Buff Details</div>
+            <div class="text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.statusBuffDetails") }}</div>
             <div class="text-xs text-[#666]">{{ selectedStatusDetails.label }}</div>
           </div>
           <button
