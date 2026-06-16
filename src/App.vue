@@ -124,7 +124,6 @@ const {
   setActiveScheme,
   hydrateRotationSchemes,
   exportRotationSchemes,
-  resetRotationSchemes,
 } = useRotationSchemes(activeBuildId);
 
 const BUILD_STORAGE_SCOPE_DEFAULT = "__default__";
@@ -868,7 +867,6 @@ function resetGuestUser() {
   persistCurrentBuild();
   buildListStore.resetAll();
   buildStore.resetGuestUser();
-  resetRotationSchemes();
   currentBuildSnapshot.value = null;
   void router.replace({ name: "build-list" });
 }

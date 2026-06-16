@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import {
   BUILD_LIST_STORAGE_KEY,
   BUILD_STORE_STORAGE_KEY,
+  ROTATION_CONTRACTS_STORAGE_KEY,
   ROTATION_ENEMY_COMMANDS_STORAGE_KEY,
   ROTATION_SCHEMES_STORAGE_KEY,
   ROTATION_SP_STORAGE_KEY,
@@ -428,6 +429,303 @@ export function makeDefaultExampleBuildZhuangFangyi(): SavedBuild {
   }) as unknown as SavedBuild;
 }
 
+export function makeDefaultExampleBuildLastRite(): SavedBuild {
+  return cloneJson({
+    id: "build_sb34yazo",
+    name: "别礼大王11秒罗丹",
+    currentBuildState: {
+      slots: [
+        {
+          id: "slot_1",
+          label: "Character 1",
+          selectedCharId: "lastrite",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            lastrite_talent_cryo_sus_1: true,
+            lastrite_talent_cryo_sus_2: true,
+            lastrite_talent_ult_sus_scale_1: true,
+            lastrite_talent_ult_sus_scale_2: true,
+          },
+          characterSkillLevels: { basic: 12, battleSkill: 12, comboSkill: 12, ultimate: 12 },
+          selectedWeaponId: "khravengger",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 9, 9],
+          armor: { gearId: "item_equip_t4_suit_attri01_body_03", subLevels: [1, 3, 3] },
+          gloves: { gearId: "item_equip_t4_suit_burst01_hand_01", subLevels: [3, 1, 3] },
+          kit1: { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 1, 3] },
+          kit2: { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 2, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+        {
+          id: "slot_2",
+          label: "Character 2",
+          selectedCharId: "ardelia",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            ardelia_friendly_presence_1: true,
+            ardelia_friendly_presence_2: true,
+            ardelia_friendly_presence_3: true,
+            ardelia_mountainpeak_surfer: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 12, comboSkill: 9, ultimate: 10 },
+          selectedWeaponId: "dreams_of_the_starry_beach",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 4, 9],
+          armor: { gearId: "item_equip_t4_suit_criti01_body_03", subLevels: [0, 0, 0] },
+          gloves: { gearId: "item_equip_t4_suit_fire_natr01_hand_03", subLevels: [0, 0, 0] },
+          kit1: { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] },
+          kit2: { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+        {
+          id: "slot_3",
+          label: "Character 3",
+          selectedCharId: "xaihi",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            xaihi_execute_process_1: true,
+            xaihi_execute_process_2: true,
+            xaihi_freeze_protocol: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 10, comboSkill: 9, ultimate: 12 },
+          selectedWeaponId: "detonation_unit",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 9, 9],
+          armor: { gearId: "item_equip_t4_suit_usp02_body_01", subLevels: [0, 0, 0] },
+          gloves: { gearId: "item_equip_t4_suit_usp02_hand_02", subLevels: [3, 0, 0] },
+          kit1: { gearId: "item_equip_t4_suit_usp02_edc_02", subLevels: [0, 0, 0] },
+          kit2: { gearId: "item_equip_t4_suit_atb01_edc_04", subLevels: [0, 3, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+        {
+          id: "slot_4",
+          label: "Character 4",
+          selectedCharId: "perlica",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            perlica_talent_staggered_damage_1: true,
+            perlica_talent_staggered_damage_2: true,
+            perlica_talent_combo_chain_1: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 9, comboSkill: 9, ultimate: 9 },
+          selectedWeaponId: "stanza_of_memorials",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [7, 3, 9],
+          armor: { gearId: "item_equip_t4_suit_pulse_cryst01_body_01", subLevels: [0, 0, 3] },
+          gloves: { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [0, 0, 2] },
+          kit1: { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] },
+          kit2: { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+      ],
+      activeSlotIndex: 2,
+      activeVariantIndex: 0,
+    },
+    plannedBuildState: {
+      slots: [
+        {
+          id: "slot_1",
+          label: "Character 1",
+          selectedCharId: "lastrite",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            lastrite_talent_cryo_sus_1: true,
+            lastrite_talent_cryo_sus_2: true,
+            lastrite_talent_ult_sus_scale_1: true,
+            lastrite_talent_ult_sus_scale_2: true,
+          },
+          characterSkillLevels: { basic: 12, battleSkill: 12, comboSkill: 12, ultimate: 12 },
+          selectedWeaponId: "khravengger",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 9, 9],
+          armor: { gearId: "item_equip_t4_suit_attri01_body_03", subLevels: [1, 3, 3] },
+          gloves: { gearId: "item_equip_t4_suit_burst01_hand_01", subLevels: [3, 1, 3] },
+          kit1: { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 1, 3] },
+          kit2: { gearId: "item_equip_t4_suit_burst01_edc_01", subLevels: [3, 2, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+        {
+          id: "slot_2",
+          label: "Character 2",
+          selectedCharId: "ardelia",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            ardelia_friendly_presence_1: true,
+            ardelia_friendly_presence_2: true,
+            ardelia_friendly_presence_3: true,
+            ardelia_mountainpeak_surfer: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 12, comboSkill: 9, ultimate: 10 },
+          selectedWeaponId: "dreams_of_the_starry_beach",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 4, 9],
+          armor: { gearId: "item_equip_t4_suit_criti01_body_03", subLevels: [0, 0, 0] },
+          gloves: { gearId: "item_equip_t4_suit_fire_natr01_hand_03", subLevels: [0, 0, 0] },
+          kit1: { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] },
+          kit2: { gearId: "item_equip_t4_suit_fire_natr01_edc_02", subLevels: [0, 0] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+        {
+          id: "slot_3",
+          label: "Character 3",
+          selectedCharId: "xaihi",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            xaihi_execute_process_1: true,
+            xaihi_execute_process_2: true,
+            xaihi_freeze_protocol: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 10, comboSkill: 9, ultimate: 12 },
+          selectedWeaponId: "detonation_unit",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [9, 9, 9],
+          armor: { gearId: "item_equip_t4_suit_usp02_body_01", subLevels: [0, 0, 0] },
+          gloves: { gearId: "item_equip_t4_suit_usp02_hand_02", subLevels: [3, 0, 0] },
+          kit1: { gearId: "item_equip_t4_suit_usp02_edc_02", subLevels: [0, 0, 0] },
+          kit2: { gearId: "item_equip_t4_suit_atb01_edc_04", subLevels: [0, 3, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+        {
+          id: "slot_4",
+          label: "Character 4",
+          selectedCharId: "perlica",
+          characterAscension: 4,
+          characterPotential: 5,
+          level: 90,
+          characterTalentToggles: { TALENT_1: true, TALENT_2: true, TALENT_3: true, TALENT_4: true },
+          uniqueTalentToggles: {
+            perlica_talent_staggered_damage_1: true,
+            perlica_talent_staggered_damage_2: true,
+            perlica_talent_combo_chain_1: true,
+          },
+          characterSkillLevels: { basic: 9, battleSkill: 9, comboSkill: 9, ultimate: 9 },
+          selectedWeaponId: "stanza_of_memorials",
+          weaponAscension: 4,
+          weaponPotential: 5,
+          weaponLevel: 90,
+          weaponSkillLevels: [7, 3, 9],
+          armor: { gearId: "item_equip_t4_suit_pulse_cryst01_body_01", subLevels: [0, 0, 3] },
+          gloves: { gearId: "item_equip_t4_suit_poise01_hand_01", subLevels: [0, 0, 2] },
+          kit1: { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] },
+          kit2: { gearId: "item_equip_t4_suit_pulse_cryst01_edc_02", subLevels: [0, 3] },
+          activeBuffs: [],
+          characterBuilds: {},
+          weaponBuilds: {},
+        },
+      ],
+      activeSlotIndex: 2,
+      activeVariantIndex: 0,
+    },
+    rotationState: {
+      schemes: [
+        {
+          id: "rotation_xpzih3i3",
+          name: "Rotation 1",
+          rotation: {
+            steps: [
+              { id: "step_yx248t0q", slot: 0, commandId: "lastrite_battle_skill", startTime: -9.9 },
+              { id: "step_r7a98fhj", slot: 2, commandId: "xaihi_battle_skill", startTime: -9.2 },
+              { id: "step_rbtfoijo", slot: 2, commandId: "xaihi_ultimate", startTime: -5.3 },
+              { id: "step_0ll65ix7", slot: 1, commandId: "ardelia_ultimate", startTime: -3.7 },
+              { id: "step_d99fzzg9", slot: 3, commandId: "perlica_ultimate", startTime: -1.9 },
+              { id: "step_yw36e18u", slot: 0, commandId: "lastrite_basic_sequence_1", startTime: -8.9, groupId: "group_dlwvzyjf" },
+              { id: "step_mc4sfksf", slot: 0, commandId: "lastrite_basic_sequence_2", startTime: -8.3, groupId: "group_dlwvzyjf" },
+              { id: "step_vb0qnjs4", slot: 0, commandId: "lastrite_basic_sequence_3", startTime: -7.5, groupId: "group_dlwvzyjf" },
+              { id: "step_sayh2y3n", slot: 0, commandId: "lastrite_basic_sequence_4", startTime: -5.7, groupId: "group_dlwvzyjf" },
+              { id: "step_o34mcvu9", slot: 2, commandId: "__switch", startTime: 0.3 },
+              { id: "step_y5x7jpux", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 0.6 },
+              { id: "step_50cdfocb", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 1.1 },
+              { id: "step_1r8o9gqg", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 1.7 },
+              { id: "step_7b12jbas", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 2.2 },
+              { id: "step_n1002i5p", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 2.9 },
+              { id: "step_a4k932pm", slot: 0, commandId: "lastrite_battle_skill", startTime: 0.6 },
+              { id: "step_zcgyg92f", slot: 2, commandId: "xaihi_combo_skill", startTime: 3.7 },
+              { id: "step_102updpe", slot: 3, commandId: "perlica_combo_skill", startTime: 3.7 },
+              { id: "step_8f4unvna", slot: 1, commandId: "ardelia_combo_skill", startTime: 3.7 },
+              { id: "step_yor7p2qw", slot: 2, commandId: "xaihi_basic_sequence_1", startTime: 4.7 },
+              { id: "step_2utrngbe", slot: 2, commandId: "xaihi_basic_sequence_2", startTime: 5.8 },
+              { id: "step_d40hb14d", slot: 2, commandId: "xaihi_basic_sequence_3", startTime: 6.3 },
+              { id: "step_j5fh0b24", slot: 2, commandId: "xaihi_basic_sequence_4", startTime: 6.8 },
+              { id: "step_ps6kgcpg", slot: 2, commandId: "xaihi_basic_sequence_5", startTime: 7 },
+              { id: "step_wqic1zyf", slot: 0, commandId: "lastrite_battle_skill", startTime: 5.8 },
+              { id: "step_v5h1csgs", slot: 1, commandId: "ardelia_battle_skill", startTime: 6.2 },
+              { id: "step_lx6tljsh", slot: 0, commandId: "lastrite_combo_skill", startTime: 8.2 },
+            ],
+            groups: [{ id: "group_dlwvzyjf", name: "group 1" }],
+            critRiggingRules: [],
+          },
+        },
+      ],
+      activeSchemeId: "rotation_xpzih3i3",
+      enemyLevel: 90,
+    },
+    summary: {
+      totalDamage: 2125795.324985119,
+      dps: 193959.4274621459,
+      updatedAt: 1781247045717,
+    },
+    damageTallyTiming: {
+      enabled: false,
+      startTime: 0,
+      endTime: 60,
+    },
+    compareSettings: {
+      enabled: false,
+      leftVariantIndex: 0,
+      rightVariantIndex: 1,
+    },
+  }) as unknown as SavedBuild;
+}
+
 function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
   if (typeof window === "undefined") {
     return;
@@ -449,13 +747,17 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
   if (!spParsed.byBuild) {
     spParsed.byBuild = {};
   }
+  const defaultConsumableBySlot =
+    build.id === "build_sb34yazo" || build.id === "build_rs8ospee"
+      ? ["item_corp3_animal_1", null, null, null]
+      : [null, null, null, null];
   spParsed.byBuild[build.id] = {
     byScheme: {
       [activeSchemeId]: {
         initialSp: 200,
         spRegenRate: 8,
         startingEnergyBySlot: [100, 100, 100, 100],
-        consumableBySlot: [build.id === "build_rs8ospee" ? "item_corp3_animal_1" : null, null, null, null],
+        consumableBySlot: defaultConsumableBySlot,
       },
     },
   };
@@ -481,6 +783,37 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
     },
   };
   window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify(enemyParsed));
+
+  const contractsRaw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
+  let contractsParsed: { byBuild?: Record<string, { byScheme?: Record<string, unknown[]> }> } = {};
+  if (contractsRaw) {
+    try {
+      contractsParsed = JSON.parse(contractsRaw) as typeof contractsParsed;
+    } catch {
+      contractsParsed = {};
+    }
+  }
+  if (!contractsParsed.byBuild) {
+    contractsParsed.byBuild = {};
+  }
+  contractsParsed.byBuild[build.id] = {
+    byScheme: {
+      [activeSchemeId]: [],
+    },
+  };
+  window.localStorage.setItem(ROTATION_CONTRACTS_STORAGE_KEY, JSON.stringify(contractsParsed));
+}
+
+function seedDefaultRotationUiStateForBuilds(builds: SavedBuild[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(ROTATION_SP_STORAGE_KEY, JSON.stringify({ byBuild: {} }));
+  window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify({ byBuild: {} }));
+  window.localStorage.setItem(ROTATION_CONTRACTS_STORAGE_KEY, JSON.stringify({ byBuild: {} }));
+  for (const build of builds) {
+    seedDefaultRotationUiStateForBuild(build);
+  }
 }
 
 function cloneJson<T>(value: T): T {
@@ -556,12 +889,13 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   const activeBuildId = ref<string>("");
 
   function createSeededDefaultBuilds() {
-    const first = makeDefaultBuild(1);
-    const example = makeDefaultExampleBuildZhuangFangyi();
-    seedDefaultRotationUiStateForBuild(example);
+    const lastRite = makeDefaultExampleBuildLastRite();
+    const zhuang = makeDefaultExampleBuildZhuangFangyi();
+    const seededBuilds = [lastRite, zhuang];
+    seedDefaultRotationUiStateForBuilds(seededBuilds);
     return {
-      builds: [example, first],
-      activeBuildId: example.id,
+      builds: seededBuilds,
+      activeBuildId: zhuang.id,
     };
   }
 
@@ -803,7 +1137,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     const seeded = createSeededDefaultBuilds();
     builds.value = seeded.builds;
     activeBuildId.value = seeded.activeBuildId;
-    localStorage.removeItem(BUILD_LIST_STORAGE_KEY);
+    saveToStorage();
   }
 
   return {
