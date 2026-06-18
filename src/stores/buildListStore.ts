@@ -791,6 +791,22 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
   if (typeof window === "undefined") {
     return;
   }
+
+  const rotationSchemesRaw = window.localStorage.getItem(ROTATION_SCHEMES_STORAGE_KEY);
+  let rotationSchemesParsed: { byBuild?: Record<string, RotationSchemesState> } = {};
+  if (rotationSchemesRaw) {
+    try {
+      rotationSchemesParsed = JSON.parse(rotationSchemesRaw) as typeof rotationSchemesParsed;
+    } catch {
+      rotationSchemesParsed = {};
+    }
+  }
+  if (!rotationSchemesParsed.byBuild) {
+    rotationSchemesParsed.byBuild = {};
+  }
+  rotationSchemesParsed.byBuild[build.id] = cloneJson(build.rotationState);
+  window.localStorage.setItem(ROTATION_SCHEMES_STORAGE_KEY, JSON.stringify(rotationSchemesParsed));
+
   const activeSchemeId = build.rotationState.activeSchemeId;
   if (!activeSchemeId) {
     return;
@@ -869,6 +885,7 @@ function seedDefaultRotationUiStateForBuilds(builds: SavedBuild[]) {
   if (typeof window === "undefined") {
     return;
   }
+  window.localStorage.setItem(ROTATION_SCHEMES_STORAGE_KEY, JSON.stringify({ byBuild: {} }));
   window.localStorage.setItem(ROTATION_SP_STORAGE_KEY, JSON.stringify({ byBuild: {} }));
   window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify({ byBuild: {} }));
   window.localStorage.setItem(ROTATION_CONTRACTS_STORAGE_KEY, JSON.stringify({ byBuild: {} }));
