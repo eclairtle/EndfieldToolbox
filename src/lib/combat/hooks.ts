@@ -121,6 +121,7 @@ export type CombatResolvedHitHookContext = {
       label?: string;
     }): number;
     grantReturnedSp(amount: number, label: string): void;
+    grantGeneratedSp(amount: number, label: string): void;
     markTriggerOnce(key: string): boolean;
     repeatCurrentHitOnce(key: string): boolean;
     triggerSelfCombo(args?: {
@@ -264,6 +265,7 @@ export type CombatEventHookContext = {
       label?: string;
     }): number;
     grantReturnedSp(amount: number, label: string): void;
+    grantGeneratedSp(amount: number, label: string): void;
     markTriggerOnce(key: string): boolean;
     triggerSelfCombo(args?: {
       label?: string;

@@ -12,6 +12,10 @@ import type { BuildStoreStateSnapshot } from "@/stores/buildStore";
 import { createDefaultBuildStoreStateSnapshot } from "@/stores/buildStore";
 import type { RotationSchemesState } from "@/lib/combat/rotationSchemes";
 import { createDefaultRotationSchemesState } from "@/lib/combat/rotationSchemes";
+import defaultTemplateBuildsSeed from "@/data/defaultTemplateBuilds.json";
+
+export type BuildLocale = "en" | "zh-CN";
+export type LocalizedBuildText = Partial<Record<BuildLocale, string>>;
 
 export type BuildSummarySnapshot = {
   totalDamage: number | null;
@@ -28,6 +32,9 @@ export type DamageTallyTiming = {
 export type SavedBuild = {
   id: string;
   name: string;
+  description?: string;
+  nameByLocale?: LocalizedBuildText;
+  descriptionByLocale?: LocalizedBuildText;
   currentBuildState: BuildStoreStateSnapshot;
   plannedBuildState: BuildStoreStateSnapshot;
   rotationState: RotationSchemesState;
@@ -48,6 +55,9 @@ function makeDefaultBuild(index: number): SavedBuild {
   return {
     id: makeBuildId(),
     name: `Build ${index}`,
+    description: "",
+    nameByLocale: {},
+    descriptionByLocale: {},
     currentBuildState: createDefaultBuildStoreStateSnapshot(),
     plannedBuildState: createDefaultBuildStoreStateSnapshot(),
     rotationState: createDefaultRotationSchemesState(),
@@ -67,6 +77,55 @@ function makeDefaultBuild(index: number): SavedBuild {
       rightVariantIndex: 1,
     },
   };
+}
+
+function normalizeLocalizedBuildText(value: unknown): LocalizedBuildText {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const record = value as Record<string, unknown>;
+  const out: LocalizedBuildText = {};
+  if (typeof record.en === "string") {
+    const trimmed = record.en.trim();
+    if (trimmed) {
+      out.en = trimmed;
+    }
+  }
+  if (typeof record["zh-CN"] === "string") {
+    const trimmed = record["zh-CN"].trim();
+    if (trimmed) {
+      out["zh-CN"] = trimmed;
+    }
+  }
+  return out;
+}
+
+function getOtherLocale(locale: BuildLocale): BuildLocale {
+  return locale === "zh-CN" ? "en" : "zh-CN";
+}
+
+function getLocalizedBuildText(
+  localized: LocalizedBuildText | null | undefined,
+  locale: BuildLocale,
+  legacyFallback = "",
+): string {
+  const primary = localized?.[locale]?.trim();
+  if (primary) {
+    return primary;
+  }
+  const secondary = localized?.[getOtherLocale(locale)]?.trim();
+  if (secondary) {
+    return secondary;
+  }
+  return legacyFallback.trim();
+}
+
+export function getSavedBuildLocalizedName(build: SavedBuild, locale: BuildLocale): string {
+  return getLocalizedBuildText(build.nameByLocale, locale, build.name);
+}
+
+export function getSavedBuildLocalizedDescription(build: SavedBuild, locale: BuildLocale): string {
+  return getLocalizedBuildText(build.descriptionByLocale, locale, build.description ?? "");
 }
 
 export function makeDefaultExampleBuildZhuangFangyi(): SavedBuild {
@@ -409,6 +468,7 @@ export function makeDefaultExampleBuildZhuangFangyi(): SavedBuild {
         },
       ],
       activeSchemeId: "rotation_r9uv4v9n",
+      selectedEnemyId: "rhodagn",
       enemyLevel: 90,
     },
     summary: {
@@ -706,6 +766,7 @@ export function makeDefaultExampleBuildLastRite(): SavedBuild {
         },
       ],
       activeSchemeId: "rotation_xpzih3i3",
+      selectedEnemyId: "rhodagn",
       enemyLevel: 90,
     },
     summary: {
@@ -889,13 +950,20 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   const activeBuildId = ref<string>("");
 
   function createSeededDefaultBuilds() {
-    const lastRite = makeDefaultExampleBuildLastRite();
-    const zhuang = makeDefaultExampleBuildZhuangFangyi();
-    const seededBuilds = [lastRite, zhuang];
+    const rawBuilds = Array.isArray(defaultTemplateBuildsSeed.builds) ? defaultTemplateBuildsSeed.builds : [];
+    const seededBuilds = rawBuilds.map((entry, index) =>
+      normalizeStoredBuild(entry as unknown as Partial<SavedBuild> & { buildState?: BuildStoreStateSnapshot }, index),
+    );
+    const fallbackActiveBuildId = seededBuilds[0]?.id ?? "";
+    const seededActiveBuildId =
+      typeof defaultTemplateBuildsSeed.activeBuildId === "string"
+      && seededBuilds.some((build) => build.id === defaultTemplateBuildsSeed.activeBuildId)
+        ? defaultTemplateBuildsSeed.activeBuildId
+        : fallbackActiveBuildId;
     seedDefaultRotationUiStateForBuilds(seededBuilds);
     return {
       builds: seededBuilds,
-      activeBuildId: zhuang.id,
+      activeBuildId: seededActiveBuildId,
     };
   }
 
@@ -911,6 +979,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     return {
       id: typeof raw.id === "string" && raw.id ? raw.id : fallback.id,
       name: typeof raw.name === "string" && raw.name ? raw.name : fallback.name,
+      description: typeof raw.description === "string" ? raw.description : fallback.description,
+      nameByLocale: normalizeLocalizedBuildText(raw.nameByLocale),
+      descriptionByLocale: normalizeLocalizedBuildText(raw.descriptionByLocale),
       currentBuildState:
         raw.currentBuildState && Array.isArray(raw.currentBuildState.slots) && raw.currentBuildState.slots.length === 4
           ? cloneJson(raw.currentBuildState)
@@ -1059,6 +1130,8 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     const next = cloneJson(source);
     next.id = makeBuildId();
     next.name = `${source.name} Copy`;
+    next.nameByLocale = cloneJson(source.nameByLocale ?? {});
+    next.descriptionByLocale = cloneJson(source.descriptionByLocale ?? {});
     builds.value.push(next);
     return next.id;
   }
@@ -1105,6 +1178,32 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     }
   }
 
+  function updateBuildLocalizedMetadata(args: {
+    id: string;
+    locale: BuildLocale;
+    name: string;
+    description: string;
+  }) {
+    const target = builds.value.find((build) => build.id === args.id);
+    const trimmedName = args.name.trim();
+    if (!target || !trimmedName) {
+      return;
+    }
+
+    const nextNameByLocale = { ...(target.nameByLocale ?? {}) };
+    nextNameByLocale[args.locale] = trimmedName;
+    target.nameByLocale = nextNameByLocale;
+
+    const trimmedDescription = args.description.trim();
+    const nextDescriptionByLocale = { ...(target.descriptionByLocale ?? {}) };
+    if (trimmedDescription) {
+      nextDescriptionByLocale[args.locale] = trimmedDescription;
+    } else {
+      delete nextDescriptionByLocale[args.locale];
+    }
+    target.descriptionByLocale = nextDescriptionByLocale;
+  }
+
   function renameBuild(id: string, name: string) {
     const target = builds.value.find((build) => build.id === id);
     const trimmed = name.trim();
@@ -1148,6 +1247,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     copyBuild,
     setActiveBuild,
     updateBuildRuntime,
+    updateBuildLocalizedMetadata,
     renameBuild,
     removeBuild,
     resetAll,

@@ -82,7 +82,7 @@ const ARCLIGHT_COMBAT_HOOKS: CharacterCombatHooks = {
       && ctx.state.markTriggerOnce(`${ctx.stepId}:arclight_battle_skill_reaction_extra`)
     ) {
       if (ctx.state.isSelfPotentialActive(1)) {
-        ctx.state.grantReturnedSp(10, "Tempestuous Arc Potential");
+        ctx.state.grantGeneratedSp(10, "Tempestuous Arc Potential");
       }
 
       const bonusPerInt = getArclightWildlandTrekkerBonusPerInt(ctx.state);
@@ -320,7 +320,7 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
         multiplier: pct([180, 198, 216, 234, 252, 270, 288, 306, 324, 347, 374, 405]),
         damageType: "Electric",
         stagger: flat12(5),
-        spReturned: [30, 30, 30, 30, 30, 35, 35, 35, 35, 35, 35, 40],
+        spGenerated: [30, 30, 30, 30, 30, 35, 35, 35, 35, 35, 35, 40],
         offsetFrames: flat12(72),
         effects: [{ type: "REMOVE_STATUS", target: "enemy", statusId: "electrification" }],
       },

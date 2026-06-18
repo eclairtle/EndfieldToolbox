@@ -236,7 +236,7 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
       return;
     }
 
-    if (ctx.event.type === "SNAPSHOT_INITIALIZED") {
+    if (ctx.event.type === "COMBAT_INITIALIZED") {
       if (ctx.helpers.hasSelfBuff("set_catastrophe_ready")) {
         return;
       }

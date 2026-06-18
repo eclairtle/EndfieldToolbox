@@ -17,7 +17,8 @@ const GILBERTA_COMBAT_HOOKS: CharacterCombatHooks = {
       const buffArgs = {
         buffId: "gilberta_messengers_song",
         label: "Messenger's Song",
-        durationSeconds: 9999,
+        durationSeconds: 0,
+        infiniteDuration: true,
         timeScale: "game" as const,
         hidden: false,
         classes: ["Guard", "Caster", "Supporter"] as Array<"Guard" | "Caster" | "Supporter">,

@@ -3,7 +3,12 @@ import { computed, ref } from "vue";
 import { CHARACTERS } from "@/data/characters";
 import { WEAPONS } from "@/data/weapons";
 import { GEARS } from "@/data/gears";
-import type { SavedBuild } from "@/stores/buildListStore";
+import {
+  getSavedBuildLocalizedDescription,
+  getSavedBuildLocalizedName,
+  type BuildLocale,
+  type SavedBuild,
+} from "@/stores/buildListStore";
 import type { CharacterBuildSlot } from "@/stores/buildStore";
 import { getCharacterImagePath, getWeaponImagePath, getGearImagePath } from "@/lib/assets/imagePaths";
 import { useLocale } from "@/i18n/useLocale";
@@ -18,7 +23,7 @@ const emit = defineEmits<{
   (e: "open", buildId: string): void;
   (e: "create"): void;
   (e: "copy", buildId: string): void;
-  (e: "rename", payload: { buildId: string; name: string }): void;
+  (e: "editMetadata", payload: { buildId: string; locale: BuildLocale; name: string; description: string }): void;
   (e: "delete", buildId: string): void;
 }>();
 
@@ -26,12 +31,14 @@ const charactersById = computed(() => new Map(CHARACTERS.map((character) => [cha
 const weaponsById = computed(() => new Map(WEAPONS.map((weapon) => [weapon.id, weapon])));
 const gearsById = computed(() => new Map(GEARS.map((gear) => [gear.id, gear])));
 const editingBuildId = ref<string | null>(null);
-const renameDraft = ref("");
+const nameDraft = ref("");
+const descriptionDraft = ref("");
 const pendingDeleteBuildId = ref<string | null>(null);
-const { t } = useLocale();
+const { t, locale } = useLocale();
 const MAX_BUILDS_PER_USER = 6;
 const buildCountLabel = computed(() => `${props.builds.length} / ${MAX_BUILDS_PER_USER}`);
 const canCreateBuild = computed(() => props.builds.length < MAX_BUILDS_PER_USER);
+const currentBuildLocale = computed<BuildLocale>(() => locale.value === "zh-CN" ? "zh-CN" : "en");
 
 function getSlotImages(slot: CharacterBuildSlot) {
   const character = slot.selectedCharId ? charactersById.value.get(slot.selectedCharId) ?? null : null;
@@ -47,24 +54,39 @@ function getSlotImages(slot: CharacterBuildSlot) {
   };
 }
 
-function beginRename(buildId: string, currentName: string) {
-  editingBuildId.value = buildId;
-  renameDraft.value = currentName;
+function getLocalizedBuildName(build: SavedBuild) {
+  return getSavedBuildLocalizedName(build, currentBuildLocale.value);
 }
 
-function cancelRename() {
+function getLocalizedBuildDescription(build: SavedBuild) {
+  return getSavedBuildLocalizedDescription(build, currentBuildLocale.value);
+}
+
+function beginEdit(build: SavedBuild) {
+  editingBuildId.value = build.id;
+  nameDraft.value = getLocalizedBuildName(build);
+  descriptionDraft.value = getLocalizedBuildDescription(build);
+}
+
+function cancelEdit() {
   editingBuildId.value = null;
-  renameDraft.value = "";
+  nameDraft.value = "";
+  descriptionDraft.value = "";
 }
 
-function submitRename(buildId: string) {
-  const trimmed = renameDraft.value.trim();
-  if (!trimmed) {
-    cancelRename();
+function submitEdit(buildId: string) {
+  const trimmedName = nameDraft.value.trim();
+  if (!trimmedName) {
+    cancelEdit();
     return;
   }
-  emit("rename", { buildId, name: trimmed });
-  cancelRename();
+  emit("editMetadata", {
+    buildId,
+    locale: currentBuildLocale.value,
+    name: trimmedName,
+    description: descriptionDraft.value.trim(),
+  });
+  cancelEdit();
 }
 
 function requestDelete(buildId: string) {
@@ -100,45 +122,15 @@ function confirmDelete() {
       <article
         v-for="build in builds"
         :key="build.id"
-        class="cursor-pointer rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md"
+        class="flex h-[560px] cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md"
         :class="build.id === activeBuildId ? 'border-[#c8d13c]' : 'border-[#d6d6d6]'"
         @click="emit('open', build.id)"
       >
         <div class="mb-3 flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">
-            <h3
-              v-if="editingBuildId !== build.id"
-              class="truncate text-lg font-semibold text-[#1b1b1b]"
-            >
-              {{ build.name }}
+            <h3 class="truncate text-lg font-semibold text-[#1b1b1b]">
+              {{ getLocalizedBuildName(build) }}
             </h3>
-            <form
-              v-else
-              class="flex items-center gap-2"
-              @submit.prevent="submitRename(build.id)"
-              @click.stop
-            >
-              <input
-                v-model="renameDraft"
-                type="text"
-                class="w-full rounded-md border border-[#cccccc] bg-white px-2 py-1 text-sm text-[#1b1b1b] outline-none focus:border-[#b1b1b1]"
-                maxlength="48"
-                autofocus
-              />
-              <button
-                type="submit"
-                class="rounded border border-[#cecece] bg-[#f7f7f7] px-2 py-1 text-xs text-[#444] hover:bg-[#efefef]"
-              >
-                {{ t("ui.save") }}
-              </button>
-              <button
-                type="button"
-                class="rounded border border-[#cecece] bg-[#f7f7f7] px-2 py-1 text-xs text-[#444] hover:bg-[#efefef]"
-                @click="cancelRename"
-              >
-                {{ t("ui.cancel") }}
-              </button>
-            </form>
           </div>
 
           <div class="flex items-center gap-2" @click.stop>
@@ -154,12 +146,11 @@ function confirmDelete() {
               Copy
             </button>
             <button
-              v-if="editingBuildId !== build.id"
               type="button"
               class="rounded border border-[#d7d7d7] bg-white px-2 py-1 text-xs text-[#555] hover:bg-[#f4f4f4]"
-              @click="beginRename(build.id, build.name)"
+              @click="beginEdit(build)"
             >
-              {{ t("ui.rename") }}
+              {{ t("buildList.edit") }}
             </button>
             <button
               type="button"
@@ -171,7 +162,7 @@ function confirmDelete() {
           </div>
         </div>
 
-        <div class="space-y-2">
+        <div class="flex-1 space-y-2 overflow-hidden">
           <div
             v-for="(slot, slotIndex) in build.currentBuildState.slots"
             :key="slot.id"
@@ -214,6 +205,13 @@ function confirmDelete() {
             </div>
           </div>
         </div>
+
+        <div class="mt-2 rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2">
+          <div class="text-[11px] uppercase tracking-[0.12em] text-[#7a7a7a]">{{ t("buildList.descriptionLabel") }}</div>
+          <div class="mt-1 h-[7.5rem] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-6 text-[#1b1b1b]">
+            {{ getLocalizedBuildDescription(build) || "—" }}
+          </div>
+        </div>
       </article>
 
       <button
@@ -225,6 +223,54 @@ function confirmDelete() {
         <span class="text-5xl leading-none">+</span>
         <span class="mt-3 text-sm font-medium uppercase tracking-[0.16em]">{{ t("buildList.newBuild") }}</span>
       </button>
+    </div>
+
+    <div
+      v-if="editingBuildId"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    >
+      <div
+        class="w-full max-w-2xl rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-lg"
+        @click.stop
+      >
+        <div class="text-base font-semibold text-[#1b1b1b]">{{ t("buildList.editBuildTitle") }}</div>
+        <form class="mt-4 space-y-4" @submit.prevent="submitEdit(editingBuildId)">
+          <label class="block">
+            <div class="mb-1 text-sm font-medium text-[#444]">{{ t("buildList.nameLabel") }}</div>
+            <input
+              v-model="nameDraft"
+              type="text"
+              class="w-full rounded-md border border-[#cccccc] bg-white px-3 py-2 text-sm text-[#1b1b1b] outline-none focus:border-[#b1b1b1]"
+              maxlength="48"
+              autofocus
+            />
+          </label>
+          <label class="block">
+            <div class="mb-1 text-sm font-medium text-[#444]">{{ t("buildList.descriptionLabel") }}</div>
+            <textarea
+              v-model="descriptionDraft"
+              rows="5"
+              class="w-full rounded-md border border-[#cccccc] bg-white px-3 py-2 text-sm text-[#1b1b1b] outline-none focus:border-[#b1b1b1]"
+              maxlength="1000"
+            />
+          </label>
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              class="rounded border border-[#d1d1d1] bg-white px-3 py-1.5 text-sm text-[#444] hover:bg-[#f3f3f3]"
+              @click="cancelEdit"
+            >
+              {{ t("ui.cancel") }}
+            </button>
+            <button
+              type="submit"
+              class="rounded border border-[#cecece] bg-[#f7f7f7] px-3 py-1.5 text-sm text-[#444] hover:bg-[#efefef]"
+            >
+              {{ t("ui.save") }}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <div

@@ -235,7 +235,15 @@ export type EnemyCombatStateSnapshot = {
   sequence?: number;
   time: number;
   gameTime: number;
+  enemyId: string;
+  enemyName: string;
+  baseMaxHp: number;
+  currentHp: number;
+  maxHp: number;
   currentDamageTaken: number;
+  staggerGauge: number;
+  staggerNodes?: number[];
+  staggerDecayRate: number;
   currentStagger: number;
   isStaggered: boolean;
   activeDebuffs: EnemyActiveDebuffState[];
@@ -248,7 +256,11 @@ export type EnemyCombatStateSnapshot = {
 };
 
 export type EnemyActionEffect = {
-  type: "RESET_STAGGER" | "INTERRUPT_ONGOING_COMMANDS";
+  type: "RESET_STAGGER" | "INTERRUPT_ONGOING_COMMANDS" | "CLEAR_FIELD_EFFECTS" | "REINITIALIZE_COMBAT";
+} | {
+  type: "TRANSFORM_ENEMY";
+  enemyId: string;
+  resetHp?: boolean;
 };
 
 export type EnemyActionWindow = {
@@ -259,7 +271,8 @@ export type EnemyActionWindow = {
   endTime: number;
   invulnerable?: boolean;
   tintColor?: string;
-  effects?: EnemyActionEffect[];
+  startEffects?: EnemyActionEffect[];
+  endEffects?: EnemyActionEffect[];
   interruptible?: boolean;
   interrupted?: boolean;
   interruptedSpGain?: number;
@@ -312,6 +325,7 @@ export type PassiveListenerDebugEntry = {
 export type ComboTriggerDebugBlockReason =
   | "MISSING_ACTOR_OR_COMBO_COMMAND"
   | "ACTIVE_COMBO_WINDOW_EXISTS"
+  | "ACTIVE_COMBO_WINDOW_TRIGGER_ICD"
   | "COMBO_ON_COOLDOWN";
 
 export type ComboTriggerDebugEntry = {
@@ -381,6 +395,7 @@ export type RotationCombatEventType =
   | "ENEMY_COMMAND_INTERRUPTED"
   | "ROSSI_VULNERABILITY_AND_ARTS_INFLICTION"
   | "SNAPSHOT_INITIALIZED"
+  | "COMBAT_INITIALIZED"
   | "OPERATOR_SWITCHED";
 
 export type RotationCombatEvent = {

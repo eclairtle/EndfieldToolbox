@@ -146,8 +146,11 @@ export const THERTECH: GearBase[] = [
       {
         "stat": "AGI",
         "value": 43
+      },
+      {
+        "stat": "SKILL_DMG_PCT",
+        "value": 0.23
       }
     ],
   }
 ];
-

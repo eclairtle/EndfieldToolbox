@@ -30,7 +30,9 @@ export const zhCN: MessageSchema = {
     "alphaTag": "ALPHA",
     "alphaDisclaimer": "当前大量干员数据尚不完整，可能会出现错误与不准确之处",
     "debugOn": "Debug ON",
-    "debugOff": "Debug OFF"
+    "debugOff": "Debug OFF",
+    "undo": "撤销",
+    "redo": "重做"
   },
   "builder": {
     "partySlots": "队伍槽位",
@@ -97,7 +99,7 @@ export const zhCN: MessageSchema = {
     "customTiming": "自定义时窗",
     "startSeconds": "起始（秒）",
     "endSeconds": "结束（秒）",
-    "ready": "准备就绪",
+    "ready": "就绪",
     "executing": "执行中",
     "triggered": "已触发",
     "perfectWindow": "精准衔接",
@@ -106,7 +108,7 @@ export const zhCN: MessageSchema = {
     "noActiveEnemyStatuses": "暂无状态",
     "noActiveBuffsOrStatuses": "暂无增益或状态",
     "meltingFlame": "熔火",
-    "infliction": "{element}法术附着",
+    "infliction": "{element}附着",
     "stacks": "{count} 层 | {count} 层",
     "renameRotation": "重命名排轴",
     "realTime": "实际时间",
@@ -319,8 +321,8 @@ export const zhCN: MessageSchema = {
     "AGI_PCT": "敏捷%",
     "INT_PCT": "智识%",
     "WIL_PCT": "意志%",
-    "MAIN_ATTR_PCT": "主属性%",
-    "SECONDARY_ATTR_PCT": "副属性%",
+    "MAIN_ATTR_PCT": "主能力%",
+    "SECONDARY_ATTR_PCT": "副能力%",
     "ARTS_INTENSITY": "源石技艺强度",
     "ATK_PCT": "攻击力%",
     "ALL_DMG_PCT": "伤害%",
@@ -392,12 +394,16 @@ export const zhCN: MessageSchema = {
     "STAGGER_EFFICIENCY_PCT": "失衡效率加成%"
   },
   "buildList": {
-    "manager": "Build Manager",
-    "title": "Build List",
-    "newBuild": "New Build",
+    "manager": "构筑管理",
+    "title": "构筑列表",
+    "newBuild": "新构筑",
+    "edit": "编辑",
+    "editBuildTitle": "编辑构筑",
+    "nameLabel": "名称",
+    "descriptionLabel": "描述",
     "maximumBuildsReached": "已达到最大构筑数量",
-    "deleteBuildTitle": "Delete Build?",
-    "deleteBuildBody": "This removes the selected build from the list. This action cannot be undone."
+    "deleteBuildTitle": "删除构筑？",
+    "deleteBuildBody": "这会将所选构筑从列表中移除，此操作无法撤销。"
   },
   "cost": {
     "characterExp": "Character EXP",

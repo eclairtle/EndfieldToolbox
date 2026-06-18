@@ -20,6 +20,10 @@ export const AIC_HEAVY: GearBase[] = [
       {
         "stat": "AGI",
         "value": 30
+      },
+      {
+        "stat": "FINAL_DMG_REDUCTION_PCT",
+        "value": 0.039
       }
     ],
   },
@@ -33,6 +37,10 @@ export const AIC_HEAVY: GearBase[] = [
       {
         "stat": "STR",
         "value": 16
+      },
+      {
+        "stat": "FINAL_DMG_REDUCTION_PCT",
+        "value": 0.075
       }
     ],
   },
@@ -46,6 +54,10 @@ export const AIC_HEAVY: GearBase[] = [
       {
         "stat": "AGI",
         "value": 16
+      },
+      {
+        "stat": "FINAL_DMG_REDUCTION_PCT",
+        "value": 0.075
       }
     ],
   },
@@ -63,8 +75,11 @@ export const AIC_HEAVY: GearBase[] = [
       {
         "stat": "WIL",
         "value": 23
+      },
+      {
+        "stat": "FINAL_DMG_REDUCTION_PCT",
+        "value": 0.063
       }
     ],
   }
 ];
-

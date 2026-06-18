@@ -53,14 +53,24 @@ import type { CharacterSkillKey } from "@/lib/build/characterSkills";
 import { getCharacterDisplayName } from "@/i18n/domain/displayNames";
 import { getCharacterSkillDisplayName } from "@/i18n/domain/skillNames";
 import { getLocalizedHitName } from "@/i18n/domain/hitNames";
+import { getLocalizedInflictionElementLabel } from "@/i18n/domain/elementLabels";
 import { getLocalizedStatusBuffLabel } from "@/i18n/domain/statusBuffLabels";
 import RotationSelectedCommandPanel from "@/components/workspaces/rotation/RotationSelectedCommandPanel.vue";
 import RotationHitDetailsModal from "@/components/workspaces/rotation/RotationHitDetailsModal.vue";
 import { EMPTY_SELECTION_ICON_PATH, getCharacterImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
-import { CONTINGENCY_CONTRACTS, resolveContingencyContracts, type ActiveContingencyContract } from "@/lib/combat/contracts";
+import {
+  CONTINGENCY_CONTRACTS,
+  getContingencyContractVariant,
+  getLocalizedContingencyContractVariantDescription,
+  getLocalizedContingencyContractVariantName,
+  normalizeActiveContingencyContracts,
+  resolveContingencyContracts,
+  type ActiveContingencyContract,
+} from "@/lib/combat/contracts";
 
 const props = defineProps<{
   buildId?: string;
+  historyRevision?: number;
   debugMode?: boolean;
   enemies: EnemyBase[];
   selectedEnemyId: string;
@@ -77,12 +87,18 @@ const props = defineProps<{
     startTime: number;
     endTime: number;
   };
+  canUndo?: boolean;
+  canRedo?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "update:selectedEnemyId", value: string): void;
   (e: "update:enemyLevel", value: number): void;
   (e: "update:damageTallyTiming", value: { enabled: boolean; startTime: number; endTime: number }): void;
+  (e: "undo"): void;
+  (e: "redo"): void;
+  (e: "historyTransientStart"): void;
+  (e: "historyTransientCommit"): void;
 }>();
 
 const buildStore = useBuildStore();
@@ -250,22 +266,6 @@ function loadEnemyCommandLayoutsByScheme(): EnemyCommandLayoutsByScheme {
   }
 }
 
-function normalizeActiveContracts(value: unknown): ActiveContingencyContract[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .filter((entry) => entry && typeof entry === "object")
-    .map((entry) => {
-      const typed = entry as { id?: unknown; level?: unknown };
-      return {
-        id: typeof typed.id === "string" ? typed.id : "",
-        level: Number.isFinite(typed.level) ? Math.max(1, Math.floor(Number(typed.level))) : 0,
-      };
-    })
-    .filter((entry) => entry.id.length > 0 && entry.level > 0);
-}
-
 function loadContractsByScheme(): Record<string, ActiveContingencyContract[]> {
   if (typeof window === "undefined") {
     return {};
@@ -282,7 +282,7 @@ function loadContractsByScheme(): Record<string, ActiveContingencyContract[]> {
     const scoped = parsed.byBuild?.[getBuildStorageScopeId()]?.byScheme;
     const byScheme = scoped ?? parsed.byScheme ?? {};
     return Object.fromEntries(
-      Object.entries(byScheme).map(([schemeId, value]) => [schemeId, normalizeActiveContracts(value)]),
+      Object.entries(byScheme).map(([schemeId, value]) => [schemeId, normalizeActiveContingencyContracts(value)]),
     );
   } catch (error) {
     console.warn("Failed to load rotation contracts from localStorage", error);
@@ -356,24 +356,22 @@ const disabledGenericActions = computed(() =>
 );
 const dodgeDisabledByContracts = computed(() => disabledGenericActions.value.has("dodge"));
 const contingencyTotalLevel = computed(() =>
-  activeContingencyContracts.value.reduce((sum, entry) => sum + entry.level, 0),
+  activeContingencyContracts.value.reduce((sum, entry) => {
+    const variant = getContingencyContractVariant(entry.id, entry.variantId);
+    return sum + (variant?.level ?? 0);
+  }, 0),
 );
 const activeContractSummary = computed(() => {
-  const levelsById = new Map(activeContingencyContracts.value.map((entry) => [entry.id, entry.level]));
-  return CONTINGENCY_CONTRACTS.flatMap((contract) => {
-    const level = levelsById.get(contract.id);
-    if (!level) {
-      return [];
-    }
-    const levelIndex = contract.levels.indexOf(level);
-    if (levelIndex < 0) {
+  return activeContingencyContracts.value.flatMap((entry) => {
+    const variant = getContingencyContractVariant(entry.id, entry.variantId);
+    if (!variant) {
       return [];
     }
     return [{
-      id: `${contract.id}:${level}`,
-      name: contract.names[levelIndex] ?? contract.id,
-      description: contract.descriptions[levelIndex] ?? "",
-      level,
+      id: `${entry.id}:${variant.id}`,
+      name: getLocalizedContingencyContractVariantName(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+      description: getLocalizedContingencyContractVariantDescription(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+      level: variant.level,
     }];
   });
 });
@@ -383,26 +381,28 @@ const highlightedContract = computed(() => {
   if (!contract) {
     return null;
   }
-  const selectedLevel = activeContingencyContracts.value.find((entry) => entry.id === contract.id)?.level ?? contract.levels[0] ?? 1;
-  const levelIndex = contract.levels.indexOf(selectedLevel);
-  const index = levelIndex >= 0 ? levelIndex : 0;
+  const selectedVariantId = activeContingencyContracts.value.find((entry) => entry.id === contract.id)?.variantId ?? contract.variants[0]?.id ?? null;
+  const variant = getContingencyContractVariant(contract.id, selectedVariantId) ?? contract.variants[0] ?? null;
+  if (!variant) {
+    return null;
+  }
   return {
     id: contract.id,
-    name: contract.names[index] ?? contract.names[0] ?? contract.id,
-    description: contract.descriptions[index] ?? contract.descriptions[0] ?? "",
+    name: getLocalizedContingencyContractVariantName(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+    description: getLocalizedContingencyContractVariantDescription(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
   };
 });
 
-function toggleContractLevel(contractId: string, level: number) {
+function toggleContractVariant(contractId: string, variantId: string) {
   const schemeId = activeScheme.value.id;
   const next = [...(contractsByScheme.value[schemeId] ?? [])];
   const existingIndex = next.findIndex((entry) => entry.id === contractId);
-  if (existingIndex >= 0 && next[existingIndex]!.level === level) {
+  if (existingIndex >= 0 && next[existingIndex]!.variantId === variantId) {
     next.splice(existingIndex, 1);
   } else if (existingIndex >= 0) {
-    next[existingIndex] = { id: contractId, level };
+    next[existingIndex] = { id: contractId, variantId };
   } else {
-    next.push({ id: contractId, level });
+    next.push({ id: contractId, variantId });
   }
   contractsByScheme.value[schemeId] = next;
 }
@@ -597,7 +597,7 @@ watch(
 );
 
 watch(
-  () => props.buildId,
+  [() => props.buildId, () => props.historyRevision],
   async () => {
     teamSpConfigByScheme.value = loadTeamSpConfigByScheme();
     enemyCommandLayoutsByScheme.value = loadEnemyCommandLayoutsByScheme();
@@ -683,31 +683,30 @@ const visibleLibraryCommands = computed(() =>
 );
 const selectedSidebarTitle = computed(() =>
   sidebarMode.value === "enemy"
-    ? props.enemyName
+    ? (currentEnemyData.value ? getEnemyLocalizedName(currentEnemyData.value) : props.enemyName)
     : getLocalizedCharacterName(libraryCharacter.value?.characterId, libraryCharacter.value?.characterName)
       || t("builder.slot", { index: selectedLibrarySlot.value + 1 }),
 );
 const currentEnemyState = computed(() => getEnemyStateAtTime(simulation.value, cursorTime.value));
-const currentEnemyHpPctModifier = computed(() =>
-  currentEnemyState.value.activeDebuffs
-    .filter((debuff) => debuff.stat === "HP_PCT")
-    .reduce((sum, debuff) => sum + debuff.value, 0),
+const currentEnemyData = computed(() =>
+  props.enemies.find((enemy) => enemy.id === currentEnemyState.value.enemyId)
+  ?? selectedEnemyData.value,
 );
 const currentEnemyDisplayedMaxHp = computed(() =>
-  Math.max(1, props.enemyStats.hp * (1 + currentEnemyHpPctModifier.value)),
+  Math.max(1, currentEnemyState.value.maxHp),
 );
 const currentEnemyDisplayedHp = computed(() =>
-  Math.max(0, currentEnemyDisplayedMaxHp.value - currentEnemyState.value.currentDamageTaken),
+  Math.max(0, currentEnemyState.value.currentHp),
 );
 const enemyStaggerNodePercents = computed(() => {
-  const gauge = Math.max(1, props.enemyStaggerGauge);
-  return (props.enemyStaggerNodes ?? [])
+  const gauge = Math.max(1, currentEnemyState.value.staggerGauge);
+  return (currentEnemyState.value.staggerNodes ?? [])
     .map((node) => (node > 0 && node <= 1 ? node : node / gauge))
     .filter((node) => node > 0 && node < 1)
     .sort((a, b) => a - b);
 });
 const enemyStaggerSections = computed(() => {
-  const currentFraction = Math.max(0, Math.min(1, currentEnemyState.value.currentStagger / Math.max(1, props.enemyStaggerGauge)));
+  const currentFraction = Math.max(0, Math.min(1, currentEnemyState.value.currentStagger / Math.max(1, currentEnemyState.value.staggerGauge)));
   const bounds = [0, ...enemyStaggerNodePercents.value, 1];
   return bounds.slice(0, -1).map((start, index) => {
     const end = bounds[index + 1] ?? 1;
@@ -854,7 +853,9 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
     }
     if (currentEnemyState.value.artsInfliction) {
       items.push({
-        label: t("rotation.infliction", { element: currentEnemyState.value.artsInfliction.element }),
+        label: t("rotation.infliction", {
+          element: getLocalizedInflictionElementLabel(currentEnemyState.value.artsInfliction.element),
+        }),
         details: t("rotation.stacks", { count: currentEnemyState.value.artsInfliction.stacks }),
         remainingSeconds: Math.max(0, currentEnemyState.value.artsInfliction.expiresAtGameTime - cursorGameTime),
       });
@@ -1179,6 +1180,8 @@ const simulation = computed(() =>
     party: partySnapshots.value,
     partyVariantsBySlot: partyVariantsBySlot.value,
     initialVariantIndex: activeVariantIndex.value,
+    enemyId: props.selectedEnemyId,
+    enemyLevel: props.enemyLevel,
     enemyStats: props.enemyStats,
     enemyMods: enemyMods.value,
     enemyStaggerGauge: props.enemyStaggerGauge,
@@ -1998,6 +2001,11 @@ function getLocalizedCommandName(
 ) {
   if (!command) {
     return fallbackName ?? "";
+  }
+  if (command.id === "alesh_combo_skill_rare_fin") {
+    return currentLocale() === "zh-CN"
+      ? "（珍鳞）凿孔底钓术"
+      : "(Rare Fin) Auger Angling";
   }
   const skillKey = getCharacterSkillKeyFromCommand(command);
   if (skillKey) {
@@ -2835,7 +2843,7 @@ const cursorCombatState = computed(() => {
         display.slot,
         isPerfectWindow
           ? { readyRatio: 1, label: t("rotation.perfectWindow"), mode: "perfect_window" }
-          : { readyRatio: 1, label: t("rotation.triggered"), mode: "triggered" },
+          : { readyRatio: 1, label: t("rotation.ready"), mode: "triggered" },
       );
       continue;
     }
@@ -3140,13 +3148,19 @@ const actionValidationByStep = computed(() => {
 
 const enemyCommandValidationById = computed(() => {
   const validations = new Map<string, string>();
-  const maxHp = Math.max(1, currentEnemyDisplayedMaxHp.value);
 
   for (const command of enemyTimelineCommands.value) {
     if (props.selectedEnemyId === "rhodagn" && command.commandId === "phase_transition") {
       const stateBefore = getEnemyStateAtTime(simulation.value, Math.max(0, command.startTime - 0.0001));
-      const currentHp = Math.max(0, maxHp - stateBefore.currentDamageTaken);
+      const currentHp = Math.max(0, stateBefore.currentHp);
+      const maxHp = Math.max(1, stateBefore.maxHp);
       if (currentHp >= maxHp * 0.7 - 0.001) {
+        validations.set(command.id, t("rotation.conditionNotFulfilled"));
+      }
+    }
+    if (props.selectedEnemyId === "nefarith_bonekrusher" && command.commandId === "phase_transition") {
+      const stateBefore = getEnemyStateAtTime(simulation.value, Math.max(0, command.startTime - 0.0001));
+      if (stateBefore.currentHp > 0.001) {
         validations.set(command.id, t("rotation.conditionNotFulfilled"));
       }
     }
@@ -3503,6 +3517,7 @@ function startBlockDrag(event: MouseEvent, stepId: string) {
 }
 
 function beginStepDrag(stepId: string, originClientX: number) {
+  emit("historyTransientStart");
   const dragStepIds = normalizeSelection(selectedStepIds.value.includes(stepId) ? selectedStepIds.value : [stepId]);
   dragState.value = {
     stepIds: dragStepIds,
@@ -3584,10 +3599,14 @@ function handlePointerMove(event: MouseEvent) {
 }
 
 function stopBlockDrag() {
+  const shouldCommitHistory = Boolean(dragState.value || enemyCommandDragState.value);
   dragState.value = null;
   enemyCommandDragState.value = null;
   cursorDragState.value = null;
   marqueeSelectionState.value = null;
+  if (shouldCommitHistory) {
+    emit("historyTransientCommit");
+  }
 }
 
 function setCursorFromLane(event: MouseEvent) {
@@ -3688,6 +3707,7 @@ function startEnemyCommandBlockDrag(event: MouseEvent, commandPlacementId: strin
 }
 
 function beginEnemyCommandDrag(commandPlacementId: string, originClientX: number) {
+  emit("historyTransientStart");
   selectedEnemyCommandId.value = commandPlacementId;
   selectedStepIds.value = [];
   selectionAnchorId.value = null;
@@ -4711,10 +4731,10 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   {{ t("enemy.hp") }} {{ currentEnemyDisplayedHp.toFixed(0) }} / {{ currentEnemyDisplayedMaxHp.toFixed(0) }}
                 </div>
                 <div class="rounded-lg border border-[#ececec] bg-white px-3 py-2">
-                  {{ t("enemy.staggerGauge") }} {{ currentEnemyState.currentStagger.toFixed(1) }} / {{ props.enemyStaggerGauge.toFixed(1) }}
+                  {{ t("enemy.staggerGauge") }} {{ currentEnemyState.currentStagger.toFixed(1) }} / {{ currentEnemyState.staggerGauge.toFixed(1) }}
                 </div>
                 <div class="rounded-lg border border-[#ececec] bg-white px-3 py-2">
-                  {{ t("enemy.def") }} {{ props.enemyStats.def }}
+                  {{ t("enemy.def") }} {{ currentEnemyData?.def ?? props.enemyStats.def }}
                 </div>
               </div>
             </section>
@@ -5165,7 +5185,25 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             class="rounded-lg border border-[#5a1f1f] bg-[#2f0f0f] px-3 py-2 text-sm font-semibold text-[#f5d5d5] transition hover:bg-[#451414]"
             @click="contractsPopupOpen = true"
           >
-            {{ `Contracts Lv ${contingencyTotalLevel}` }}
+            {{ locale === "zh-CN" ? `危机合约词条(未完成)Lv${contingencyTotalLevel}` : `Contingency Contracts(WIP) Lv${contingencyTotalLevel}` }}
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-[#d4d4d4] bg-[#f7f7f7] px-3 py-2 text-sm text-[#333] transition"
+            :class="props.canUndo ? 'hover:bg-[#efefef]' : 'cursor-not-allowed text-[#b5b5b5]'"
+            :disabled="!props.canUndo"
+            @click="emit('undo')"
+          >
+            {{ t("ui.undo") }}
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-[#d4d4d4] bg-[#f7f7f7] px-3 py-2 text-sm text-[#333] transition"
+            :class="props.canRedo ? 'hover:bg-[#efefef]' : 'cursor-not-allowed text-[#b5b5b5]'"
+            :disabled="!props.canRedo"
+            @click="emit('redo')"
+          >
+            {{ t("ui.redo") }}
           </button>
           <button
             type="button"
@@ -5191,7 +5229,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
       >
         <div class="w-full max-w-6xl rounded-2xl border border-[#d6d6d6] bg-white p-4 text-[#1b1b1b] shadow-2xl">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <div class="text-sm uppercase tracking-[0.2em] text-[#777]">Contingency Contracts</div>
+            <div class="text-sm uppercase tracking-[0.2em] text-[#777]">{{ locale === "zh-CN" ? "词条" : "Contingency Contracts" }}</div>
             <button
               type="button"
               class="rounded-md border border-[#d7d7d7] bg-[#f7f7f7] px-3 py-1.5 text-sm text-[#444] transition hover:bg-[#efefef]"
@@ -5211,25 +5249,34 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   @mouseenter="highlightedContractId = contract.id"
                 >
                   <button
-                    v-for="(level, levelIndex) in contract.levels"
-                    :key="`${contract.id}-${level}`"
+                    v-for="variant in contract.variants"
+                    :key="variant.id"
                     type="button"
                     class="mb-2 block w-full rounded-md border px-2 py-2 text-left text-xs transition last:mb-0"
-                    :class="activeContingencyContracts.some((entry) => entry.id === contract.id && entry.level === level)
+                    :class="activeContingencyContracts.some((entry) => entry.id === contract.id && entry.variantId === variant.id)
                       ? 'border-[#ea4f4f] bg-[#ffdede] text-[#6f0e0e]'
                       : 'border-[#d6d6d6] bg-[#f8f8f8] text-[#444] hover:bg-[#fffde2]'"
-                    @click="toggleContractLevel(contract.id, level)"
+                    @click="toggleContractVariant(contract.id, variant.id)"
                   >
-                    <div class="font-semibold leading-tight">{{ contract.names[levelIndex] }}</div>
-                    <div class="mt-1 text-[11px] leading-tight text-[#666]">{{ contract.descriptions[levelIndex] }}</div>
+                    <div class="font-semibold leading-tight">
+                      {{ getLocalizedContingencyContractVariantName(variant, locale === "zh-CN" ? "zh-CN" : "en") }}
+                    </div>
+                    <div class="mt-1 text-[11px] leading-tight text-[#666]">
+                      {{ getLocalizedContingencyContractVariantDescription(variant, locale === "zh-CN" ? "zh-CN" : "en") }}
+                    </div>
+                    <div class="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a8a8a]">
+                      {{ `Lv ${variant.level}` }}
+                    </div>
                   </button>
                 </div>
               </div>
             </div>
 
             <div class="rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
-              <div class="text-sm font-semibold text-[#1b1b1b]">{{ `Total Level: ${contingencyTotalLevel}` }}</div>
-              <div class="mt-3 text-xs uppercase tracking-[0.16em] text-[#777]">Selected Effects</div>
+              <div class="text-sm font-semibold text-[#1b1b1b]">
+                {{ locale === "zh-CN" ? `总等级：${contingencyTotalLevel}` : `Total Level: ${contingencyTotalLevel}` }}
+              </div>
+              <div class="mt-3 text-xs uppercase tracking-[0.16em] text-[#777]">{{ locale === "zh-CN" ? "已选词条" : "Selected Effects" }}</div>
               <div class="contracts-scrollbar mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
                 <div
                   v-for="entry in activeContractSummary"
@@ -5240,7 +5287,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   <div class="mt-1 text-[#555]">{{ entry.description }}</div>
                 </div>
                 <div v-if="activeContractSummary.length === 0" class="rounded-md border border-dashed border-[#d2d2d2] p-2 text-xs text-[#777]">
-                  No contracts selected.
+                  {{ locale === "zh-CN" ? "尚未选择词条。" : "No contracts selected." }}
                 </div>
               </div>
 
@@ -5681,18 +5728,18 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 <div class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#1b1b1b] text-xs font-semibold text-white">
                   <img
                     v-if="!enemyTimelineIconBroken"
-                    :src="getEnemyIconPath(props.selectedEnemyId)"
-                    :alt="props.enemyName"
+                    :src="getEnemyIconPath(currentEnemyData?.id ?? props.selectedEnemyId)"
+                    :alt="currentEnemyData ? getEnemyLocalizedName(currentEnemyData) : props.enemyName"
                     class="h-full w-full object-cover"
                     @error="enemyTimelineIconBroken = true"
                   >
                   <span v-else class="absolute inset-0 flex items-center justify-center">
-                    {{ getAvatarInitials(props.enemyName) }}
+                    {{ getAvatarInitials(currentEnemyData ? getEnemyLocalizedName(currentEnemyData) : props.enemyName) }}
                   </span>
                 </div>
                 <div class="min-w-0 self-center">
                   <div class="truncate text-sm font-medium text-[#1b1b1b]">
-                    {{ props.enemyName }}
+                    {{ currentEnemyData ? getEnemyLocalizedName(currentEnemyData) : props.enemyName }}
                   </div>
                 </div>
 
@@ -5704,7 +5751,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   <div class="h-2 overflow-hidden rounded-full bg-[#ececec]">
                     <div
                       class="h-full bg-[#d86c6c]"
-                      :style="{ width: `${Math.max(0, 1 - currentEnemyState.currentDamageTaken / Math.max(1, currentEnemyDisplayedMaxHp)) * 100}%` }"
+                      :style="{ width: `${Math.max(0, currentEnemyDisplayedHp / Math.max(1, currentEnemyDisplayedMaxHp)) * 100}%` }"
                     />
                   </div>
                 </div>
@@ -5712,7 +5759,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 <div class="col-span-2 min-w-0">
                   <div class="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.1em] text-[#7a7a7a]">
                     <span>{{ t("enemy.staggerGauge") }}</span>
-                    <span>{{ currentEnemyState.currentStagger.toFixed(1) }} / {{ props.enemyStaggerGauge.toFixed(1) }}</span>
+                    <span>{{ currentEnemyState.currentStagger.toFixed(1) }} / {{ currentEnemyState.staggerGauge.toFixed(1) }}</span>
                   </div>
                   <div class="h-2 overflow-hidden rounded-full bg-[#ececec]">
                     <div class="relative h-full w-full">

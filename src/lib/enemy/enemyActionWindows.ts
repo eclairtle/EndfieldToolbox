@@ -6,7 +6,8 @@ export type EnemyCommandDefinition = {
   durationSeconds: number;
   invulnerable?: boolean;
   tintColor?: string;
-  effects?: EnemyActionWindow["effects"];
+  startEffects?: EnemyActionWindow["startEffects"];
+  endEffects?: EnemyActionWindow["endEffects"];
   interruptible?: boolean;
 };
 
@@ -38,7 +39,11 @@ const RHODAGN_COMMAND_DEFINITIONS: EnemyCommandDefinition[] = [
     id: "phase_transition",
     label: "Phase Transition",
     durationSeconds: 0.5,
-    effects: [{ type: "RESET_STAGGER" }, { type: "INTERRUPT_ONGOING_COMMANDS" }],
+    startEffects: [
+      { type: "RESET_STAGGER" },
+      { type: "INTERRUPT_ONGOING_COMMANDS" },
+      { type: "REINITIALIZE_COMBAT" },
+    ],
     interruptible: false,
   },
 ];
@@ -47,12 +52,38 @@ const RHODAGN_DEFAULT_COMMANDS: EnemyCommandPlacement[] = [
   { id: "rhodagn_opening_attack", commandId: "opening_attack", startTime: 0 },
 ];
 
+const NEFARITH_COMMAND_DEFINITIONS: EnemyCommandDefinition[] = [
+  {
+    id: "phase_transition",
+    label: "Phase Transition",
+    durationSeconds: 0.5,
+    startEffects: [
+      { type: "RESET_STAGGER" },
+      { type: "INTERRUPT_ONGOING_COMMANDS" },
+      { type: "REINITIALIZE_COMBAT" },
+    ],
+    endEffects: [
+      { type: "CLEAR_FIELD_EFFECTS" },
+      { type: "TRANSFORM_ENEMY", enemyId: "nefarith_conqueror", resetHp: true },
+    ],
+    interruptible: false,
+  },
+];
+
 export function getEnemyCommandDefinitions(enemyId: string): EnemyCommandDefinition[] {
   const baseDefinitions: EnemyCommandDefinition[] = [{ ...DUMMY_ATTACK_DEFINITION }];
   if (enemyId === "rhodagn") {
     return baseDefinitions.concat(RHODAGN_COMMAND_DEFINITIONS.map((definition) => ({
       ...definition,
-      effects: definition.effects ? definition.effects.map((effect) => ({ ...effect })) : undefined,
+      startEffects: definition.startEffects ? definition.startEffects.map((effect) => ({ ...effect })) : undefined,
+      endEffects: definition.endEffects ? definition.endEffects.map((effect) => ({ ...effect })) : undefined,
+    })));
+  }
+  if (enemyId === "nefarith_bonekrusher") {
+    return baseDefinitions.concat(NEFARITH_COMMAND_DEFINITIONS.map((definition) => ({
+      ...definition,
+      startEffects: definition.startEffects ? definition.startEffects.map((effect) => ({ ...effect })) : undefined,
+      endEffects: definition.endEffects ? definition.endEffects.map((effect) => ({ ...effect })) : undefined,
     })));
   }
   return baseDefinitions;
@@ -84,7 +115,8 @@ export function buildEnemyActionWindows(enemyId: string, placements: EnemyComman
       endTime,
       invulnerable: definition.invulnerable,
       tintColor: definition.tintColor,
-      effects: definition.effects ? definition.effects.map((effect) => ({ ...effect })) : undefined,
+      startEffects: definition.startEffects ? definition.startEffects.map((effect) => ({ ...effect })) : undefined,
+      endEffects: definition.endEffects ? definition.endEffects.map((effect) => ({ ...effect })) : undefined,
       interruptible: definition.interruptible !== false,
       interrupted: definition.interruptible === false ? false : placement.interrupted === true,
       interruptedSpGain:

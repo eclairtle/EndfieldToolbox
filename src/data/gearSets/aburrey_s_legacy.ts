@@ -20,6 +20,10 @@ export const ABURREY_S_LEGACY: GearBase[] = [
       {
         "stat": "AGI",
         "value": 41
+      },
+      {
+        "stat": "SKILL_DMG_PCT",
+        "value": 0.098
       }
     ],
   },
@@ -100,6 +104,10 @@ export const ABURREY_S_LEGACY: GearBase[] = [
       {
         "stat": "AGI",
         "value": 15
+      },
+      {
+        "stat": "SKILL_DMG_PCT",
+        "value": 0.196
       }
     ],
   },
@@ -230,4 +238,3 @@ export const ABURREY_S_LEGACY: GearBase[] = [
     ],
   }
 ];
-

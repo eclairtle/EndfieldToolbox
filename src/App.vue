@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useBuildStore, type BuildStoreStateSnapshot, type CharacterBuildSlot } from "@/stores/buildStore";
@@ -15,7 +15,7 @@ import { CHARACTERS, type CharacterBase } from "@/data/characters";
 import { WEAPONS, type WeaponBase } from "@/data/weapons";
 import { GEARS, type GearBase } from "@/data/gears";
 import RotationWorkspace from "@/components/workspaces/RotationWorkspace.vue";
-import { useRotationSchemes } from "@/lib/combat/rotationSchemes";
+import { useRotationSchemes, type RotationSchemesState } from "@/lib/combat/rotationSchemes";
 import { buildPartySnapshots, buildPartySnapshotsByVariant } from "@/lib/combat/buildSnapshots";
 import { makeEnemyModifierSnapshot, simulateRotation } from "@/lib/combat/simulateRotation";
 import type { CharacterCombatSnapshot } from "@/lib/combat/rotation";
@@ -39,7 +39,25 @@ import { useLocale } from "@/i18n/useLocale";
 import { getCharacterDisplayNameByCharacter, getWeaponDisplayNameByWeapon } from "@/i18n/domain/displayNames";
 import { getCharacterImagePath, getWeaponImagePath, getGearImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
 import { getEnemyDisplayName } from "@/data/enemyCustomNames";
-import type { ActiveContingencyContract } from "@/lib/combat/contracts";
+import { normalizeActiveContingencyContracts, type ActiveContingencyContract } from "@/lib/combat/contracts";
+
+const HISTORY_LIMIT = 5;
+
+type BuildRuntimeSnapshot = {
+  currentBuildState: BuildStoreStateSnapshot;
+  rotationState: RotationSchemesState;
+  damageTallyTiming: DamageTallyTiming;
+  compareSettings: {
+    enabled: boolean;
+    leftVariantIndex: number;
+    rightVariantIndex: number;
+  };
+  scopedRotationUiState: {
+    sp: unknown;
+    enemyCommands: unknown;
+    contracts: unknown;
+  };
+};
 
 const currentBuildSnapshot = ref<BuildStoreStateSnapshot | null>(null);
 const isHydratingBuildDetail = ref(false);
@@ -75,6 +93,13 @@ const router = useRouter();
 const activeDamageTallyTiming = computed<DamageTallyTiming>(() =>
   buildListStore.activeBuild?.damageTallyTiming ?? { enabled: false, startTime: 0, endTime: 60 },
 );
+const undoHistory = ref<BuildRuntimeSnapshot[]>([]);
+const redoHistory = ref<BuildRuntimeSnapshot[]>([]);
+const currentHistorySnapshot = ref<BuildRuntimeSnapshot | null>(null);
+const currentHistorySignature = ref("");
+const isApplyingRuntimeSnapshot = ref(false);
+const historyRevision = ref(0);
+const activeTransientHistory = ref<{ baseline: BuildRuntimeSnapshot; baselineSignature: string } | null>(null);
 
 const routeBuildId = computed(() =>
   typeof route.params.buildId === "string" ? route.params.buildId : "",
@@ -157,6 +182,64 @@ function getBattleStartConsumableIdsForActiveScheme(): (string | null)[] {
   }
 }
 
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function readScopedStorageState(storageKey: string): unknown {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = window.localStorage.getItem(storageKey);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object") {
+      const record = parsed as Record<string, unknown>;
+      const byBuild = record.byBuild;
+      if (byBuild && typeof byBuild === "object") {
+        return cloneJson((byBuild as Record<string, unknown>)[getBuildStorageScopeId()] ?? null);
+      }
+    }
+    return cloneJson(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function writeScopedStorageState(storageKey: string, scopedValue: unknown) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  let parsed: Record<string, unknown> = {};
+  const raw = window.localStorage.getItem(storageKey);
+  if (raw) {
+    try {
+      const next = JSON.parse(raw) as unknown;
+      if (next && typeof next === "object") {
+        parsed = next as Record<string, unknown>;
+      }
+    } catch {
+      parsed = {};
+    }
+  }
+
+  const byBuild =
+    parsed.byBuild && typeof parsed.byBuild === "object"
+      ? { ...(parsed.byBuild as Record<string, unknown>) }
+      : {};
+  if (scopedValue == null) {
+    delete byBuild[getBuildStorageScopeId()];
+  } else {
+    byBuild[getBuildStorageScopeId()] = cloneJson(scopedValue);
+  }
+  parsed.byBuild = byBuild;
+  window.localStorage.setItem(storageKey, JSON.stringify(parsed));
+}
+
 function getEnemyCommandPlacementsForActiveScheme(): EnemyCommandPlacement[] {
   if (typeof window === "undefined") {
     return getDefaultEnemyCommandPlacements(selectedEnemyId.value);
@@ -188,6 +271,24 @@ function getEnemyCommandPlacementsForActiveScheme(): EnemyCommandPlacement[] {
     return getDefaultEnemyCommandPlacements(selectedEnemyId.value);
   }
 }
+
+watch(
+  () => rotationSchemes.value.selectedEnemyId,
+  (value) => {
+    const normalized = typeof value === "string" && value.length > 0 ? value : "rhodagn";
+    if (selectedEnemyId.value !== normalized) {
+      selectedEnemyId.value = normalized;
+    }
+  },
+  { immediate: true },
+);
+
+watch(selectedEnemyId, (value) => {
+  const normalized = typeof value === "string" && value.length > 0 ? value : "rhodagn";
+  if (rotationSchemes.value.selectedEnemyId !== normalized) {
+    rotationSchemes.value.selectedEnemyId = normalized;
+  }
+});
 
 watch(
   () => rotationSchemes.value.enemyLevel,
@@ -250,6 +351,8 @@ function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null |
     party: partySnapshots.value,
     partyVariantsBySlot: partyVariantsBySlot.value,
     initialVariantIndex: activeVariantIndex.value,
+    enemyId: selectedEnemyId.value,
+    enemyLevel: enemyLevel.value,
     enemyStats: resolvedEnemyStats.value,
     enemyMods: makeEnemyModifierSnapshot({
       resistances: {
@@ -338,6 +441,8 @@ function simulateForSnapshot(
     party: snapshotParty,
     partyVariantsBySlot: snapshotVariantsBySlot,
     initialVariantIndex: snapshot.activeVariantIndex ?? 0,
+    enemyId: selectedEnemyId.value,
+    enemyLevel: enemyLevel.value,
     enemyStats: resolvedEnemyStats.value,
     enemyMods: makeEnemyModifierSnapshot({
       resistances: {
@@ -376,12 +481,7 @@ function getActiveContractsForActiveScheme(): ActiveContingencyContract[] {
     const fromByBuild = parsed.byBuild?.[getBuildStorageScopeId()]?.byScheme?.[activeScheme.value.id];
     const fromLegacy = parsed.byScheme?.[activeScheme.value.id];
     const source = fromByBuild ?? fromLegacy ?? [];
-    if (!Array.isArray(source)) {
-      return [];
-    }
-    return source
-      .filter((entry) => entry && typeof entry.id === "string" && Number.isFinite(entry.level))
-      .map((entry) => ({ id: entry.id, level: Math.max(1, Math.floor(entry.level)) }));
+    return normalizeActiveContingencyContracts(source);
   } catch {
     return [];
   }
@@ -488,6 +588,215 @@ const builderDamageContributions = computed(() => {
 function cloneBuildSnapshot(snapshot: BuildStoreStateSnapshot): BuildStoreStateSnapshot {
   return JSON.parse(JSON.stringify(snapshot)) as BuildStoreStateSnapshot;
 }
+
+function captureRuntimeSnapshot(): BuildRuntimeSnapshot | null {
+  if (page.value !== "build-detail" || !activeBuildId.value) {
+    return null;
+  }
+
+  return {
+    currentBuildState: cloneBuildSnapshot(buildStore.exportStateSnapshot()),
+    rotationState: cloneJson(exportRotationSchemes()),
+    damageTallyTiming: cloneJson(activeDamageTallyTiming.value),
+    compareSettings: {
+      enabled: compareBuildsEnabled.value,
+      leftVariantIndex: activeVariantIndex.value,
+      rightVariantIndex: compareTargetVariantIndex.value,
+    },
+    scopedRotationUiState: {
+      sp: readScopedStorageState(ROTATION_SP_STORAGE_KEY),
+      enemyCommands: readScopedStorageState(ROTATION_ENEMY_COMMANDS_STORAGE_KEY),
+      contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
+    },
+  };
+}
+
+function snapshotSignature(snapshot: BuildRuntimeSnapshot | null): string {
+  return snapshot ? JSON.stringify(snapshot) : "";
+}
+
+function pushHistoryEntry(stack: typeof undoHistory | typeof redoHistory, snapshot: BuildRuntimeSnapshot) {
+  stack.value.push(cloneJson(snapshot));
+  if (stack.value.length > HISTORY_LIMIT) {
+    stack.value.splice(0, stack.value.length - HISTORY_LIMIT);
+  }
+}
+
+function seedHistoryFromCurrentState() {
+  const snapshot = captureRuntimeSnapshot();
+  currentHistorySnapshot.value = snapshot ? cloneJson(snapshot) : null;
+  currentHistorySignature.value = snapshotSignature(snapshot);
+  undoHistory.value = [];
+  redoHistory.value = [];
+  activeTransientHistory.value = null;
+}
+
+function recordHistoryIfChanged() {
+  if (isApplyingRuntimeSnapshot.value || activeTransientHistory.value) {
+    return;
+  }
+  const snapshot = captureRuntimeSnapshot();
+  if (!snapshot) {
+    return;
+  }
+  const signature = snapshotSignature(snapshot);
+  if (signature === currentHistorySignature.value) {
+    return;
+  }
+  if (currentHistorySnapshot.value) {
+    pushHistoryEntry(undoHistory, currentHistorySnapshot.value);
+  }
+  currentHistorySnapshot.value = cloneJson(snapshot);
+  currentHistorySignature.value = signature;
+  redoHistory.value = [];
+}
+
+const canUndo = computed(() => undoHistory.value.length > 0);
+const canRedo = computed(() => redoHistory.value.length > 0);
+
+function beginTransientHistory() {
+  if (activeTransientHistory.value) {
+    return;
+  }
+  const baseline = captureRuntimeSnapshot();
+  if (!baseline) {
+    return;
+  }
+  activeTransientHistory.value = {
+    baseline: cloneJson(baseline),
+    baselineSignature: snapshotSignature(baseline),
+  };
+}
+
+function commitTransientHistory() {
+  const transient = activeTransientHistory.value;
+  if (!transient) {
+    return;
+  }
+  activeTransientHistory.value = null;
+  const snapshot = captureRuntimeSnapshot();
+  if (!snapshot) {
+    return;
+  }
+  const signature = snapshotSignature(snapshot);
+  if (signature === transient.baselineSignature) {
+    currentHistorySnapshot.value = cloneJson(snapshot);
+    currentHistorySignature.value = signature;
+    return;
+  }
+  pushHistoryEntry(undoHistory, transient.baseline);
+  currentHistorySnapshot.value = cloneJson(snapshot);
+  currentHistorySignature.value = signature;
+  redoHistory.value = [];
+}
+
+function applyRuntimeSnapshot(snapshot: BuildRuntimeSnapshot) {
+  if (!activeBuildId.value) {
+    return;
+  }
+
+  isApplyingRuntimeSnapshot.value = true;
+  try {
+    activeTransientHistory.value = null;
+    currentBuildSnapshot.value = cloneBuildSnapshot(snapshot.currentBuildState);
+    buildStore.hydrateStateSnapshot(cloneBuildSnapshot(snapshot.currentBuildState));
+    compareBuildsEnabled.value = snapshot.compareSettings.enabled;
+    compareTargetVariantIndex.value = snapshot.compareSettings.rightVariantIndex;
+    hydrateRotationSchemes(cloneJson(snapshot.rotationState));
+    writeScopedStorageState(ROTATION_SP_STORAGE_KEY, snapshot.scopedRotationUiState.sp);
+    writeScopedStorageState(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, snapshot.scopedRotationUiState.enemyCommands);
+    writeScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY, snapshot.scopedRotationUiState.contracts);
+    buildListStore.updateBuildRuntime({
+      buildId: activeBuildId.value,
+      currentBuildState: cloneBuildSnapshot(snapshot.currentBuildState),
+      plannedBuildState: cloneBuildSnapshot(snapshot.currentBuildState),
+      rotationState: cloneJson(snapshot.rotationState),
+      damageTallyTiming: cloneJson(snapshot.damageTallyTiming),
+      compareSettings: cloneJson(snapshot.compareSettings),
+    });
+  } finally {
+    isApplyingRuntimeSnapshot.value = false;
+  }
+
+  currentHistorySnapshot.value = cloneJson(snapshot);
+  currentHistorySignature.value = snapshotSignature(snapshot);
+  historyRevision.value += 1;
+  persistCurrentBuild();
+}
+
+function undoLastChange() {
+  const transient = activeTransientHistory.value;
+  if (transient) {
+    activeTransientHistory.value = null;
+    const current = captureRuntimeSnapshot();
+    if (current && snapshotSignature(current) !== transient.baselineSignature) {
+      pushHistoryEntry(redoHistory, current);
+      applyRuntimeSnapshot(transient.baseline);
+      return;
+    }
+  }
+  const target = undoHistory.value.pop();
+  if (!target) {
+    return;
+  }
+  const current = captureRuntimeSnapshot();
+  if (current) {
+    pushHistoryEntry(redoHistory, current);
+  }
+  applyRuntimeSnapshot(target);
+}
+
+function redoLastChange() {
+  if (activeTransientHistory.value) {
+    commitTransientHistory();
+  }
+  const target = redoHistory.value.pop();
+  if (!target) {
+    return;
+  }
+  const current = captureRuntimeSnapshot();
+  if (current) {
+    pushHistoryEntry(undoHistory, current);
+  }
+  applyRuntimeSnapshot(target);
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || target.isContentEditable;
+}
+
+function handleUndoRedoKeydown(event: KeyboardEvent) {
+  if (page.value !== "build-detail" || isEditableTarget(event.target)) {
+    return;
+  }
+  const isModifier = event.metaKey || event.ctrlKey;
+  if (!isModifier || event.altKey || event.key.toLowerCase() !== "z") {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.shiftKey) {
+    redoLastChange();
+  } else {
+    undoLastChange();
+  }
+}
+
+onMounted(() => {
+  if (typeof window !== "undefined") {
+    window.addEventListener("keydown", handleUndoRedoKeydown);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (typeof window !== "undefined") {
+    window.removeEventListener("keydown", handleUndoRedoKeydown);
+  }
+});
 
 function updateSharedCharacter(charId: string) {
   buildStore.setCharacter(charId);
@@ -868,6 +1177,7 @@ function resetGuestUser() {
   buildListStore.resetAll();
   buildStore.resetGuestUser();
   currentBuildSnapshot.value = null;
+  seedHistoryFromCurrentState();
   void router.replace({ name: "build-list" });
 }
 
@@ -885,7 +1195,7 @@ function confirmResetGuestUser() {
 }
 
 function persistCurrentBuild() {
-  if (isHydratingBuildDetail.value) {
+  if (isHydratingBuildDetail.value || isApplyingRuntimeSnapshot.value) {
     return;
   }
 
@@ -918,6 +1228,7 @@ function persistCurrentBuild() {
       rightVariantIndex: compareTargetVariantIndex.value,
     },
   });
+  recordHistoryIfChanged();
 }
 
 function hydrateBuildDetail(buildId: string): boolean {
@@ -938,6 +1249,7 @@ function hydrateBuildDetail(buildId: string): boolean {
   } finally {
     isHydratingBuildDetail.value = false;
   }
+  seedHistoryFromCurrentState();
   return true;
 }
 
@@ -995,8 +1307,13 @@ function backToBuildList() {
   void router.push({ name: "build-list" });
 }
 
-function renameBuild(payload: { buildId: string; name: string }) {
-  buildListStore.renameBuild(payload.buildId, payload.name);
+function editBuildMetadata(payload: { buildId: string; locale: "en" | "zh-CN"; name: string; description: string }) {
+  buildListStore.updateBuildLocalizedMetadata({
+    id: payload.buildId,
+    locale: payload.locale,
+    name: payload.name,
+    description: payload.description,
+  });
 }
 
 function deleteBuild(buildId: string) {
@@ -1143,6 +1460,7 @@ watch(
                 {{ t("ui.rotation") }}
               </button>
             </div>
+
           </div>
         </div>
       </div>
@@ -1154,7 +1472,7 @@ watch(
         @open="openBuild"
         @create="createBuild"
         @copy="copyBuild"
-        @rename="renameBuild"
+        @edit-metadata="editBuildMetadata"
         @delete="deleteBuild"
       />
 
@@ -1485,6 +1803,7 @@ watch(
         <RotationWorkspace
           v-else
           :build-id="activeBuildId ?? undefined"
+          :history-revision="historyRevision"
           :debug-mode="debugModeEnabled"
           :enemies="ENEMIES"
           :selected-enemy-id="selectedEnemyId"
@@ -1497,9 +1816,15 @@ watch(
           :enemy-finisher-multiplier="selectedEnemy.finisherMultiplier"
           :enemy-finisher-sp-gain="selectedEnemy.finisherSpGain"
           :damage-tally-timing="activeDamageTallyTiming"
+          :can-undo="canUndo"
+          :can-redo="canRedo"
           @update:selected-enemy-id="selectedEnemyId = $event"
           @update:enemy-level="enemyLevel = $event"
           @update:damage-tally-timing="updateActiveDamageTallyTiming"
+          @undo="undoLastChange"
+          @redo="redoLastChange"
+          @history-transient-start="beginTransientHistory"
+          @history-transient-commit="commitTransientHistory"
         />
       </template>
     </div>

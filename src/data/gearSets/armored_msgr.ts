@@ -75,6 +75,10 @@ export const ARMORED_MSGR: GearBase[] = [
       {
         "stat": "WIL",
         "value": 22
+      },
+      {
+        "stat": "FINAL_DMG_REDUCTION_PCT",
+        "value": 0.08
       }
     ],
   },
@@ -184,4 +188,3 @@ export const ARMORED_MSGR: GearBase[] = [
     ],
   }
 ];
-

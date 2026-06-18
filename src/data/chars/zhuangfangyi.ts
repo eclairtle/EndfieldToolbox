@@ -24,6 +24,7 @@ const ZHUANGFANGYI_CONSUMED_ELECTRIFICATION_COUNTER_BUFF = "zhuangfangyi_consume
 const ZHUANGFANGYI_FORCE_OF_NATURE_AMP_BUFF = "zhuangfangyi_force_of_nature_amp";
 const ZHUANGFANGYI_FORCE_OF_NATURE_AMP_BONUS_BUFF = "zhuangfangyi_force_of_nature_amp_bonus";
 const ZHUANGFANGYI_FORCE_OF_NATURE_CONTROLLER_STATUS = "zhuangfangyi_force_of_nature_controller";
+const ZHUANGFANGYI_POTENTIAL_1_FIRST_BATTLE_SKILL_READY_BUFF = "zhuangfangyi_potential_1_first_battle_skill_ready";
 const ZHUANGFANGYI_NORMAL_THUNDERSTRIKE_HIT_PREFIX = "zhuangfangyi_battle_skill_thunderstrike";
 const ZHUANGFANGYI_ULTIMATE_THUNDERSTRIKE_HIT_PREFIX = "zhuangfangyi_ultimate_battle_skill_thunderstrike";
 const ZHUANGFANGYI_COMBO_TRIGGER_ID = "zhuangfangyi_combo";
@@ -245,6 +246,22 @@ const ZHUANGFANGYI_EXECUTE_HITS: ExecuteHitDefinition[] = [
 const ZHUANGFANGYI_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
     if (
+      ctx.event.type === "COMBAT_INITIALIZED"
+      && ctx.event.sourceSlot === ctx.self.slot
+      && ctx.state.isSelfPotentialActive(1)
+    ) {
+      ctx.state.applySelfBuff({
+        buffId: ZHUANGFANGYI_POTENTIAL_1_FIRST_BATTLE_SKILL_READY_BUFF,
+        label: "Heavenly Law: Ready",
+        hidden: true,
+        durationSeconds: 0,
+        infiniteDuration: true,
+        effects: {},
+      });
+      return;
+    }
+
+    if (
       ctx.event.type === "BATTLE_SKILL_HIT"
       && ctx.event.sourceSlot === ctx.self.slot
       && ctx.event.commandId
@@ -413,10 +430,11 @@ const ZHUANGFANGYI_HOOKS: CharacterCombatHooks = {
             : currentSunderblades < ZHUANGFANGYI_SUNDERBLADE_FREE_CREATE_LIMIT
               ? 1
               : 0;
-        const firstCastBonusSunderblade =
-          ctx.state.isSelfPotentialActive(1) && ctx.state.markTriggerOnce("zhuangfangyi_potential_1_first_battle_skill")
-            ? 1
-            : 0;
+        const firstCastBonusSunderblade = ctx.state.hasSelfBuff(
+          ZHUANGFANGYI_POTENTIAL_1_FIRST_BATTLE_SKILL_READY_BUFF,
+        )
+          ? 1
+          : 0;
         const createdSunderblades = Math.min(
           Math.max(0, ZHUANGFANGYI_SUNDERBLADE_MAX_STACKS - currentSunderblades),
           baseCreatedSunderblades + firstCastBonusSunderblade,
@@ -426,12 +444,22 @@ const ZHUANGFANGYI_HOOKS: CharacterCombatHooks = {
         const activeSunderbladesAfterCast = currentSunderblades + createdSunderblades;
         ctx.state.applyEffects({
           stepId: `${ctx.stepId}:zhuangfangyi_battle_skill_setup`,
-          effects: buildBattleSkillSetupEffects({
-            activeSunderbladesAfterCast,
-            consumedElectrification,
-            createdSunderblades,
-            sunderbladeDurationSeconds,
-          }),
+          effects: [
+            ...buildBattleSkillSetupEffects({
+              activeSunderbladesAfterCast,
+              consumedElectrification,
+              createdSunderblades,
+              sunderbladeDurationSeconds,
+            }),
+            ...(firstCastBonusSunderblade > 0
+              ? [{
+                type: "REMOVE_BUFF" as const,
+                target: "self" as const,
+                buffId: ZHUANGFANGYI_POTENTIAL_1_FIRST_BATTLE_SKILL_READY_BUFF,
+                stacks: 99,
+              }]
+              : []),
+          ],
         });
         if (consumedElectrification > 0 && ctx.state.isSelfPotentialActive(3)) {
           ctx.state.grantReturnedSp(10, "Mantra of Sundering SP Return");

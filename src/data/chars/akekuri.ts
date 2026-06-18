@@ -106,7 +106,7 @@ const AKEKURI_COMBAT_HOOKS: CharacterCombatHooks = {
       return;
     }
 
-    ctx.state.grantReturnedSp(baseSpRecovery * scaledBonusRatio, "Akekuri Winning Cheer");
+    ctx.state.grantGeneratedSp(baseSpRecovery * scaledBonusRatio, "Akekuri Winning Cheer");
   },
 };
 

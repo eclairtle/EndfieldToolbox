@@ -12,12 +12,23 @@ function currentLocale(): SupportedLocale {
 const GENERIC_HIT_REGEX = /^Hit\s+(\d+)$/i;
 const NUMERIC_SUFFIX_REGEX = /^(.*?)(\s+\d+)$/;
 const REPEAT_SUFFIX_REGEX = /^(.*?)(\s+#\d+)$/;
+const SEQ_HIT_REGEX = /^Seq\s+(\d+)$/i;
 
 const GLOBAL_HIT_LABELS_ZH: Record<string, string> = {
   "Arts Burst": "法术爆发",
+  "Heat Burst": "灼热爆发",
+  "Cryo Burst": "寒冷爆发",
+  "Electric Burst": "电磁爆发",
+  "Nature Burst": "自然爆发",
   "Combustion Tick": "燃烧",
+  "Combustion Trigger": "燃烧触发",
+  "Electrification Trigger": "导电触发",
+  "Corrosion Trigger": "腐蚀触发",
   "Freeze Trigger": "冻结触发",
+  "Solidification Trigger": "冻结触发",
   "Shatter Trigger": "碎冰触发",
+  "Knockdown Trigger": "倒地触发",
+  "Lift Trigger": "击飞触发",
   "Crush Trigger": "猛击触发",
   "Breach Trigger": "碎甲触发",
 };
@@ -178,6 +189,18 @@ export function getLocalizedHitName(args: {
   const genericHitMatch = rawLabel.match(GENERIC_HIT_REGEX);
   if (genericHitMatch) {
     return `HIT ${genericHitMatch[1]}`;
+  }
+
+  const seqMatch = rawLabel.match(SEQ_HIT_REGEX);
+  if (seqMatch) {
+    return locale === "zh-CN" ? `第${seqMatch[1]}段` : rawLabel;
+  }
+
+  if (locale === "zh-CN") {
+    const exactLocalized = localizeZhHitName(rawLabel, args.characterId);
+    if (exactLocalized !== rawLabel) {
+      return exactLocalized;
+    }
   }
 
   const numericSuffixMatch = rawLabel.match(NUMERIC_SUFFIX_REGEX);

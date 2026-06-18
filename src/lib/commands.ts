@@ -178,6 +178,11 @@ type CommandHitEffectCore =
       label?: string;
     }
   | {
+      type: "GRANT_SP";
+      amount: number;
+      label?: string;
+    }
+  | {
       type: "APPLY_STATUS";
       target: "enemy" | "self" | "global";
       statusId: string;
@@ -780,6 +785,10 @@ function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: numb
       amountAt3Scaling: undefined,
       amountAt4Scaling: undefined,
     };
+  }
+
+  if (effect.type === "GRANT_SP") {
+    return effect;
   }
 
   if (effect.type !== "APPLY_BUFF") {

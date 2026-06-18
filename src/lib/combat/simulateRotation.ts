@@ -31,8 +31,10 @@ import type { CombatHookEnemyArtsInflictionState } from "@/lib/combat/hooks";
 import type { ElementType } from "@/data/characters";
 import { CHARACTERS } from "@/data/characters";
 import { CONSUMABLE_BY_ID } from "@/data/consumables";
+import { ENEMIES } from "@/data/enemies";
 import { runGearSetEventListener } from "@/lib/combat/gearSetEffects";
 import { runWeaponEventListener } from "@/lib/combat/weaponEffects";
+import { calculateEnemyStats } from "@/lib/enemy/enemyScaling";
 import {
   getSuppressionDebuffStatFromEvent,
   resolveContingencyContracts,
@@ -198,6 +200,7 @@ type HitOccurrence = {
 };
 
 const COMBO_READY_TIMEOUT_SECONDS = 10;
+const COMBO_READY_RETRIGGER_ICD_SECONDS = 0.25;
 const ARTS_INFLICTION_DURATION_SECONDS = 20;
 const MELTING_FLAME_STATUS_ID = "melting_flame";
 const ARTS_INFLICTION_STATUS_ID = "arts_infliction";
@@ -380,7 +383,15 @@ export function getEnemyStateAtTime(
     return {
       time: realTime,
       gameTime,
+      enemyId: "",
+      enemyName: "",
+      baseMaxHp: 1,
+      currentHp: 0,
+      maxHp: 1,
       currentDamageTaken: 0,
+      staggerGauge: 0,
+      staggerNodes: [],
+      staggerDecayRate: 0,
       currentStagger: 0,
       isStaggered: false,
       activeDebuffs: [],
@@ -394,7 +405,7 @@ export function getEnemyStateAtTime(
   if (liveIsStaggered && liveStagger > 0 && realTime > latest.time) {
     liveStagger = Math.max(
       0,
-      liveStagger - (realTime - latest.time) * Math.max(0, simulation.enemyStaggerDecayRate),
+      liveStagger - (realTime - latest.time) * Math.max(0, latest.staggerDecayRate),
     );
     if (liveStagger <= 0.0001) {
       liveStagger = 0;
@@ -402,10 +413,21 @@ export function getEnemyStateAtTime(
     }
   }
 
+  const liveEnemyHpPctModifier = latest.activeDebuffs
+    .filter((debuff) =>
+      debuff.stat === "HP_PCT"
+      && (debuff.timeScale === "real" ? debuff.expiresAt > realTime : debuff.expiresAt > gameTime),
+    )
+    .reduce((sum, debuff) => sum + debuff.value, 0);
+  const liveMaxHp = Math.max(1, latest.baseMaxHp * (1 + liveEnemyHpPctModifier));
+  const liveCurrentHp = Math.max(0, liveMaxHp - latest.currentDamageTaken);
+
   return {
     ...latest,
     time: realTime,
     gameTime,
+    currentHp: liveCurrentHp,
+    maxHp: liveMaxHp,
     currentStagger: liveStagger,
     isStaggered: liveIsStaggered,
     activeDebuffs: latest.activeDebuffs.filter((debuff) =>
@@ -426,6 +448,8 @@ export function simulateRotation(args: {
   party: CharacterCombatSnapshot[];
   partyVariantsBySlot?: Partial<Record<PartySlot, CharacterCombatSnapshot[]>>;
   initialVariantIndex?: number;
+  enemyId: string;
+  enemyLevel: number;
   enemyStats: EnemyResolvedStats;
   enemyMods: ModifierStats;
   enemyStaggerGauge: number;
@@ -451,9 +475,10 @@ export function simulateRotation(args: {
     }) => void;
   };
 }): RotationSimulationResult {
-  const { rotation, party, enemyStats, enemyMods } = args;
+  const { rotation, party } = args;
   const simulationDebug = args.debug;
   const characterById = new Map(CHARACTERS.map((character) => [character.id, character]));
+  const enemyById = new Map(ENEMIES.map((enemy) => [enemy.id, enemy]));
   const resolvedContracts = resolveContingencyContracts(args.contingencyContracts);
   const battleTimeLimitSeconds = resolvedContracts.battleTimeLimitSeconds;
   const warnings: string[] = [];
@@ -491,6 +516,7 @@ export function simulateRotation(args: {
     Array<{ startTime: number; endTime: number }>
   >();
   const activeComboWindowBySlot = new Map<CharacterCombatSnapshot["slot"], ComboTriggerWindow>();
+  const lastComboTriggerTimeBySlot = new Map<CharacterCombatSnapshot["slot"], number>();
   const perfectTimingStepIds = new Set<string>();
   const repeatedHitKeys = new Set<string>();
   const terminatedRepeatHitChains = new Set<string>();
@@ -661,11 +687,7 @@ export function simulateRotation(args: {
     .filter((window) => Number.isFinite(window.startTime) && Number.isFinite(window.endTime) && window.endTime > window.startTime)
     .sort((left, right) => left.startTime - right.startTime);
   const enemyInterruptTimes = enemyActionWindows
-    .filter((window) => !window.interrupted && window.effects?.some((effect) => effect.type === "INTERRUPT_ONGOING_COMMANDS"))
-    .map((window) => window.startTime)
-    .sort((left, right) => left - right);
-  const enemyStaggerResetTimes = enemyActionWindows
-    .filter((window) => !window.interrupted && window.effects?.some((effect) => effect.type === "RESET_STAGGER"))
+    .filter((window) => !window.interrupted && window.startEffects?.some((effect) => effect.type === "INTERRUPT_ONGOING_COMMANDS"))
     .map((window) => window.startTime)
     .sort((left, right) => left - right);
   const enemyInterruptedCommandWindows = enemyActionWindows
@@ -677,20 +699,70 @@ export function simulateRotation(args: {
     .sort((left, right) => left.startTime - right.startTime);
   const enemyActionWindowIds = new Set(enemyActionWindows.map((window) => window.id));
   const enemyActionCommandIds = new Set(enemyActionWindows.map((window) => window.commandId));
-  const maxStagger = Math.max(0, args.enemyStaggerGauge);
-  const staggerRecoverySeconds = Math.max(0, args.enemyStaggerRecoverySeconds);
-  const staggerDecayRate = staggerRecoverySeconds > 0 ? maxStagger / staggerRecoverySeconds : 0;
-  const enemyStaggerNodeThresholds = (args.enemyStaggerNodes ?? [])
-    .map((node) => (node > 0 && node <= 1 ? node * maxStagger : node))
-    .filter((node) => node > 0 && node < maxStagger)
-    .sort((left, right) => left - right);
-  const enemyFinisherMultiplier = Math.max(0, args.enemyFinisherMultiplier ?? 1);
-  const enemyFinisherSpGain = Math.max(0, args.enemyFinisherSpGain ?? 0);
+  const initialEnemyBase = enemyById.get(args.enemyId);
+  let currentEnemyBase = initialEnemyBase ?? {
+    id: args.enemyId,
+    name: args.enemyId,
+    baseHpLv1: args.enemyStats.hp,
+    baseAtkLv1: args.enemyStats.atk,
+    hpScalingModel: [1],
+    atkScalingModel: [1],
+    def: args.enemyStats.def,
+    resistances: args.enemyStats.resistances,
+    weight: 1,
+    staggerGauge: args.enemyStaggerGauge,
+    staggerNodes: args.enemyStaggerNodes,
+    staggerRecoverySeconds: args.enemyStaggerRecoverySeconds,
+    finisherMultiplier: args.enemyFinisherMultiplier ?? 1,
+    finisherSpGain: args.enemyFinisherSpGain ?? 0,
+  };
+  let currentEnemyStats = initialEnemyBase ? calculateEnemyStats(initialEnemyBase, args.enemyLevel) : args.enemyStats;
+  let currentEnemyModifierBase = makeEnemyModifierSnapshot({
+    resistances: {
+      PHYSICAL_RESIST_PCT: currentEnemyStats.resistances.Physical,
+      HEAT_RESIST_PCT: currentEnemyStats.resistances.Heat,
+      CRYO_RESIST_PCT: currentEnemyStats.resistances.Cryo,
+      ELECTRIC_RESIST_PCT: currentEnemyStats.resistances.Electric,
+      NATURE_RESIST_PCT: currentEnemyStats.resistances.Nature,
+      AETHER_RESIST_PCT: currentEnemyStats.resistances.Aether,
+    },
+  });
+  let currentEnemyDamageTaken = 0;
+  const getCurrentEnemyStaggerGauge = () => Math.max(0, currentEnemyBase.staggerGauge);
+  const getCurrentEnemyStaggerNodes = () => currentEnemyBase.staggerNodes ?? [];
+  const getCurrentEnemyStaggerRecoverySeconds = () => Math.max(0, currentEnemyBase.staggerRecoverySeconds);
+  const getCurrentEnemyStaggerDecayRate = () => {
+    const gauge = getCurrentEnemyStaggerGauge();
+    const recovery = getCurrentEnemyStaggerRecoverySeconds();
+    return recovery > 0 ? gauge / recovery : 0;
+  };
+  const getCurrentEnemyStaggerNodeThresholds = () => {
+    const gauge = getCurrentEnemyStaggerGauge();
+    return getCurrentEnemyStaggerNodes()
+      .map((node) => (node > 0 && node <= 1 ? node * gauge : node))
+      .filter((node) => node > 0 && node < gauge)
+      .sort((left, right) => left - right);
+  };
+  const getCurrentEnemyFinisherMultiplier = () => Math.max(0, currentEnemyBase.finisherMultiplier);
+  const getCurrentEnemyFinisherSpGain = () => Math.max(0, currentEnemyBase.finisherSpGain);
+  const getCurrentEnemyHpPctModifier = () =>
+    timedEnemyDebuffs
+      .filter((debuff) => debuff.stat === "HP_PCT")
+      .reduce((sum, debuff) => sum + debuff.value, 0);
+  const getCurrentEnemyMaxHp = () => Math.max(1, currentEnemyStats.hp * (1 + getCurrentEnemyHpPctModifier()));
+  const getCurrentEnemyHp = () => Math.max(0, getCurrentEnemyMaxHp() - currentEnemyDamageTaken);
+  const applyEnemyDamage = (damage: number) => {
+    if (!(damage > 0)) {
+      return;
+    }
+    currentEnemyDamageTaken = Math.min(getCurrentEnemyMaxHp(), currentEnemyDamageTaken + damage);
+  };
 
   let enemyCurrentStaggerForEvents = 0;
   let enemyStaggerLastUpdateTime = 0;
   let enemyIsStaggeredForEvents = false;
-  let nextEnemyStaggerResetIndex = 0;
+  let nextEnemyActionStartEffectWindowIndex = 0;
+  let nextEnemyActionEndEffectWindowIndex = 0;
   let nextEnemyInterruptedCommandWindowIndex = 0;
   const reachedStaggerNodeThresholds = new Set<number>();
 
@@ -786,8 +858,165 @@ export function simulateRotation(args: {
     removeEnemyStatusById(ENEMY_FINISHER_AVAILABLE_STATUS_ID);
   };
 
-  const advanceEnemyStaggerTo = (args: { time: number; gameTime: number }) => {
+  const clearFieldEffectStatuses = (args: { time: number; gameTime: number }) => {
+    const effectStatuses = getEffectStatuses();
+    const removed = effectStatuses.filter((status) => status.fieldStatus === true);
+    if (removed.length <= 0) {
+      return;
+    }
+    for (const status of removed) {
+      const sourceActor = partyBySlot.get(status.sourceSlot);
+      if (sourceActor && (status.removeEffects?.length ?? 0) > 0) {
+        applyHitEffects({
+          effects: status.removeEffects,
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: status.sourceStepId,
+          actor: sourceActor,
+          triggerSlots: [],
+          linkSourceStepId: status.linkSourceStepId,
+        });
+      }
+      if (status.target === "enemy") {
+        timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) => debuff.buffId !== status.id);
+      }
+    }
+    setEffectStatuses(effectStatuses.filter((status) => status.fieldStatus !== true), {
+      reason: "clear_field_effect_statuses",
+      time: args.time,
+      gameTime: args.gameTime,
+      changeType: "removed",
+    });
+  };
+
+  const resetEnemyStagger = (args: { time: number; gameTime: number }) => {
+    advanceEnemyStaggerTo({ time: args.time, gameTime: args.gameTime, skipPendingEffectWindows: true });
+    enemyCurrentStaggerForEvents = 0;
+    enemyIsStaggeredForEvents = false;
+    reachedStaggerNodeThresholds.clear();
+    clearEnemyStaggerStatuses();
+    enemyStaggerLastUpdateTime = args.time;
+  };
+
+  const transformEnemy = (effectArgs: { enemyId: string; resetHp?: boolean; time: number; gameTime: number }) => {
+    const nextEnemyBase = enemyById.get(effectArgs.enemyId);
+    if (!nextEnemyBase) {
+      return;
+    }
+    currentEnemyBase = nextEnemyBase;
+    currentEnemyStats = calculateEnemyStats(nextEnemyBase, args.enemyLevel);
+    currentEnemyModifierBase = makeEnemyModifierSnapshot({
+      resistances: {
+        PHYSICAL_RESIST_PCT: currentEnemyStats.resistances.Physical,
+        HEAT_RESIST_PCT: currentEnemyStats.resistances.Heat,
+        CRYO_RESIST_PCT: currentEnemyStats.resistances.Cryo,
+        ELECTRIC_RESIST_PCT: currentEnemyStats.resistances.Electric,
+        NATURE_RESIST_PCT: currentEnemyStats.resistances.Nature,
+        AETHER_RESIST_PCT: currentEnemyStats.resistances.Aether,
+      },
+    });
+    if (effectArgs.resetHp !== false) {
+      currentEnemyDamageTaken = 0;
+    }
+    currentEnemyDamageTaken = Math.min(getCurrentEnemyMaxHp(), currentEnemyDamageTaken);
+  };
+
+  const applyEnemyActionEffects = (args: {
+    effects: EnemyActionWindow["startEffects"] | EnemyActionWindow["endEffects"];
+    time: number;
+    gameTime: number;
+    stepId?: string;
+  }) => {
+    for (const effect of args.effects ?? []) {
+      if (effect.type === "RESET_STAGGER") {
+        resetEnemyStagger({ time: args.time, gameTime: args.gameTime });
+        continue;
+      }
+      if (effect.type === "CLEAR_FIELD_EFFECTS") {
+        clearFieldEffectStatuses({ time: args.time, gameTime: args.gameTime });
+        continue;
+      }
+      if (effect.type === "REINITIALIZE_COMBAT") {
+        initializeCombat({
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId ?? "__combat_reinit",
+          label: "Combat Reinitialized",
+        });
+        continue;
+      }
+      if (effect.type === "TRANSFORM_ENEMY") {
+        transformEnemy({
+          enemyId: effect.enemyId,
+          resetHp: effect.resetHp,
+          time: args.time,
+          gameTime: args.gameTime,
+        });
+      }
+    }
+  };
+
+  const processEnemyActionStartEffectsUpTo = (args: { time: number; gameTime: number }) => {
+    while (nextEnemyActionStartEffectWindowIndex < enemyActionWindows.length) {
+      const window = enemyActionWindows[nextEnemyActionStartEffectWindowIndex];
+      if (!window) {
+        nextEnemyActionStartEffectWindowIndex += 1;
+        continue;
+      }
+      if (window.startTime > args.time + 0.0001) {
+        break;
+      }
+      if (window.interrupted || !window.startEffects?.length) {
+        nextEnemyActionStartEffectWindowIndex += 1;
+        continue;
+      }
+      const effectRealTime = window.startTime;
+      const effectGameTime = timeContext.toGameTime(window.startTime);
+      nextEnemyActionStartEffectWindowIndex += 1;
+      applyEnemyActionEffects({
+        effects: window.startEffects,
+        time: effectRealTime,
+        gameTime: effectGameTime,
+        stepId: `__enemy_action_start:${window.id}`,
+      });
+      recordEnemyState(effectRealTime, effectGameTime);
+    }
+  };
+
+  const processEnemyActionEndEffectsUpTo = (args: { time: number; gameTime: number }) => {
+    while (nextEnemyActionEndEffectWindowIndex < enemyActionWindows.length) {
+      const window = enemyActionWindows[nextEnemyActionEndEffectWindowIndex];
+      if (!window) {
+        nextEnemyActionEndEffectWindowIndex += 1;
+        continue;
+      }
+      if (window.endTime > args.time + 0.0001) {
+        break;
+      }
+      if (window.interrupted || !window.endEffects?.length) {
+        nextEnemyActionEndEffectWindowIndex += 1;
+        continue;
+      }
+      const effectRealTime = window.endTime;
+      const effectGameTime = timeContext.toGameTime(window.endTime);
+      nextEnemyActionEndEffectWindowIndex += 1;
+      applyEnemyActionEffects({
+        effects: window.endEffects,
+        time: effectRealTime,
+        gameTime: effectGameTime,
+        stepId: `__enemy_action_end:${window.id}`,
+      });
+      recordEnemyState(effectRealTime, effectGameTime);
+    }
+  };
+
+  const advanceEnemyStaggerTo = (args: { time: number; gameTime: number; skipPendingEffectWindows?: boolean }) => {
+    if (!args.skipPendingEffectWindows) {
+      processEnemyActionStartEffectsUpTo(args);
+      processEnemyActionEndEffectsUpTo(args);
+    }
     const processDecay = (fromTime: number, toTime: number) => {
+      const staggerDecayRate = getCurrentEnemyStaggerDecayRate();
       if (!enemyIsStaggeredForEvents || staggerDecayRate <= 0 || toTime <= fromTime) {
         return;
       }
@@ -799,20 +1028,6 @@ export function simulateRotation(args: {
         clearEnemyStaggerStatuses();
       }
     };
-
-    while (
-      nextEnemyStaggerResetIndex < enemyStaggerResetTimes.length
-      && (enemyStaggerResetTimes[nextEnemyStaggerResetIndex] ?? Number.POSITIVE_INFINITY) <= args.time + 0.0001
-    ) {
-      const resetTime = enemyStaggerResetTimes[nextEnemyStaggerResetIndex]!;
-      processDecay(enemyStaggerLastUpdateTime, resetTime);
-      enemyCurrentStaggerForEvents = 0;
-      enemyIsStaggeredForEvents = false;
-      reachedStaggerNodeThresholds.clear();
-      clearEnemyStaggerStatuses();
-      enemyStaggerLastUpdateTime = resetTime;
-      nextEnemyStaggerResetIndex += 1;
-    }
 
     processDecay(enemyStaggerLastUpdateTime, args.time);
     enemyStaggerLastUpdateTime = args.time;
@@ -832,6 +1047,7 @@ export function simulateRotation(args: {
     const sourceMods = sourceActor ? getEffectiveActorMods(sourceActor, args.time, args.gameTime) : undefined;
     const staggerEfficiencyMultiplier = Math.max(0, 1 + (sourceMods?.STAGGER_EFFICIENCY_PCT ?? 0));
     const effectiveStagger = baseStagger * staggerEfficiencyMultiplier;
+    const maxStagger = getCurrentEnemyStaggerGauge();
     if (effectiveStagger <= 0 || enemyIsStaggeredForEvents || maxStagger <= 0) {
       return 0;
     }
@@ -840,7 +1056,7 @@ export function simulateRotation(args: {
     const nextStagger = Math.min(maxStagger, previousStagger + effectiveStagger);
     enemyCurrentStaggerForEvents = nextStagger;
 
-    for (const threshold of enemyStaggerNodeThresholds) {
+    for (const threshold of getCurrentEnemyStaggerNodeThresholds()) {
       if (reachedStaggerNodeThresholds.has(threshold)) {
         continue;
       }
@@ -864,6 +1080,7 @@ export function simulateRotation(args: {
       enemyCurrentStaggerForEvents = maxStagger;
       enemyIsStaggeredForEvents = true;
       reachedStaggerNodeThresholds.clear();
+      const staggerRecoverySeconds = getCurrentEnemyStaggerRecoverySeconds();
       addEnemyStatusById({
         statusId: ENEMY_STAGGERED_STATUS_ID,
         label: "Staggered",
@@ -1322,59 +1539,66 @@ export function simulateRotation(args: {
     });
   };
 
+  let cleanupStateDepth = 0;
+
   const cleanupStateAt = (realTime: number, gameTime: number) => {
-    advanceEnemyStaggerTo({ time: realTime, gameTime });
+    cleanupStateDepth += 1;
+    try {
+      advanceEnemyStaggerTo({ time: realTime, gameTime });
 
-    timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) =>
-      debuff.timeScale === "real" ? debuff.expiresAt > realTime : debuff.expiresAt > gameTime,
-    );
+      timedEnemyDebuffs = timedEnemyDebuffs.filter((debuff) =>
+        debuff.timeScale === "real" ? debuff.expiresAt > realTime : debuff.expiresAt > gameTime,
+      );
 
-    const previousStatuses = runtimeStatuses.map(cloneStatusForLog);
-    const expiredOrCleared = previousStatuses.filter((status) => {
-      if (status.stacks != null && status.stacks <= 0) {
-        return true;
-      }
-      return status.timeScale === "real" ? status.expiresAt <= realTime : status.expiresAt <= gameTime;
-    });
-    if (expiredOrCleared.length > 0) {
-      const expiredIds = new Set(expiredOrCleared.map((status) => status.instanceId));
-      runtimeStatuses = runtimeStatuses.filter((status) => !expiredIds.has(status.instanceId));
-      for (const status of expiredOrCleared) {
-        pushStatusChangeLog({
-          changeType: status.stacks != null && status.stacks <= 0 ? "removed" : "expired",
-          reason: status.stacks != null && status.stacks <= 0 ? "cleanup_zero_stacks" : "cleanup_expired",
-          time: realTime,
-          gameTime,
-          status,
-        });
-      }
-    }
-
-    for (const [slot, window] of activeComboWindowBySlot.entries()) {
-      if (window.consumedAt != null || window.expiresAt <= realTime) {
-        activeComboWindowBySlot.delete(slot);
-      }
-    }
-
-    for (const member of party) {
-      const slot = member.slot;
-      const intervals = comboCooldownPauseIntervalsBySlot.get(slot);
-      if (intervals) {
-        const remainingIntervals = intervals.filter((interval) => interval.endTime > realTime + 0.0001);
-        if (remainingIntervals.length > 0) {
-          comboCooldownPauseIntervalsBySlot.set(slot, remainingIntervals);
-        } else {
-          comboCooldownPauseIntervalsBySlot.delete(slot);
+      const previousStatuses = runtimeStatuses.map(cloneStatusForLog);
+      const expiredOrCleared = previousStatuses.filter((status) => {
+        if (status.stacks != null && status.stacks <= 0) {
+          return true;
+        }
+        return status.timeScale === "real" ? status.expiresAt <= realTime : status.expiresAt <= gameTime;
+      });
+      if (expiredOrCleared.length > 0) {
+        const expiredIds = new Set(expiredOrCleared.map((status) => status.instanceId));
+        runtimeStatuses = runtimeStatuses.filter((status) => !expiredIds.has(status.instanceId));
+        for (const status of expiredOrCleared) {
+          pushStatusChangeLog({
+            changeType: status.stacks != null && status.stacks <= 0 ? "removed" : "expired",
+            reason: status.stacks != null && status.stacks <= 0 ? "cleanup_zero_stacks" : "cleanup_expired",
+            time: realTime,
+            gameTime,
+            status,
+          });
         }
       }
-      const pending = pendingComboCooldownBySlot.get(slot);
-      if (!pending || activeComboWindowBySlot.has(slot)) {
-        continue;
+
+      for (const [slot, window] of activeComboWindowBySlot.entries()) {
+        if (window.consumedAt != null || window.expiresAt <= realTime) {
+          activeComboWindowBySlot.delete(slot);
+        }
       }
-      const now = pending.timeScale === "real" ? realTime : gameTime;
-      const remainingPauseDuration = getRemainingComboCooldownPauseDuration(slot, realTime);
-      comboCooldownUntilBySlot.set(slot, now + pending.durationSeconds + remainingPauseDuration);
-      pendingComboCooldownBySlot.delete(slot);
+
+      for (const member of party) {
+        const slot = member.slot;
+        const intervals = comboCooldownPauseIntervalsBySlot.get(slot);
+        if (intervals) {
+          const remainingIntervals = intervals.filter((interval) => interval.endTime > realTime + 0.0001);
+          if (remainingIntervals.length > 0) {
+            comboCooldownPauseIntervalsBySlot.set(slot, remainingIntervals);
+          } else {
+            comboCooldownPauseIntervalsBySlot.delete(slot);
+          }
+        }
+        const pending = pendingComboCooldownBySlot.get(slot);
+        if (!pending || activeComboWindowBySlot.has(slot)) {
+          continue;
+        }
+        const now = pending.timeScale === "real" ? realTime : gameTime;
+        const remainingPauseDuration = getRemainingComboCooldownPauseDuration(slot, realTime);
+        comboCooldownUntilBySlot.set(slot, now + pending.durationSeconds + remainingPauseDuration);
+        pendingComboCooldownBySlot.delete(slot);
+      }
+    } finally {
+      cleanupStateDepth = Math.max(0, cleanupStateDepth - 1);
     }
   };
 
@@ -1391,10 +1615,11 @@ export function simulateRotation(args: {
   };
 
   const getEnemyHpRatioAtTime = (time: number) => {
-    const totalDamageTakenSoFar = timeline
-      .filter((entry) => entry.time < time - 0.0001)
-      .reduce((sum, entry) => sum + entry.damage, 0);
-    return Math.max(0, 1 - totalDamageTakenSoFar / Math.max(1, enemyStats.hp));
+    if (cleanupStateDepth <= 0) {
+      cleanupStateAt(time, timeContext.toGameTime(time));
+    }
+    const maxHp = getCurrentEnemyMaxHp();
+    return Math.max(0, Math.min(1, getCurrentEnemyHp() / Math.max(1, maxHp)));
   };
 
   const gainTeamLinkStacks = (args: {
@@ -1823,15 +2048,20 @@ export function simulateRotation(args: {
 
   const recordEnemyState = (time: number, gameTime: number) => {
     cleanupStateAt(time, gameTime);
-    const currentDamageTaken = timeline
-      .filter((entry) => entry.time <= time)
-      .reduce((sum, entry) => sum + entry.damage, 0);
 
     enemyStateTimeline.push({
       sequence: stateSnapshotSequence++,
       time,
       gameTime,
-      currentDamageTaken,
+      enemyId: currentEnemyBase.id,
+      enemyName: currentEnemyBase.name,
+      baseMaxHp: currentEnemyStats.hp,
+      currentHp: getCurrentEnemyHp(),
+      maxHp: getCurrentEnemyMaxHp(),
+      currentDamageTaken: currentEnemyDamageTaken,
+      staggerGauge: getCurrentEnemyStaggerGauge(),
+      staggerNodes: getCurrentEnemyStaggerNodes(),
+      staggerDecayRate: getCurrentEnemyStaggerDecayRate(),
       currentStagger: enemyCurrentStaggerForEvents,
       isStaggered: enemyIsStaggeredForEvents,
       activeDebuffs: timedEnemyDebuffs.map((debuff) => ({
@@ -1914,18 +2144,7 @@ export function simulateRotation(args: {
     }
 
     cleanupStateAt(args.time, args.gameTime);
-
-    if (activeComboWindowBySlot.has(args.slot)) {
-      comboTriggerDebug.push({
-        ...baseDebugEntry,
-        currentTime: comboCommand.comboCooldownTimeScale === "real" ? args.time : args.gameTime,
-        comboTimeScale: comboCommand.comboCooldownTimeScale,
-        hasActiveComboWindow: true,
-        triggered: false,
-        blockReason: "ACTIVE_COMBO_WINDOW_EXISTS",
-      });
-      return false;
-    }
+    const activeWindow = activeComboWindowBySlot.get(args.slot);
 
     const cooldownOwnerId = comboCommand.comboCooldownOwnerCommandId ?? comboCommand.id;
     const comboTriggerId = comboCommand.comboTriggerId ?? comboCommand.id;
@@ -1954,17 +2173,32 @@ export function simulateRotation(args: {
       return false;
     }
 
+    if (activeWindow) {
+      const lastTriggerTime = lastComboTriggerTimeBySlot.get(args.slot) ?? Number.NEGATIVE_INFINITY;
+      if (args.time < lastTriggerTime + COMBO_READY_RETRIGGER_ICD_SECONDS - 0.0001) {
+        comboTriggerDebug.push({
+          ...baseDebugEntry,
+          currentTime: comboCommand.comboCooldownTimeScale === "real" ? args.time : args.gameTime,
+          comboTimeScale: comboCommand.comboCooldownTimeScale,
+          hasActiveComboWindow: true,
+          triggered: false,
+          blockReason: "ACTIVE_COMBO_WINDOW_TRIGGER_ICD",
+        });
+        return false;
+      }
+      activeWindow.consumedAt = args.time;
+      activeComboWindowBySlot.delete(args.slot);
+    }
+
     const readyAt = args.time + Math.max(0, comboCommand.comboWindowDelaySeconds);
     const windowDuration = Math.max(0, comboCommand.comboWindowDurationSeconds || COMBO_READY_TIMEOUT_SECONDS);
     const perfectTimingDelaySeconds = Math.max(
       0,
-      comboCommand.perfectTimingDelaySeconds
-      || (comboCommand.id !== cooldownOwnerId ? comboCommand.comboWindowDelaySeconds : 0),
+      comboCommand.perfectTimingDelaySeconds,
     );
     const perfectTimingDurationSeconds = Math.max(
       0,
-      comboCommand.perfectTimingDurationSeconds
-      || (comboCommand.id !== cooldownOwnerId ? comboCommand.comboWindowDurationSeconds : 0),
+      comboCommand.perfectTimingDurationSeconds,
     );
     const perfectTimingStartAt = perfectTimingDurationSeconds > 0
       ? args.time + perfectTimingDelaySeconds
@@ -1986,6 +2220,7 @@ export function simulateRotation(args: {
 
     comboWindows.push(window);
     activeComboWindowBySlot.set(args.slot, window);
+    lastComboTriggerTimeBySlot.set(args.slot, args.time);
     emitEvent({
       type: "COMBO_TRIGGERED",
       time: args.time,
@@ -2287,6 +2522,7 @@ export function simulateRotation(args: {
     stepId: string;
     sourceSlot: CharacterCombatSnapshot["slot"];
     commandAttackType?: RotationCombatEvent["commandAttackType"];
+    triggerSlots?: CharacterCombatSnapshot["slot"][];
   }) => {
     const enemyStatuses = getEnemyStatuses();
     const matchingStatuses = enemyStatuses.filter((status) => status.id === args.statusId);
@@ -2340,7 +2576,7 @@ export function simulateRotation(args: {
           ?? commandAttackTypeByStepId.get(getRootStepId(args.stepId)),
       };
       emitEvent(event);
-      dispatchPassiveListeners(event);
+      dispatchPassiveListeners(event, args.triggerSlots);
     }
   };
 
@@ -2718,6 +2954,38 @@ export function simulateRotation(args: {
             emitEvent(spReturnedEvent);
             dispatchPassiveListeners(spReturnedEvent, triggerSlots);
           },
+          grantGeneratedSp: (amount: number, label: string) => {
+            if (amount <= 0) {
+              return;
+            }
+            const spGeneratedEvent: RotationCombatEvent = {
+              type: "SP_GENERATED",
+              time: event.time,
+              gameTime: event.gameTime,
+              stepId: event.stepId,
+              slot: member.slot,
+              sourceSlot: member.slot,
+              label,
+              amount,
+              commandAttackType: event.commandAttackType,
+            };
+            emitEvent(spGeneratedEvent);
+            dispatchPassiveListeners(spGeneratedEvent, triggerSlots);
+
+            const spRecoveredEvent: RotationCombatEvent = {
+              type: "SKILL_SP_RECOVERED",
+              time: event.time,
+              gameTime: event.gameTime,
+              stepId: event.stepId,
+              slot: member.slot,
+              sourceSlot: member.slot,
+              label,
+              amount,
+              commandAttackType: event.commandAttackType,
+            };
+            emitEvent(spRecoveredEvent);
+            dispatchPassiveListeners(spRecoveredEvent, triggerSlots);
+          },
           markTriggerOnce: (key: string) => {
             const onceKey = `event:${member.slot}:${key}`;
             if (setTriggerFlags.has(onceKey)) {
@@ -2810,6 +3078,7 @@ export function simulateRotation(args: {
               sourceSlot: member.slot,
               stepId: event.stepId,
               commandAttackType: event.commandAttackType,
+              triggerSlots,
             }),
           emitEvent: (hookArgs) => {
             emitEvent({
@@ -3173,6 +3442,35 @@ export function simulateRotation(args: {
     );
   };
 
+  const initializeCombat = (args: {
+    time: number;
+    gameTime: number;
+    stepId: string;
+    label?: string;
+    memberSlots?: Set<PartySlot>;
+  }) => {
+    const targetSlots = args.memberSlots ?? new Set<PartySlot>(party.map((member) => member.slot));
+    const label = args.label ?? "Combat Initialized";
+    for (const slot of targetSlots) {
+      const event: RotationCombatEvent = {
+        type: "COMBAT_INITIALIZED",
+        time: args.time,
+        gameTime: args.gameTime,
+        stepId: args.stepId,
+        slot,
+        sourceSlot: slot,
+        label,
+      };
+      emitEvent(event);
+      dispatchPassiveListeners(event, [], {
+        memberSlots: new Set<PartySlot>([slot]),
+        includeCombatHooks: true,
+        includeGearSet: true,
+        includeWeapon: true,
+      });
+    }
+  };
+
   const gainMeltingFlameStacks = (args: {
     slot: CharacterCombatSnapshot["slot"];
     stacks: number;
@@ -3357,7 +3655,7 @@ export function simulateRotation(args: {
 
     return timedEnemyDebuffs.reduce(
       (mods, debuff) => addModifierDelta(mods, { [debuff.stat]: debuff.value }),
-      { ...enemyMods },
+      { ...currentEnemyModifierBase },
     );
   };
 
@@ -3495,7 +3793,7 @@ export function simulateRotation(args: {
       baseMultiplier: args.baseMultiplier,
       attackerMods: effectiveActorMods,
       enemyMods: effectiveEnemyMods,
-      enemyStats,
+      enemyStats: currentEnemyStats,
       applierLevel: actor.level,
       reactionCategory: args.reactionCategory ?? "arts",
       noCrit: args.noCrit,
@@ -3560,7 +3858,7 @@ export function simulateRotation(args: {
         attackType: "REACTION",
         attackerMods: { ...effectiveActorMods },
         enemyMods: { ...effectiveEnemyMods },
-        enemyDef: enemyStats.def,
+        enemyDef: currentEnemyStats.def,
         hitTimes: 1,
         linkMultiplier,
         reactionBaseMultiplier: args.baseMultiplier,
@@ -3572,6 +3870,7 @@ export function simulateRotation(args: {
       },
     });
 
+    applyEnemyDamage(damage);
     totalDamage += damage;
     damageBySlot.set(actor.slot, (damageBySlot.get(actor.slot) ?? 0) + damage);
     if (critRigMode === "force_crit") {
@@ -3653,7 +3952,7 @@ export function simulateRotation(args: {
       hit: args.hit,
       attackerMods: effectiveActorMods,
       enemyMods: effectiveEnemyMods,
-      enemyStats,
+      enemyStats: currentEnemyStats,
       noCrit: args.hit.noCrit,
     });
     const linkedStacks = args.linkSourceStepId
@@ -3665,7 +3964,7 @@ export function simulateRotation(args: {
     const isFinisherHit = sourceCommand?.attackType === "BASIC_ATTACK" && sourceCommand?.basicAttackVariant === "finisher";
     const finisherAvailable = hasEnemyStatusById(ENEMY_FINISHER_AVAILABLE_STATUS_ID);
     const finisherBonusMultiplier =
-      isEnemyStaggered && isFinisherHit && finisherAvailable ? enemyFinisherMultiplier : 1;
+      isEnemyStaggered && isFinisherHit && finisherAvailable ? getCurrentEnemyFinisherMultiplier() : 1;
     const staggeredMultiplier = isEnemyStaggered ? ENEMY_STAGGERED_DAMAGE_MULTIPLIER : 1;
     const totalEnemyMultiplier = staggeredMultiplier * finisherBonusMultiplier;
     const noCritDamage = damageBreakdown.noCritDamage * (1 + linkMultiplier) * totalEnemyMultiplier;
@@ -3686,7 +3985,7 @@ export function simulateRotation(args: {
         ? noCritDamage
         : averageDamage;
     const finisherBonusSp =
-      isEnemyStaggered && isFinisherHit && finisherAvailable ? enemyFinisherSpGain : 0;
+      isEnemyStaggered && isFinisherHit && finisherAvailable ? getCurrentEnemyFinisherSpGain() : 0;
       const appliedStagger = applyEnemyStaggerFromHit({
         rawStagger: args.hit.stagger,
         time: args.time,
@@ -3732,7 +4031,7 @@ export function simulateRotation(args: {
         basicAttackVariant: sourceCommand?.basicAttackVariant,
         attackerMods: { ...effectiveActorMods },
         enemyMods: { ...effectiveEnemyMods },
-        enemyDef: enemyStats.def,
+        enemyDef: currentEnemyStats.def,
         hitTimes: 1,
         linkMultiplier,
         staggeredMultiplier,
@@ -3741,6 +4040,7 @@ export function simulateRotation(args: {
       },
     });
 
+    applyEnemyDamage(damage);
     totalDamage += damage;
     damageBySlot.set(actor.slot, (damageBySlot.get(actor.slot) ?? 0) + damage);
     if (critRigMode === "force_crit") {
@@ -3813,7 +4113,7 @@ export function simulateRotation(args: {
         basicAttackVariant: undefined,
         attackerMods: makeBaseModifierStats(),
         enemyMods: makeBaseModifierStats(),
-        enemyDef: enemyStats.def,
+        enemyDef: currentEnemyStats.def,
         hitTimes: 1,
         linkMultiplier: 0,
         staggeredMultiplier: 1,
@@ -4954,6 +5254,7 @@ export function simulateRotation(args: {
     sourceSlot?: CharacterCombatSnapshot["slot"];
     stepId?: string;
     commandAttackType?: RotationCombatEvent["commandAttackType"];
+    triggerSlots?: CharacterCombatSnapshot["slot"][];
   }): number => {
     cleanupStateAt(args.realTime, args.gameTime);
     let remaining = Math.max(0, Math.floor(args.maxConsumed));
@@ -5075,7 +5376,7 @@ export function simulateRotation(args: {
         commandAttackType: args.commandAttackType ?? (args.stepId ? commandAttackTypeByStepId.get(args.stepId) : undefined),
       };
       emitEvent(event);
-      dispatchPassiveListeners(event);
+      dispatchPassiveListeners(event, args.triggerSlots);
     }
 
     return consumedTotal;
@@ -6008,6 +6309,36 @@ export function simulateRotation(args: {
         continue;
       }
 
+      if (effect.type === "GRANT_SP") {
+        const amount = Math.max(0, effect.amount);
+        if (amount <= 0) {
+          continue;
+        }
+        emitEvent({
+          type: "SP_GENERATED",
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId,
+          slot: args.actor.slot,
+          sourceSlot: args.actor.slot,
+          label: effect.label ?? `${args.actor.characterName} Skill Generated SP`,
+          amount,
+          commandAttackType: args.sourceCommandAttackType,
+        });
+        emitEvent({
+          type: "SKILL_SP_RECOVERED",
+          time: args.time,
+          gameTime: args.gameTime,
+          stepId: args.stepId,
+          slot: args.actor.slot,
+          sourceSlot: args.actor.slot,
+          label: effect.label ?? `${args.actor.characterName} Skill Recovered SP`,
+          amount,
+          commandAttackType: args.sourceCommandAttackType,
+        });
+        continue;
+      }
+
       if (effect.type === "APPLY_TEAM_STATUS") {
         gainTeamStatusStacks({
           statusId: effect.statusId,
@@ -6198,6 +6529,7 @@ export function simulateRotation(args: {
           gameTime: args.gameTime,
           stepId: args.stepId,
           sourceSlot: args.actor.slot,
+          triggerSlots: args.triggerSlots,
           commandAttackType:
             args.sourceCommandAttackType
             ?? commandAttackTypeByStepId.get(args.stepId)
@@ -6742,6 +7074,7 @@ export function simulateRotation(args: {
               sourceSlot: member.slot,
               stepId: hookStepId,
               commandAttackType: hookCommandAttackType,
+              triggerSlots: args.triggerSlots,
             }),
           hasSelfBuff: (buffId: string) => {
             cleanupStateAt(hookTime, hookGameTime);
@@ -6800,6 +7133,7 @@ export function simulateRotation(args: {
               label: hookArgs.label,
               hidden: hookArgs.hidden,
               durationSeconds: hookArgs.durationSeconds,
+              infiniteDuration: hookArgs.infiniteDuration,
               timeScale: hookArgs.timeScale ?? "game",
               effects: hookArgs.effects,
               stackGroup: hookArgs.stackGroup,
@@ -6827,6 +7161,7 @@ export function simulateRotation(args: {
                 label: hookArgs.label,
                 hidden: hookArgs.hidden,
                 durationSeconds: hookArgs.durationSeconds,
+                infiniteDuration: hookArgs.infiniteDuration,
                 timeScale: hookArgs.timeScale ?? "game",
                 effects: hookArgs.effects,
                 stackGroup: hookArgs.stackGroup,
@@ -6880,6 +7215,38 @@ export function simulateRotation(args: {
             };
             emitEvent(event);
             dispatchPassiveListeners(event);
+          },
+          grantGeneratedSp: (amount: number, label: string) => {
+            if (amount <= 0) {
+              return;
+            }
+            const spGeneratedEvent: RotationCombatEvent = {
+              type: "SP_GENERATED",
+              time: hookTime,
+              gameTime: hookGameTime,
+              stepId: hookStepId,
+              slot: member.slot,
+              sourceSlot: member.slot,
+              label,
+              amount,
+              commandAttackType: hookCommandAttackType,
+            };
+            emitEvent(spGeneratedEvent);
+            dispatchPassiveListeners(spGeneratedEvent);
+
+            const spRecoveredEvent: RotationCombatEvent = {
+              type: "SKILL_SP_RECOVERED",
+              time: hookTime,
+              gameTime: hookGameTime,
+              stepId: hookStepId,
+              slot: member.slot,
+              sourceSlot: member.slot,
+              label,
+              amount,
+              commandAttackType: hookCommandAttackType,
+            };
+            emitEvent(spRecoveredEvent);
+            dispatchPassiveListeners(spRecoveredEvent);
           },
           gainTeamLinkStacks: (hookArgs) => {
             gainTeamLinkStacks({
@@ -7153,6 +7520,11 @@ export function simulateRotation(args: {
       },
     });
   }
+  initializeCombat({
+    time: 0,
+    gameTime: 0,
+    stepId: "__combat_init",
+  });
   recordEnemyState(initialSnapshotRealTime, initialSnapshotGameTime);
 
   for (const action of actionsInTimeOrder) {
@@ -7783,6 +8155,10 @@ export function simulateRotation(args: {
         useLevelAsStacks: occurrence.hit.accumulator.useLevelAsStacks,
         realTime: occurrence.time,
         gameTime: occurrence.gameTime,
+        sourceSlot: occurrence.actor.slot,
+        stepId: occurrence.action.stepId,
+        commandAttackType: occurrence.command.attackType,
+        triggerSlots: triggeredComboSlots,
       });
       if (consumed > 0) {
         if (occurrence.hit.accumulator.statusId === ARTS_INFLICTION_STATUS_ID) {
@@ -7878,7 +8254,7 @@ export function simulateRotation(args: {
       hit: effectiveHit,
       attackerMods: effectiveActorMods,
       enemyMods: effectiveEnemyMods,
-      enemyStats,
+      enemyStats: currentEnemyStats,
       noCrit: effectiveHit.noCrit,
     });
     const isHealingHit = occurrence.hit.damageType === "Healing";
@@ -7891,7 +8267,7 @@ export function simulateRotation(args: {
     const isEnemyStaggered = enemyIsStaggeredForEvents;
     const finisherAvailable = hasEnemyStatusById(ENEMY_FINISHER_AVAILABLE_STATUS_ID);
     const finisherBonusMultiplier =
-      isEnemyStaggered && occurrence.isFinisherHit && finisherAvailable ? enemyFinisherMultiplier : 1;
+      isEnemyStaggered && occurrence.isFinisherHit && finisherAvailable ? getCurrentEnemyFinisherMultiplier() : 1;
     const staggeredMultiplier = isEnemyStaggered ? ENEMY_STAGGERED_DAMAGE_MULTIPLIER : 1;
     const totalEnemyMultiplier = staggeredMultiplier * finisherBonusMultiplier;
     const noCritDamage = isHealingHit ? 0 : damageBreakdown.noCritDamage * (1 + linkMultiplier) * totalEnemyMultiplier;
@@ -7906,7 +8282,7 @@ export function simulateRotation(args: {
           : averageDamage;
     const finisherBonusSp =
       !isHealingHit && isEnemyStaggered && occurrence.isFinisherHit && finisherAvailable
-        ? enemyFinisherSpGain
+        ? getCurrentEnemyFinisherSpGain()
         : 0;
     const appliedStagger = isHealingHit
       ? 0
@@ -7923,6 +8299,7 @@ export function simulateRotation(args: {
     }
 
     if (!isHealingHit) {
+      applyEnemyDamage(damage);
       totalDamage += damage;
       if (critRigMode === "force_crit") {
         riggedCritCount += 1;
@@ -7999,7 +8376,7 @@ export function simulateRotation(args: {
         basicAttackVariant: occurrence.command.basicAttackVariant,
         attackerMods: { ...effectiveActorMods },
         enemyMods: { ...effectiveEnemyMods },
-        enemyDef: enemyStats.def,
+        enemyDef: currentEnemyStats.def,
         hitTimes: 1,
         linkMultiplier,
         consumedArtsInflictionStacksForBonus,
@@ -8231,7 +8608,7 @@ export function simulateRotation(args: {
     actorStateTimeline,
     enemyStateTimeline,
     enemyActionWindows,
-    enemyStaggerDecayRate: staggerDecayRate,
+    enemyStaggerDecayRate: getCurrentEnemyStaggerDecayRate(),
     riggedCritCount,
     comboTriggerDebug,
     passiveListenerDebug,

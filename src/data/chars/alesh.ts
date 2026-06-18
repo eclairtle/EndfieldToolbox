@@ -179,14 +179,14 @@ const ALESH_COMMANDS: CommandDefinition[] = [
         name: "Regular Catch",
         multiplier: pct([133, 147, 160, 173, 187, 200, 213, 227, 240, 257, 277, 300]),
         stagger: flat12(10),
-        spReturned: flat12(10),
+        spGenerated: flat12(10),
         offsetFrames: flat12(76.2),
       },
     ],
   },
   {
     id: ALESH_COMBO_SKILL_RARE_FIN_ID,
-    name: "Auger Angling: Rare Fin",
+    name: "(Rare Fin) Auger Angling",
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
@@ -203,7 +203,7 @@ const ALESH_COMMANDS: CommandDefinition[] = [
         name: "Rare Fin Catch",
         multiplier: pct([213, 235, 256, 277, 299, 320, 341, 363, 384, 411, 443, 480]),
         stagger: flat12(10),
-        spReturned: flat12(20),
+        spGenerated: flat12(20),
         offsetFrames: flat12(76.2),
       },
     ],
@@ -223,7 +223,7 @@ const ALESH_COMMANDS: CommandDefinition[] = [
         name: "Monster Catch",
         multiplier: pct([436, 479, 523, 566, 610, 653, 697, 741, 784, 839, 904, 980]),
         stagger: flat12(20),
-        spReturned: flat12(20),
+        spGenerated: flat12(20),
         offsetFrames: flat12(180),
         effects: [{ type: "APPLY_ARTS_INFLICTION", element: "Cryo", stacks: 1 }],
       },
@@ -309,10 +309,15 @@ const ALESH_HOOKS: CharacterCombatHooks = {
         stepId: `${ctx.stepId}:alesh_battle_skill_freeze`,
         effectTree: ctx.effectTree,
       });
-      ctx.state.grantReturnedSp(
-        consumedStacks * 10 + (ctx.state.isSelfPotentialActive(1) ? 10 : 0),
-        "Unconventional Lure SP Recovery",
-      );
+      ctx.state.applyEffects({
+        effects: [{
+          type: "GRANT_SP",
+          amount: consumedStacks * 10 + (ctx.state.isSelfPotentialActive(1) ? 10 : 0),
+          label: "Unconventional Lure SP Recovery",
+        }],
+        stepId: `${ctx.stepId}:alesh_battle_skill_sp`,
+        effectTree: ctx.effectTree,
+      });
       return;
     }
 

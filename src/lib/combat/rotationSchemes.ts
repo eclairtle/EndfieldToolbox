@@ -11,6 +11,7 @@ export type RotationScheme = {
 export type RotationSchemesState = {
   schemes: RotationScheme[];
   activeSchemeId: string;
+  selectedEnemyId: string;
   enemyLevel: number;
 };
 
@@ -37,6 +38,7 @@ export function createDefaultRotationSchemesState(): RotationSchemesState {
   return {
     schemes: [scheme],
     activeSchemeId: scheme.id,
+    selectedEnemyId: "rhodagn",
     enemyLevel: 90,
   };
 }
@@ -70,6 +72,10 @@ function normalizeState(value: Partial<RotationSchemesState> | null | undefined)
   return {
     schemes,
     activeSchemeId,
+    selectedEnemyId:
+      typeof value?.selectedEnemyId === "string" && value.selectedEnemyId.length > 0
+        ? value.selectedEnemyId
+        : "rhodagn",
     enemyLevel:
       typeof value?.enemyLevel === "number" && Number.isFinite(value.enemyLevel)
         ? Math.max(1, Math.min(100, Math.round(value.enemyLevel)))

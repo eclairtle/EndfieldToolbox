@@ -53,6 +53,20 @@ Before finalizing, explicitly verify that these values are sourced from wiki API
 
 If `gamedata.json` and wiki differ, prefer wiki and add an implementation note documenting the divergence.
 
+## 3.6) SP semantics guardrail
+
+When sourcing SP-related mechanics from wiki text:
+
+- `SP Recovery` means generated SP, not SP return.
+- `SP Return` is a separate mechanic and must only be used when source text explicitly says `SP Return`.
+- If a skill/hit directly gives SP as part of its normal behavior, model it with:
+  - `spGenerated` on the hit/command, or
+  - generated-SP effects/helpers such as `GRANT_SP`, `GRANT_SP_FROM_VULNERABILITY_STACKS`, or `grantGeneratedSp(...)`.
+- Do not model `SP Recovery` with `spReturned` or `grantReturnedSp(...)`.
+- `SP Return` does not imply generated SP and should not be used to satisfy effects that care about normal skill SP recovery unless source behavior explicitly says it should.
+
+This matters especially for Vanguard characters, since many of their talents/passives key off normal skill SP generation/recovery rather than SP return.
+
 ## 4) Mandatory effect-to-hit mapping check
 
 From API descriptions and skill blackboard keys:

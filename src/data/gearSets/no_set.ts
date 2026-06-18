@@ -138,6 +138,10 @@ export const NO_SET: GearBase[] = [
       {
         "stat": "STR",
         "value": 43
+      },
+      {
+        "stat": "FINAL_DMG_REDUCTION_PCT",
+        "value": 0.178
       }
     ],
   },
@@ -214,8 +218,11 @@ export const NO_SET: GearBase[] = [
       {
         "stat": "STR",
         "value": 86
+      },
+      {
+        "stat": "SKILL_DMG_PCT",
+        "value": 0.24
       }
     ],
   }
 ];
-

@@ -83,6 +83,10 @@ export const FRONTIERS: GearBase[] = [
       {
         "stat": "INT",
         "value": 58
+      },
+      {
+        "stat": "SECONDARY_ATTR_PCT",
+        "value": 0.104
       }
     ],
   },
@@ -239,6 +243,10 @@ export const FRONTIERS: GearBase[] = [
       {
         "stat": "STR",
         "value": 43
+      },
+      {
+        "stat": "SKILL_DMG_PCT",
+        "value": 0.23
       }
     ],
   }

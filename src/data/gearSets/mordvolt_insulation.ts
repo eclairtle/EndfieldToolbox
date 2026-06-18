@@ -92,6 +92,10 @@ export const MORDVOLT_INSULATION: GearBase[] = [
       {
         "stat": "WIL",
         "value": 22
+      },
+      {
+        "stat": "ARTS_DMG_PCT",
+        "value": 0.092
       }
     ],
   },
