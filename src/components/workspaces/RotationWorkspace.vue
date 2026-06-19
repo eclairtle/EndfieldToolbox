@@ -44,7 +44,7 @@ import {
   getEnemyCommandDefinitions,
   type EnemyCommandPlacement,
 } from "@/lib/enemy/enemyActionWindows";
-import { ROTATION_ENEMY_COMMANDS_STORAGE_KEY, ROTATION_SP_STORAGE_KEY } from "@/lib/storageKeys";
+import { ROTATION_SP_STORAGE_KEY } from "@/lib/storageKeys";
 import { ROTATION_CONTRACTS_STORAGE_KEY } from "@/lib/storageKeys";
 import { CONSUMABLES, CONSUMABLE_BY_ID, getConsumableDisplayName } from "@/data/consumables";
 import { getEnemyDisplayName } from "@/data/enemyCustomNames";
@@ -140,8 +140,6 @@ type TeamSpConfig = {
   consumableBySlot: (string | null)[];
 };
 
-type EnemyCommandLayoutsByScheme = Record<string, Record<string, EnemyCommandPlacement[]>>;
-
 function makeDefaultTeamSpConfig(): TeamSpConfig {
   return { initialSp: 200, spRegenRate: 8, startingEnergyBySlot: [100, 100, 100, 100], consumableBySlot: [null, null, null, null] };
 }
@@ -226,46 +224,6 @@ function normalizeEnemyCommandPlacement(value: Partial<EnemyCommandPlacement> | 
   };
 }
 
-function loadEnemyCommandLayoutsByScheme(): EnemyCommandLayoutsByScheme {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const raw = window.localStorage.getItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY);
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    const parsedRecord = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null;
-    const byBuild = parsedRecord?.byBuild && typeof parsedRecord.byBuild === "object"
-      ? parsedRecord.byBuild as Record<string, { byScheme?: Record<string, Record<string, Partial<EnemyCommandPlacement>[]>> }>
-      : null;
-    const scoped = byBuild?.[getBuildStorageScopeId()];
-    const byScheme = scoped?.byScheme
-      ?? ((parsedRecord?.byScheme && typeof parsedRecord.byScheme === "object")
-        ? parsedRecord.byScheme as Record<string, Record<string, Partial<EnemyCommandPlacement>[]>>
-        : {});
-
-    const result: EnemyCommandLayoutsByScheme = {};
-    for (const [schemeId, byEnemy] of Object.entries(byScheme)) {
-      const nextByEnemy: Record<string, EnemyCommandPlacement[]> = {};
-      for (const [enemyId, placements] of Object.entries(byEnemy ?? {})) {
-        nextByEnemy[enemyId] = (placements ?? [])
-          .map((placement: Partial<EnemyCommandPlacement>) => normalizeEnemyCommandPlacement(placement))
-          .filter((placement: EnemyCommandPlacement | null): placement is EnemyCommandPlacement => placement != null);
-      }
-      result[schemeId] = nextByEnemy;
-    }
-
-    return result;
-  } catch (error) {
-    console.warn("Failed to load enemy command layout from localStorage", error);
-    return {};
-  }
-}
-
 function loadContractsByScheme(): Record<string, ActiveContingencyContract[]> {
   if (typeof window === "undefined") {
     return {};
@@ -290,7 +248,6 @@ function loadContractsByScheme(): Record<string, ActiveContingencyContract[]> {
   }
 }
 
-const buildScopeId = computed(() => props.buildId);
 // App.vue already owns rotation-scheme hydration/scope switching.
 // Use the shared singleton state here without a second scope watcher to avoid racey reloads.
 const { rotationSchemes, activeScheme, activeRotation: rotation, setActiveScheme, addScheme, renameActiveScheme, removeActiveScheme } = useRotationSchemes();
@@ -304,7 +261,6 @@ const selectionAnchorId = ref<string | null>(rotation.value.steps[0]?.id ?? null
 const selectedEnemyCommandId = ref<string | null>(null);
 const cursorTime = ref(0);
 const teamSpConfigByScheme = ref<Record<string, TeamSpConfig>>(loadTeamSpConfigByScheme());
-const enemyCommandLayoutsByScheme = ref<EnemyCommandLayoutsByScheme>(loadEnemyCommandLayoutsByScheme());
 const contractsByScheme = ref<Record<string, ActiveContingencyContract[]>>(loadContractsByScheme());
 const contractsPopupOpen = ref(false);
 const highlightedContractId = ref<string>(CONTINGENCY_CONTRACTS[0]?.id ?? "");
@@ -425,12 +381,11 @@ const enemyCommandDefinitions = computed(() => getEnemyCommandDefinitions(props.
 const enemyCommands = ref<EnemyCommandPlacement[]>([]);
 
 function ensureEnemyCommandsForActiveContext(): EnemyCommandPlacement[] {
-  const schemeId = activeScheme.value.id;
-  const enemyId = props.selectedEnemyId;
-  const byEnemy = enemyCommandLayoutsByScheme.value[schemeId] ?? {};
-  if (!enemyCommandLayoutsByScheme.value[schemeId]) {
-    enemyCommandLayoutsByScheme.value[schemeId] = byEnemy;
+  if (!activeScheme.value.enemyCommandsByEnemy) {
+    activeScheme.value.enemyCommandsByEnemy = {};
   }
+  const enemyId = props.selectedEnemyId;
+  const byEnemy = activeScheme.value.enemyCommandsByEnemy;
 
   const existing = byEnemy[enemyId];
   if (existing) {
@@ -458,12 +413,11 @@ watch(
 watch(
   enemyCommands,
   (value) => {
-    const schemeId = activeScheme.value.id;
     const enemyId = props.selectedEnemyId;
-    if (!enemyCommandLayoutsByScheme.value[schemeId]) {
-      enemyCommandLayoutsByScheme.value[schemeId] = {};
+    if (!activeScheme.value.enemyCommandsByEnemy) {
+      activeScheme.value.enemyCommandsByEnemy = {};
     }
-    enemyCommandLayoutsByScheme.value[schemeId]![enemyId] = value.map((entry) => ({ ...entry }));
+    activeScheme.value.enemyCommandsByEnemy[enemyId] = value.map((entry) => ({ ...entry }));
   },
   { deep: true },
 );
@@ -555,27 +509,6 @@ watch(
 );
 
 watch(
-  enemyCommandLayoutsByScheme,
-  (value) => {
-    const raw = window.localStorage.getItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY);
-    let parsed: { byBuild?: Record<string, { byScheme?: EnemyCommandLayoutsByScheme }> } = {};
-    if (raw) {
-      try {
-        parsed = JSON.parse(raw) as typeof parsed;
-      } catch {
-        parsed = {};
-      }
-    }
-    if (!parsed.byBuild) {
-      parsed.byBuild = {};
-    }
-    parsed.byBuild[getBuildStorageScopeId()] = { byScheme: value };
-    window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify(parsed));
-  },
-  { deep: true },
-);
-
-watch(
   contractsByScheme,
   (value) => {
     const raw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
@@ -600,7 +533,6 @@ watch(
   [() => props.buildId, () => props.historyRevision],
   async () => {
     teamSpConfigByScheme.value = loadTeamSpConfigByScheme();
-    enemyCommandLayoutsByScheme.value = loadEnemyCommandLayoutsByScheme();
     contractsByScheme.value = loadContractsByScheme();
     syncEnemyCommandsFromLayouts();
     setSelectedStepIds(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);

@@ -215,12 +215,12 @@ const visibleModifierRows = computed(() => {
                 v-if="isAttributeStat(k)"
                 class="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-56 -translate-x-1/2 rounded-lg border border-[#d8d8d8] bg-white p-2 text-xs text-[#444] shadow-lg group-hover:block"
               >
-                <div class="mb-1 font-semibold text-[#222]">{{ statLabel(k) }} Breakdown</div>
-                <div class="flex justify-between"><span>Operator Base</span><span class="tabular-nums">{{ out.attributeBreakdown[k].operatorBase }}</span></div>
-                <div class="flex justify-between"><span>Operator Bonus</span><span class="tabular-nums">{{ out.attributeBreakdown[k].operatorBonus }}</span></div>
-                <div class="flex justify-between"><span>Weapon Bonus</span><span class="tabular-nums">{{ out.attributeBreakdown[k].weaponBonus }}</span></div>
-                <div class="flex justify-between"><span>Gear Bonus</span><span class="tabular-nums">{{ out.attributeBreakdown[k].gearBonus }}</span></div>
-                <div class="mt-1 flex justify-between border-t border-[#ececec] pt-1"><span>% Multiplier</span><span class="tabular-nums">{{ out.attributeBreakdown[k].percentageMultiplierPct.toFixed(2) }}%</span></div>
+                <div class="mb-1 font-semibold text-[#222]">{{ t("summary.statBreakdown", { stat: statLabel(k) }) }}</div>
+                <div class="flex justify-between"><span>{{ t("summary.operatorBase") }}</span><span class="tabular-nums">{{ out.attributeBreakdown[k].operatorBase }}</span></div>
+                <div class="flex justify-between"><span>{{ t("summary.operatorBonus") }}</span><span class="tabular-nums">{{ out.attributeBreakdown[k].operatorBonus }}</span></div>
+                <div class="flex justify-between"><span>{{ t("summary.weaponBonus") }}</span><span class="tabular-nums">{{ out.attributeBreakdown[k].weaponBonus }}</span></div>
+                <div class="flex justify-between"><span>{{ t("summary.gearBonus") }}</span><span class="tabular-nums">{{ out.attributeBreakdown[k].gearBonus }}</span></div>
+                <div class="mt-1 flex justify-between border-t border-[#ececec] pt-1"><span>{{ t("summary.percentageMultiplier") }}</span><span class="tabular-nums">{{ out.attributeBreakdown[k].percentageMultiplierPct.toFixed(2) }}%</span></div>
               </div>
             </div>
           </div>

@@ -29,6 +29,11 @@ export type DamageTallyTiming = {
   endTime: number;
 };
 
+export type SavedBuildScopedRotationUiState = {
+  sp: unknown;
+  contracts: unknown;
+};
+
 export type SavedBuild = {
   id: string;
   name: string;
@@ -38,6 +43,7 @@ export type SavedBuild = {
   currentBuildState: BuildStoreStateSnapshot;
   plannedBuildState: BuildStoreStateSnapshot;
   rotationState: RotationSchemesState;
+  scopedRotationUiState?: SavedBuildScopedRotationUiState;
   summary: BuildSummarySnapshot;
   damageTallyTiming: DamageTallyTiming;
   compareSettings?: {
@@ -61,6 +67,10 @@ function makeDefaultBuild(index: number): SavedBuild {
     currentBuildState: createDefaultBuildStoreStateSnapshot(),
     plannedBuildState: createDefaultBuildStoreStateSnapshot(),
     rotationState: createDefaultRotationSchemesState(),
+    scopedRotationUiState: {
+      sp: null,
+      contracts: null,
+    },
     summary: {
       totalDamage: null,
       dps: null,
@@ -824,42 +834,39 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
   if (!spParsed.byBuild) {
     spParsed.byBuild = {};
   }
-  const defaultConsumableBySlot =
-    build.id === "build_sb34yazo" || build.id === "build_rs8ospee"
-      ? ["item_corp3_animal_1", null, null, null]
-      : [null, null, null, null];
-  spParsed.byBuild[build.id] = {
-    byScheme: {
-      [activeSchemeId]: {
-        initialSp: 200,
-        spRegenRate: 8,
-        startingEnergyBySlot: [100, 100, 100, 100],
-        consumableBySlot: defaultConsumableBySlot,
+  const seededSpState = build.scopedRotationUiState?.sp;
+  if (seededSpState && typeof seededSpState === "object") {
+    spParsed.byBuild[build.id] = cloneJson(seededSpState) as { byScheme?: Record<string, unknown> };
+  } else {
+    const defaultConsumableBySlot =
+      build.id === "build_sb34yazo" || build.id === "build_rs8ospee"
+        ? ["item_corp3_animal_1", null, null, null]
+        : [null, null, null, null];
+    spParsed.byBuild[build.id] = {
+      byScheme: {
+        [activeSchemeId]: {
+          initialSp: 200,
+          spRegenRate: 8,
+          startingEnergyBySlot: [100, 100, 100, 100],
+          consumableBySlot: defaultConsumableBySlot,
+        },
       },
-    },
-  };
+    };
+  }
   window.localStorage.setItem(ROTATION_SP_STORAGE_KEY, JSON.stringify(spParsed));
 
   const enemyRaw = window.localStorage.getItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY);
-  let enemyParsed: { byBuild?: Record<string, { byScheme?: Record<string, Record<string, unknown[]>> }> } = {};
   if (enemyRaw) {
     try {
-      enemyParsed = JSON.parse(enemyRaw) as typeof enemyParsed;
+      const enemyParsed = JSON.parse(enemyRaw) as { byBuild?: Record<string, unknown> };
+      if (enemyParsed.byBuild && build.id in enemyParsed.byBuild) {
+        delete enemyParsed.byBuild[build.id];
+        window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify(enemyParsed));
+      }
     } catch {
-      enemyParsed = {};
+      // Ignore legacy enemy-command cleanup failures.
     }
   }
-  if (!enemyParsed.byBuild) {
-    enemyParsed.byBuild = {};
-  }
-  enemyParsed.byBuild[build.id] = {
-    byScheme: {
-      [activeSchemeId]: {
-        rhodagn: [],
-      },
-    },
-  };
-  window.localStorage.setItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, JSON.stringify(enemyParsed));
 
   const contractsRaw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
   let contractsParsed: { byBuild?: Record<string, { byScheme?: Record<string, unknown[]> }> } = {};
@@ -873,11 +880,16 @@ function seedDefaultRotationUiStateForBuild(build: SavedBuild) {
   if (!contractsParsed.byBuild) {
     contractsParsed.byBuild = {};
   }
-  contractsParsed.byBuild[build.id] = {
-    byScheme: {
-      [activeSchemeId]: [],
-    },
-  };
+  const seededContractState = build.scopedRotationUiState?.contracts;
+  if (seededContractState && typeof seededContractState === "object") {
+    contractsParsed.byBuild[build.id] = cloneJson(seededContractState) as { byScheme?: Record<string, unknown[]> };
+  } else {
+    contractsParsed.byBuild[build.id] = {
+      byScheme: {
+        [activeSchemeId]: [],
+      },
+    };
+  }
   window.localStorage.setItem(ROTATION_CONTRACTS_STORAGE_KEY, JSON.stringify(contractsParsed));
 }
 
@@ -930,6 +942,37 @@ function coerceRotationStateSnapshot(value: unknown): RotationSchemesState | nul
   }
 
   return cloneJson(maybe as RotationSchemesState);
+}
+
+function mergeLegacyEnemyCommandsIntoRotationState(
+  rotationState: RotationSchemesState,
+  legacyEnemyCommandsState: unknown,
+): RotationSchemesState {
+  if (!legacyEnemyCommandsState || typeof legacyEnemyCommandsState !== "object") {
+    return rotationState;
+  }
+  const byScheme =
+    (legacyEnemyCommandsState as { byScheme?: Record<string, Record<string, unknown[]>> }).byScheme;
+  if (!byScheme || typeof byScheme !== "object") {
+    return rotationState;
+  }
+  const next = cloneJson(rotationState);
+  for (const scheme of next.schemes) {
+    if (!scheme.enemyCommandsByEnemy) {
+      scheme.enemyCommandsByEnemy = {};
+    }
+    const legacyByEnemy = byScheme[scheme.id];
+    if (!legacyByEnemy || typeof legacyByEnemy !== "object") {
+      continue;
+    }
+    for (const [enemyId, placements] of Object.entries(legacyByEnemy)) {
+      if (!Array.isArray(placements) || scheme.enemyCommandsByEnemy[enemyId]) {
+        continue;
+      }
+      scheme.enemyCommandsByEnemy[enemyId] = cloneJson(placements) as never;
+    }
+  }
+  return next;
 }
 
 function loadLegacySingleBuild(): { buildState: BuildStoreStateSnapshot; rotationState: RotationSchemesState } | null {
@@ -993,6 +1036,13 @@ export const useBuildListStore = defineStore("buildListStore", () => {
       raw.buildState && Array.isArray(raw.buildState.slots) && raw.buildState.slots.length === 4
         ? cloneJson(raw.buildState)
         : null;
+    const normalizedRotationState =
+      raw.rotationState && Array.isArray(raw.rotationState.schemes) && raw.rotationState.schemes.length > 0
+        ? mergeLegacyEnemyCommandsIntoRotationState(
+            cloneJson(raw.rotationState),
+            (raw as { scopedRotationUiState?: { enemyCommands?: unknown } }).scopedRotationUiState?.enemyCommands,
+          )
+        : fallback.rotationState;
     return {
       id: typeof raw.id === "string" && raw.id ? raw.id : fallback.id,
       name: typeof raw.name === "string" && raw.name ? raw.name : fallback.name,
@@ -1007,10 +1057,14 @@ export const useBuildListStore = defineStore("buildListStore", () => {
         raw.plannedBuildState && Array.isArray(raw.plannedBuildState.slots) && raw.plannedBuildState.slots.length === 4
           ? cloneJson(raw.plannedBuildState)
           : legacyBuildState ?? fallback.plannedBuildState,
-      rotationState:
-        raw.rotationState && Array.isArray(raw.rotationState.schemes) && raw.rotationState.schemes.length > 0
-          ? cloneJson(raw.rotationState)
-          : fallback.rotationState,
+      rotationState: normalizedRotationState,
+      scopedRotationUiState: {
+        sp: raw.scopedRotationUiState?.sp != null ? cloneJson(raw.scopedRotationUiState.sp) : fallback.scopedRotationUiState?.sp ?? null,
+        contracts:
+          raw.scopedRotationUiState?.contracts != null
+            ? cloneJson(raw.scopedRotationUiState.contracts)
+            : fallback.scopedRotationUiState?.contracts ?? null,
+      },
       summary: {
         totalDamage:
           typeof raw.summary?.totalDamage === "number" && Number.isFinite(raw.summary.totalDamage)
@@ -1164,6 +1218,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     currentBuildState: BuildStoreStateSnapshot;
     plannedBuildState: BuildStoreStateSnapshot;
     rotationState: RotationSchemesState;
+    scopedRotationUiState?: SavedBuildScopedRotationUiState;
     summary?: { totalDamage: number; dps: number };
     damageTallyTiming?: DamageTallyTiming;
     compareSettings?: {
@@ -1180,6 +1235,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     target.currentBuildState = cloneJson(args.currentBuildState);
     target.plannedBuildState = cloneJson(args.plannedBuildState);
     target.rotationState = cloneJson(args.rotationState);
+    if (args.scopedRotationUiState) {
+      target.scopedRotationUiState = cloneJson(args.scopedRotationUiState);
+    }
     if (args.summary) {
       target.summary = {
         totalDamage: args.summary.totalDamage,

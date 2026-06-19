@@ -143,7 +143,7 @@ function confirmDelete() {
               class="rounded border border-[#d7d7d7] bg-white px-2 py-1 text-xs text-[#555] hover:bg-[#f4f4f4]"
               @click="emit('copy', build.id)"
             >
-              Copy
+              {{ t("buildList.copy") }}
             </button>
             <button
               type="button"

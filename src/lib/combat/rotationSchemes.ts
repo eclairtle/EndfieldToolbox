@@ -1,11 +1,14 @@
 import { computed, ref, watch, type Ref } from "vue";
 import type { Rotation } from "@/lib/combat/rotation";
+import { getDefaultEnemyCommandPlacements, type EnemyCommandPlacement } from "@/lib/enemy/enemyActionWindows";
+import { ROTATION_ENEMY_COMMANDS_STORAGE_KEY } from "@/lib/storageKeys";
 import { ROTATION_SCHEMES_STORAGE_KEY } from "@/lib/storageKeys";
 
 export type RotationScheme = {
   id: string;
   name: string;
   rotation: Rotation;
+  enemyCommandsByEnemy?: Record<string, EnemyCommandPlacement[]>;
 };
 
 export type RotationSchemesState = {
@@ -30,6 +33,7 @@ function createScheme(index: number): RotationScheme {
     id: `rotation_${Math.random().toString(36).slice(2, 10)}`,
     name: `Rotation ${index}`,
     rotation: createRotation(),
+    enemyCommandsByEnemy: {},
   };
 }
 
@@ -51,12 +55,83 @@ function normalizeRotation(value: Partial<Rotation> | null | undefined): Rotatio
   };
 }
 
-function normalizeState(value: Partial<RotationSchemesState> | null | undefined): RotationSchemesState {
+function normalizeEnemyCommandPlacement(
+  value: Partial<EnemyCommandPlacement> | null | undefined,
+): EnemyCommandPlacement | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  if (typeof value.id !== "string" || !value.id || typeof value.commandId !== "string" || !value.commandId) {
+    return null;
+  }
+  return {
+    id: value.id,
+    commandId: value.commandId,
+    startTime: Math.max(0, Number(value.startTime ?? 0)),
+    interrupted: value.interrupted === true,
+    interruptedSpGain: Math.max(0, Number(value.interruptedSpGain ?? 0)),
+    interruptedStagger: Math.max(0, Number(value.interruptedStagger ?? 0)),
+  };
+}
+
+function normalizeEnemyCommandsByEnemy(
+  value: unknown,
+): Record<string, EnemyCommandPlacement[]> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const result: Record<string, EnemyCommandPlacement[]> = {};
+  for (const [enemyId, placements] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(placements)) {
+      continue;
+    }
+    result[enemyId] = placements
+      .map((placement) => normalizeEnemyCommandPlacement(placement as Partial<EnemyCommandPlacement>))
+      .filter((placement): placement is EnemyCommandPlacement => placement != null);
+  }
+  return result;
+}
+
+function readLegacyEnemyCommandsForScope(
+  scopeId: string,
+): Record<string, Record<string, EnemyCommandPlacement[]>> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  const raw = window.localStorage.getItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      byBuild?: Record<string, { byScheme?: Record<string, Record<string, Partial<EnemyCommandPlacement>[]>> }>;
+      byScheme?: Record<string, Record<string, Partial<EnemyCommandPlacement>[]>>;
+    };
+    const scoped = parsed.byBuild?.[scopeId]?.byScheme;
+    const byScheme = scoped ?? parsed.byScheme ?? {};
+    const result: Record<string, Record<string, EnemyCommandPlacement[]>> = {};
+    for (const [schemeId, byEnemy] of Object.entries(byScheme)) {
+      result[schemeId] = normalizeEnemyCommandsByEnemy(byEnemy);
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeState(
+  value: Partial<RotationSchemesState> | null | undefined,
+  legacyEnemyCommandsByScheme: Record<string, Record<string, EnemyCommandPlacement[]>> = {},
+): RotationSchemesState {
   const schemes = Array.isArray(value?.schemes)
     ? value.schemes.map((scheme, index) => ({
         id: typeof scheme?.id === "string" && scheme.id ? scheme.id : `rotation_${index}`,
         name: typeof scheme?.name === "string" && scheme.name ? scheme.name : `Rotation ${index + 1}`,
         rotation: normalizeRotation(scheme?.rotation),
+        enemyCommandsByEnemy: {
+          ...legacyEnemyCommandsByScheme[typeof scheme?.id === "string" ? scheme.id : `rotation_${index}`],
+          ...normalizeEnemyCommandsByEnemy(scheme?.enemyCommandsByEnemy),
+        },
       }))
     : [];
 
@@ -104,17 +179,18 @@ function loadStateForScope(scopeId: string): RotationSchemesState {
   }
 
   try {
+    const legacyEnemyCommandsByScheme = readLegacyEnemyCommandsForScope(scopeId);
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === "object") {
       const parsedRecord = parsed as Record<string, unknown>;
       const byBuild = parsedRecord.byBuild;
       if (byBuild && typeof byBuild === "object") {
         const scoped = (byBuild as Record<string, unknown>)[scopeId];
-        return normalizeState((scoped ?? null) as Partial<RotationSchemesState> | null);
+        return normalizeState((scoped ?? null) as Partial<RotationSchemesState> | null, legacyEnemyCommandsByScheme);
       }
     }
 
-    return normalizeState(parsed as Partial<RotationSchemesState>);
+    return normalizeState(parsed as Partial<RotationSchemesState>, legacyEnemyCommandsByScheme);
   } catch (error) {
     console.warn("Failed to load rotation schemes from localStorage", error);
     return createDefaultRotationSchemesState();

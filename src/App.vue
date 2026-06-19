@@ -32,7 +32,6 @@ import { computeCharacterPlannerCost, computeWeaponPlannerCost } from "@/lib/pro
 import { buildDeltaCostLines, hasMismatchedWeaponEssence } from "@/lib/progression/buildCostDiff";
 import {
   ROTATION_CONTRACTS_STORAGE_KEY,
-  ROTATION_ENEMY_COMMANDS_STORAGE_KEY,
   ROTATION_SP_STORAGE_KEY,
 } from "@/lib/storageKeys";
 import { useLocale } from "@/i18n/useLocale";
@@ -54,7 +53,6 @@ type BuildRuntimeSnapshot = {
   };
   scopedRotationUiState: {
     sp: unknown;
-    enemyCommands: unknown;
     contracts: unknown;
   };
 };
@@ -241,35 +239,18 @@ function writeScopedStorageState(storageKey: string, scopedValue: unknown) {
 }
 
 function getEnemyCommandPlacementsForActiveScheme(): EnemyCommandPlacement[] {
-  if (typeof window === "undefined") {
+  const source = activeScheme.value.enemyCommandsByEnemy?.[selectedEnemyId.value];
+  if (!Array.isArray(source)) {
     return getDefaultEnemyCommandPlacements(selectedEnemyId.value);
   }
-  const raw = window.localStorage.getItem(ROTATION_ENEMY_COMMANDS_STORAGE_KEY);
-  if (!raw) {
-    return getDefaultEnemyCommandPlacements(selectedEnemyId.value);
-  }
-  try {
-    const parsed = JSON.parse(raw) as {
-      byBuild?: Record<string, { byScheme?: Record<string, Record<string, EnemyCommandPlacement[]>> }>;
-      byScheme?: Record<string, Record<string, EnemyCommandPlacement[]>>;
-    };
-    const fromByBuild = parsed.byBuild?.[getBuildStorageScopeId()]?.byScheme?.[activeScheme.value.id]?.[selectedEnemyId.value];
-    const fromLegacy = parsed.byScheme?.[activeScheme.value.id]?.[selectedEnemyId.value];
-    const source = fromByBuild ?? fromLegacy;
-    if (!Array.isArray(source)) {
-      return getDefaultEnemyCommandPlacements(selectedEnemyId.value);
-    }
-    return source.map((entry) => ({
-      id: entry.id,
-      commandId: entry.commandId,
-      startTime: Math.max(0, Number(entry.startTime ?? 0)),
-      interrupted: entry.interrupted === true,
-      interruptedSpGain: Math.max(0, Number(entry.interruptedSpGain ?? 0)),
-      interruptedStagger: Math.max(0, Number(entry.interruptedStagger ?? 0)),
-    }));
-  } catch {
-    return getDefaultEnemyCommandPlacements(selectedEnemyId.value);
-  }
+  return source.map((entry) => ({
+    id: entry.id,
+    commandId: entry.commandId,
+    startTime: Math.max(0, Number(entry.startTime ?? 0)),
+    interrupted: entry.interrupted === true,
+    interruptedSpGain: Math.max(0, Number(entry.interruptedSpGain ?? 0)),
+    interruptedStagger: Math.max(0, Number(entry.interruptedStagger ?? 0)),
+  }));
 }
 
 watch(
@@ -605,7 +586,6 @@ function captureRuntimeSnapshot(): BuildRuntimeSnapshot | null {
     },
     scopedRotationUiState: {
       sp: readScopedStorageState(ROTATION_SP_STORAGE_KEY),
-      enemyCommands: readScopedStorageState(ROTATION_ENEMY_COMMANDS_STORAGE_KEY),
       contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
     },
   };
@@ -704,13 +684,13 @@ function applyRuntimeSnapshot(snapshot: BuildRuntimeSnapshot) {
     compareTargetVariantIndex.value = snapshot.compareSettings.rightVariantIndex;
     hydrateRotationSchemes(cloneJson(snapshot.rotationState));
     writeScopedStorageState(ROTATION_SP_STORAGE_KEY, snapshot.scopedRotationUiState.sp);
-    writeScopedStorageState(ROTATION_ENEMY_COMMANDS_STORAGE_KEY, snapshot.scopedRotationUiState.enemyCommands);
     writeScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY, snapshot.scopedRotationUiState.contracts);
     buildListStore.updateBuildRuntime({
       buildId: activeBuildId.value,
       currentBuildState: cloneBuildSnapshot(snapshot.currentBuildState),
       plannedBuildState: cloneBuildSnapshot(snapshot.currentBuildState),
       rotationState: cloneJson(snapshot.rotationState),
+      scopedRotationUiState: cloneJson(snapshot.scopedRotationUiState),
       damageTallyTiming: cloneJson(snapshot.damageTallyTiming),
       compareSettings: cloneJson(snapshot.compareSettings),
     });
@@ -1217,6 +1197,10 @@ function persistCurrentBuild() {
     currentBuildState: currentBuildSnapshot.value,
     plannedBuildState: currentBuildSnapshot.value,
     rotationState: exportRotationSchemes(),
+    scopedRotationUiState: {
+      sp: readScopedStorageState(ROTATION_SP_STORAGE_KEY),
+      contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
+    },
     summary: {
       totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
       dps: firstSchemeDps.value,
@@ -1271,6 +1255,10 @@ function updateActiveDamageTallyTiming(next: DamageTallyTiming) {
     currentBuildState: currentBuildSnapshot.value,
     plannedBuildState: currentBuildSnapshot.value,
     rotationState: exportRotationSchemes(),
+    scopedRotationUiState: {
+      sp: readScopedStorageState(ROTATION_SP_STORAGE_KEY),
+      contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
+    },
     damageTallyTiming: next,
     compareSettings: {
       enabled: compareBuildsEnabled.value,
