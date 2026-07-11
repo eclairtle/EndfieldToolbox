@@ -1,4 +1,5 @@
 import { type EnemyBase } from "@/data/enemies";
+import { inferEnemyRank } from "@/data/enemies/ranks";
 import { DEFAULT_ENEMY_ATK_SCALING, DEFAULT_ENEMY_HP_SCALING } from "@/lib/enemy/enemyScaling";
 
 type CangzeiEnemyInput = {
@@ -20,6 +21,7 @@ function makeCangzeiEnemy(input: CangzeiEnemyInput): EnemyBase {
   return {
     id: input.id,
     name: input.name,
+    rank: inferEnemyRank(input.id),
     baseHpLv1: input.baseHpLv1,
     baseAtkLv1: input.baseAtkLv1,
     hpScalingModel: DEFAULT_ENEMY_HP_SCALING,

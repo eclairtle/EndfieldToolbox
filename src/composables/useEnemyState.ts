@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { ENEMIES, type EnemyBase } from "@/data/enemies";
 import { calculateEnemyStats } from "@/lib/enemy/enemyScaling";
+import type { EnemySlotState } from "@/lib/combat/rotation";
 
 function firstOrThrow<T>(arr: T[], name: string): T {
   const value = arr[0];
@@ -12,8 +13,58 @@ export function useEnemyState() {
   const firstEnemy = firstOrThrow(ENEMIES, "ENEMIES");
   const defaultEnemy = ENEMIES.find((enemy) => enemy.id === "rhodagn") ?? firstEnemy;
 
-  const selectedEnemyId = ref<string>(defaultEnemy.id);
-  const enemyLevel = ref<number>(90);
+  const enemySlots = ref<EnemySlotState[]>([
+    {
+      slotId: "enemy_slot_1",
+      enemyId: defaultEnemy.id,
+      level: 90,
+      spawnTimeEnabled: false,
+      spawnTime: 0,
+      noDeath: false,
+    },
+  ]);
+  const targetedEnemySlotId = ref<string>(enemySlots.value[0]!.slotId);
+
+  const targetedEnemySlot = computed<EnemySlotState>(() => {
+    const targeted = enemySlots.value.find((slot) => slot.slotId === targetedEnemySlotId.value);
+    if (targeted) {
+      return targeted;
+    }
+    return enemySlots.value[0] ?? {
+      slotId: "enemy_slot_1",
+      enemyId: defaultEnemy.id,
+      level: 90,
+      spawnTimeEnabled: false,
+      spawnTime: 0,
+      noDeath: false,
+    };
+  });
+
+  const selectedEnemyId = computed<string>({
+    get: () => targetedEnemySlot.value.enemyId,
+    set: (value) => {
+      const normalized = ENEMIES.find((enemy) => enemy.id === value)?.id ?? defaultEnemy.id;
+      const targetSlotId = targetedEnemySlot.value.slotId;
+      enemySlots.value = enemySlots.value.map((slot) =>
+        slot.slotId === targetSlotId
+          ? { ...slot, enemyId: normalized }
+          : slot,
+      );
+    },
+  });
+
+  const enemyLevel = computed<number>({
+    get: () => targetedEnemySlot.value.level,
+    set: (value) => {
+      const normalized = Math.max(1, Math.min(100, Math.round(value)));
+      const targetSlotId = targetedEnemySlot.value.slotId;
+      enemySlots.value = enemySlots.value.map((slot) =>
+        slot.slotId === targetSlotId
+          ? { ...slot, level: normalized }
+          : slot,
+      );
+    },
+  });
 
   const selectedEnemy = computed<EnemyBase>(() => {
     return ENEMIES.find((e) => e.id === selectedEnemyId.value) ?? defaultEnemy;
@@ -32,6 +83,9 @@ export function useEnemyState() {
 
   return {
     ENEMIES,
+    enemySlots,
+    targetedEnemySlotId,
+    targetedEnemySlot,
     selectedEnemyId,
     selectedEnemy,
     enemyLevel,

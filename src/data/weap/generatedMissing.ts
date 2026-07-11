@@ -209,52 +209,6 @@ export const ASPIRANT: WeaponBase = {
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, ASPIRANT_UNIQUE_DESCRIPTIONS),
 };
 
-const CHIMERIC_JUSTICE_UNIQUE_DESCRIPTIONS = [
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Critical Rate <@ba.vup>+{crit_up:0.0%}</>.
-When the wielder applies <#ba.noguard>Vulnerability</> to an enemy with no <#ba.noguard>Vulnerability</> stacks, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-] as const;
-
-export const CHIMERIC_JUSTICE: WeaponBase = {
-  id: "chimeric_justice",
-  name: "Chimeric Justice",
-  rarity: 5,
-  imagePath: "/weapons/lance/wpn_lance_0004.webp",
-  weaponType: "POLEARM",
-  baseAtkTable: ATK_TABLE_42_411,
-  tuningMaterials: ["item_weapon_break_high ×30", "item_char_skill_specialize_1 ×16"],
-  skills: [
-    { id: "STR_UP", name: "Strength Boost [M]", rank: 3, implemented: true },
-    { id: "NotImplemented", name: "Ultimate Gain Efficiency Boost [M]", rank: 3, implemented: false },
-    { id: "UNIQUE", name: "Brutality: Cemented Fury", rank: 1, implemented: true },
-  ],
-  getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, CHIMERIC_JUSTICE_UNIQUE_DESCRIPTIONS),
-};
-
 const COHESIVE_TRACTION_UNIQUE_DESCRIPTIONS = [
   `Combo Skill DMG Dealt <@ba.vup>+{dmg_up:0.0%}</>.
 When the wielder casts a combo skill, during the next battle skill cast within {duration:0}s, the wielder gains Electric DMG Dealt <@ba.vup>+{pulse_dmg_up:0.0%}</>.
@@ -1507,52 +1461,6 @@ export const RAPID_ASCENT: WeaponBase = {
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, RAPID_ASCENT_UNIQUE_DESCRIPTIONS),
 };
 
-const RATIONAL_FAREWELL_UNIQUE_DESCRIPTIONS = [
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-  `Battle Skill DMG <@ba.vup>+{dmg_up:0.0%}</>.
-When the wielder's combo skill applies <#ba.spellburst>Arts Burst</> or <#ba.burning>Combusted</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
-<@ba.info>Effects of the same name cannot stack.</>`,
-] as const;
-
-export const RATIONAL_FAREWELL: WeaponBase = {
-  id: "rational_farewell",
-  name: "Rational Farewell",
-  rarity: 5,
-  imagePath: "/weapons/pistol/wpn_pistol_0004.webp",
-  weaponType: "HANDCANNON",
-  baseAtkTable: ATK_TABLE_42_411,
-  tuningMaterials: ["item_weapon_break_high ×30", "item_char_skill_specialize_5 ×16"],
-  skills: [
-    { id: "STR_UP", name: "Strength Boost [M]", rank: 3, implemented: true },
-    { id: "NotImplemented", name: "Heat DMG Boost [M]", rank: 3, implemented: false },
-    { id: "UNIQUE", name: "Pursuit: Aid from the Past", rank: 1, implemented: true },
-  ],
-  getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, RATIONAL_FAREWELL_UNIQUE_DESCRIPTIONS),
-};
-
 const SEEKER_OF_DARK_LUNG_UNIQUE_DESCRIPTIONS = [
   `Main Attribute <@ba.vup>+{primary_attr_up:0.0%}</>.
 When the wielder applies an <#ba.spellburst>Arts Burst</>, the wielder gains ATK <@ba.vup>+{atk_up:0.0%}</> for {duration:0}s.
@@ -1987,7 +1895,6 @@ export const GENERATED_MISSING_WEAPONS: WeaponBase[] = [
   AGGELOSLAYER,
   ANCIENT_CANAL,
   ASPIRANT,
-  CHIMERIC_JUSTICE,
   COHESIVE_TRACTION,
   DARHOFF_7,
   FINCHASER_30,
@@ -2019,7 +1926,6 @@ export const GENERATED_MISSING_WEAPONS: WeaponBase[] = [
   PROMINENT_EDGE,
   QUENCHER,
   RAPID_ASCENT,
-  RATIONAL_FAREWELL,
   SEEKER_OF_DARK_LUNG,
   SUNDERED_PRINCE,
   SUNDERING_STEEL,

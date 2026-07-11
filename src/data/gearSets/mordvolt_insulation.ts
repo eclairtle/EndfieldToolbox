@@ -136,7 +136,7 @@ export const MORDVOLT_INSULATION: GearBase[] = [
         "value": 41
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.147
       }
     ],

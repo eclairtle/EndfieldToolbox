@@ -1,7 +1,7 @@
 import type { ModifierStatKey } from "@/lib/build/stats";
 import { skillY } from "@/lib/build/weaponSkills";
 import type { WeaponBase, WeaponEventListenerContext } from "@/data/weapons";
-import { ATK_TABLE_50_490, ATK_TABLE_51_505 } from "@/data/weap/baseAtkTables";
+import { ATK_TABLE_42_411, ATK_TABLE_50_490, ATK_TABLE_51_505 } from "@/data/weap/baseAtkTables";
 
 function percent(value: number) {
   return `${value.toFixed(1)}%`;
@@ -23,6 +23,30 @@ function getElementalArtsTakenStat(
       return null;
   }
 }
+
+const RATIONAL_FAREWELL_BATTLE_SKILL_DMG_PCT = [
+  0.1,
+  0.12,
+  0.14,
+  0.16,
+  0.18,
+  0.2,
+  0.22,
+  0.24,
+  0.28,
+] as const;
+
+const RATIONAL_FAREWELL_ATK_PCT = [
+  0.16,
+  0.192,
+  0.224,
+  0.256,
+  0.288,
+  0.32,
+  0.352,
+  0.384,
+  0.448,
+] as const;
 
 export const ARTSY_TYRANNICAL: WeaponBase = {
   id: "artsy_tyrannical",
@@ -211,5 +235,57 @@ export const BRIGANDS_CALLING: WeaponBase = {
         timeScale: "game",
       });
     }
+  },
+};
+
+export const RATIONAL_FAREWELL: WeaponBase = {
+  id: "rational_farewell",
+  name: "Rational Farewell",
+  rarity: 5,
+  imagePath: "/weapons/pistol/wpn_pistol_0004.webp",
+  weaponType: "HANDCANNON",
+  baseAtkTable: ATK_TABLE_42_411,
+  tuningMaterials: ["item_weapon_break_high ×30", "item_char_skill_specialize_5 ×16"],
+  skills: [
+    { id: "STR_UP", name: "Strength Boost [M]", rank: 2, implemented: true },
+    { id: "HEAT_DMG_UP", name: "Heat DMG Boost [M]", rank: 2, implemented: true },
+    { id: "UNIQUE", name: "Pursuit: Aid from the Past", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (uniqueSkillLevel) => ({
+    BATTLE_SKILL_DMG_PCT: RATIONAL_FAREWELL_BATTLE_SKILL_DMG_PCT[Math.max(0, uniqueSkillLevel - 1)] ?? 0,
+  }),
+  getUniqueSkillDescription: (uniqueSkillLevel) => {
+    const dmgPct = (RATIONAL_FAREWELL_BATTLE_SKILL_DMG_PCT[Math.max(0, uniqueSkillLevel - 1)] ?? 0) * 100;
+    const atkPct = (RATIONAL_FAREWELL_ATK_PCT[Math.max(0, uniqueSkillLevel - 1)] ?? 0) * 100;
+    return [
+      `Battle Skill DMG +${percent(dmgPct)}.`,
+      `When the wielder's combo skill applies Arts Burst or Combusted, the wielder gains ATK +${percent(atkPct)} for 15s.`,
+      "Effects of the same name cannot stack.",
+    ].join("\n");
+  },
+  onCombatEvent: (ctx) => {
+    const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
+    if (
+      sourceSlot !== ctx.wearer.slot
+      || ctx.event.commandAttackType !== "COMBO_SKILL"
+      || (ctx.event.type !== "ARTS_BURST_APPLIED" && ctx.event.type !== "COMBUSTION_APPLIED")
+    ) {
+      return;
+    }
+
+    if (!ctx.helpers.markOnce(`weapon_rational_farewell:${ctx.wearer.slot}:${ctx.event.stepId ?? ctx.event.time}`)) {
+      return;
+    }
+
+    const atkPct = RATIONAL_FAREWELL_ATK_PCT[Math.max(0, (ctx.wearer.weaponSkillLevels[2] ?? 1) - 1)] ?? 0;
+    ctx.helpers.applySelfBuff({
+      buffId: "weapon_rational_farewell_atk",
+      label: "Rational Farewell",
+      durationSeconds: 15,
+      effects: {
+        ATK_PCT: atkPct,
+      },
+      eventType: "WEAPON_BUFF_APPLIED",
+    });
   },
 };

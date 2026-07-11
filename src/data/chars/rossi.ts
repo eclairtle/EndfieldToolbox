@@ -22,9 +22,13 @@ const ROSSI_RAZOR_CLAWMARK_DOT_1_HIT_ID = "rossi_razor_clawmark_dot_1_hit";
 const ROSSI_RAZOR_CLAWMARK_DOT_2_HIT_ID = "rossi_razor_clawmark_dot_2_hit";
 const ROSSI_COMBO_SEGMENT_1_ID = "rossi_combo_skill";
 const ROSSI_COMBO_SEGMENT_2_ID = "rossi_combo_skill_segment_2";
+const ROSSI_BATTLE_SKILL_NAME = "Crimson Shadow";
+const ROSSI_COMBO_SKILL_NAME = "Moment of Blazing Shadow";
+const ROSSI_ULTIMATE_NAME = "\"Razorclaw\" Ambuscade";
 
 const ROSSI_BATTLE_SKILL_SEQ1_BASE = [85, 94, 102, 111, 119, 128, 137, 145, 154, 164, 177, 192];
 const ROSSI_BATTLE_SKILL_SEQ2_BASE = [128, 141, 153, 166, 179, 192, 204, 217, 230, 246, 265, 288];
+const ROSSI_COMBO_SEGMENT_1_TOTAL = [67, 73, 80, 87, 93, 100, 107, 113, 120, 128, 138, 150];
 
 const ROSSI_COMMANDS: CommandDefinition[] = [
   {
@@ -147,8 +151,7 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    basicAttackVariant: "finisher",
-    mode: "single",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -160,18 +163,16 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
     basicAttackVariant: "dive_attack",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
   },
   {
     id: "rossi_battle_skill",
-    name: "Battle Skill",
+    name: ROSSI_BATTLE_SKILL_NAME,
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(72),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -203,11 +204,10 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
   },
   {
     id: ROSSI_COMBO_SEGMENT_1_ID,
-    name: "Combo Skill I",
+    name: `${ROSSI_COMBO_SKILL_NAME} I`,
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(56),
     timeFreezeSeconds: flat12(38 / 60),
     comboCooldownSeconds: flat12(15),
@@ -216,20 +216,22 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
     comboCooldownOwnerCommandId: ROSSI_COMBO_SEGMENT_1_ID,
     spCost: flat12(0),
     hits: [
-      { name: "Combo 1", multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), stagger: flat12(10), offsetFrames: flat12(30) },
-      { name: "Combo 2", multiplier: pct([67, 73, 80, 87, 93, 100, 107, 113, 120, 128, 138, 150]), stagger: flat12(10), offsetFrames: flat12(40) },
-      { name: "Combo 3", multiplier: pct([133, 147, 160, 173, 187, 200, 213, 227, 240, 257, 277, 300]), stagger: flat12(10), offsetFrames: flat12(52) },
+      { name: "Combo 1", multiplier: pct(ROSSI_COMBO_SEGMENT_1_TOTAL.map((value) => value * 0.35)), stagger: flat12(10), offsetFrames: flat12(30) },
+      { name: "Combo 2", multiplier: pct(ROSSI_COMBO_SEGMENT_1_TOTAL.map((value) => value * 0.35)), stagger: flat12(10), offsetFrames: flat12(40), energyReturn: flat12(10) },
+      { name: "Combo 3 Hit 1", multiplier: pct(ROSSI_COMBO_SEGMENT_1_TOTAL.map((value) => value * 0.1)), stagger: flat12(10), offsetFrames: flat12(45) },
+      { name: "Combo 3 Hit 2", multiplier: pct(ROSSI_COMBO_SEGMENT_1_TOTAL.map((value) => value * 0.1)), stagger: flat12(10), offsetFrames: flat12(48) },
+      { name: "Combo 3 Hit 3", multiplier: pct(ROSSI_COMBO_SEGMENT_1_TOTAL.map((value) => value * 0.1)), stagger: flat12(10), offsetFrames: flat12(51) },
     ],
   },
   {
     id: ROSSI_COMBO_SEGMENT_2_ID,
-    name: "Combo Skill II",
+    name: `${ROSSI_COMBO_SKILL_NAME} II`,
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     hiddenInLibrary: true,
     durationFrames: flat12(104),
+    timeFreezeSeconds: flat12(18 / 60),
     comboCooldownSeconds: flat12(0),
     comboCooldownOwnerCommandId: ROSSI_COMBO_SEGMENT_1_ID,
     comboWindowDelaySeconds: flat12(0),
@@ -262,6 +264,7 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
           useLevelAsStacks: false,
           multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
         },
+        energyReturn: flat12(10),
         stagger: flat12(5),
         offsetFrames: flat12(54),
         effects: [
@@ -277,11 +280,10 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
   },
   {
     id: "rossi_ultimate",
-    name: "Ultimate",
+    name: ROSSI_ULTIMATE_NAME,
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Heat",
-    mode: "single",
     durationFrames: flat12(310.2),
     timeFreezeSeconds: flat12(72 / 60),
     cutscene: true,
@@ -436,7 +438,7 @@ const ROSSI_EXECUTE_HITS: ExecuteHitDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     commandId: "rossi_battle_skill",
-    commandName: "Battle Skill",
+    commandName: ROSSI_BATTLE_SKILL_NAME,
     multiplier: pct(ROSSI_BATTLE_SKILL_SEQ2_BASE.map((v) => v / 4)),
     stagger: flat12(2.5),
     offsetFrames: flat12(0),
@@ -498,7 +500,7 @@ const ROSSI_EXECUTE_HITS: ExecuteHitDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     commandId: "rossi_battle_skill",
-    commandName: "Battle Skill",
+    commandName: ROSSI_BATTLE_SKILL_NAME,
     multiplier: pct(ROSSI_BATTLE_SKILL_SEQ2_BASE.map((v) => v / 4)),
     stagger: flat12(2.5),
     offsetFrames: flat12(2),
@@ -511,7 +513,7 @@ const ROSSI_EXECUTE_HITS: ExecuteHitDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     commandId: "rossi_battle_skill",
-    commandName: "Battle Skill",
+    commandName: ROSSI_BATTLE_SKILL_NAME,
     multiplier: pct(ROSSI_BATTLE_SKILL_SEQ2_BASE.map((v) => v / 4)),
     stagger: flat12(2.5),
     offsetFrames: flat12(4),
@@ -524,7 +526,7 @@ const ROSSI_EXECUTE_HITS: ExecuteHitDefinition[] = [
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
     commandId: "rossi_battle_skill",
-    commandName: "Battle Skill",
+    commandName: ROSSI_BATTLE_SKILL_NAME,
     multiplier: pct(ROSSI_BATTLE_SKILL_SEQ2_BASE.map((v) => v / 4)),
     stagger: flat12(2.5),
     offsetFrames: flat12(12),
@@ -544,30 +546,38 @@ const ROSSI_COMBAT_HOOKS: CharacterCombatHooks = {
       ) {
         return;
       }
-      if (!ctx.state.hasStatus({ statusId: "rossi_razor_clawmark", target: "enemy" })) {
-        return;
-      }
       const triggerIntervalSeconds = 1 / 120;
       const triggerBucket = Math.floor(ctx.event.time / triggerIntervalSeconds);
       if (!ctx.state.markTriggerOnce(`rossi_talent_2_icd:${triggerIntervalSeconds}:${triggerBucket}`)) {
         return;
       }
-      const hasCombustion = ctx.state.hasStatus({ statusId: "combustion", target: "enemy" });
-      const hasPotential3 = ctx.state.isSelfPotentialActive(3);
-      const hitRefId = hasSeethingBlood2
-        ? hasPotential3
-          ? (hasCombustion ? ROSSI_SEETHING_BLOOD_2_P3_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_2_P3_HIT_ID)
-          : (hasCombustion ? ROSSI_SEETHING_BLOOD_2_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_2_HIT_ID)
-        : hasPotential3
-          ? (hasCombustion ? ROSSI_SEETHING_BLOOD_1_P3_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_1_P3_HIT_ID)
-          : (hasCombustion ? ROSSI_SEETHING_BLOOD_1_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_1_HIT_ID);
       const eventStepId = ctx.event.stepId ?? `rossi_talent_2_event:${ctx.event.time.toFixed(3)}`;
-      ctx.state.applyEffects({
-        stepId: eventStepId,
-        effects: [
-          { type: "EXECUTE_HIT", hitRefId, inheritSourceBonuses: false },
-        ],
-      });
+      const hasPotential3 = ctx.state.isSelfPotentialActive(3);
+      let triggered = false;
+      for (const enemySlotId of ctx.state.getActiveEnemySlotIds()) {
+        if (!ctx.state.hasStatus({ statusId: "rossi_razor_clawmark", target: "enemy", enemySlotId })) {
+          continue;
+        }
+        const hasCombustion = ctx.state.hasStatus({ statusId: "combustion", target: "enemy", enemySlotId });
+        const hitRefId = hasSeethingBlood2
+          ? hasPotential3
+            ? (hasCombustion ? ROSSI_SEETHING_BLOOD_2_P3_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_2_P3_HIT_ID)
+            : (hasCombustion ? ROSSI_SEETHING_BLOOD_2_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_2_HIT_ID)
+          : hasPotential3
+            ? (hasCombustion ? ROSSI_SEETHING_BLOOD_1_P3_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_1_P3_HIT_ID)
+            : (hasCombustion ? ROSSI_SEETHING_BLOOD_1_BURNING_HIT_ID : ROSSI_SEETHING_BLOOD_1_HIT_ID);
+        ctx.state.applyEffectsToEnemySlot({
+          enemySlotId,
+          stepId: `${eventStepId}:${enemySlotId}`,
+          effects: [
+            { type: "EXECUTE_HIT", hitRefId, inheritSourceBonuses: false },
+          ],
+        });
+        triggered = true;
+      }
+      if (!triggered) {
+        return;
+      }
       return;
     }
 
@@ -578,8 +588,8 @@ const ROSSI_COMBAT_HOOKS: CharacterCombatHooks = {
       return;
     }
 
-    const hasVulnerability = ctx.state.hasStatus({ statusId: "vulnerability", target: "enemy" });
-    const hasArtsInfliction = ctx.state.hasStatus({ statusId: "arts_infliction", target: "enemy" });
+    const hasVulnerability = ctx.state.hasStatus({ statusId: "vulnerability", target: "enemy", enemy: "primary" });
+    const hasArtsInfliction = ctx.state.hasStatus({ statusId: "arts_infliction", target: "enemy", enemy: "primary" });
     if (!hasVulnerability || !hasArtsInfliction) {
       return;
     }

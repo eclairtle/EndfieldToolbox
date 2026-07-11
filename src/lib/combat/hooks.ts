@@ -4,6 +4,15 @@ import type { ResolvedCommandHitAtLevel } from "@/lib/commands";
 import type { CommandHitEffectDefinition } from "@/lib/commands";
 import type { CharacterClass } from "@/data/characters";
 import type { CombatEffectTree } from "@/lib/combat/effectTree";
+import type { EnemySlotId } from "@/lib/combat/rotation";
+
+export type CombatHookEnemySelector = "primary" | "targeted";
+export type CombatHookEnemyRef =
+  | EnemySlotId
+  | {
+    enemy?: CombatHookEnemySelector;
+    enemySlotId?: EnemySlotId;
+  };
 
 export type CombatHookCharacterRef = {
   slot: 0 | 1 | 2 | 3;
@@ -33,24 +42,56 @@ export type CombatResolvedHitHookContext = {
     hitName?: string;
     isControlledOperatorHit: boolean;
   };
+  enemySlotId?: EnemySlotId;
+  affectedEnemySlotIds: EnemySlotId[];
   flags: {
     isFinalStrikeOfBasicSequence: boolean;
     isFinisherHit: boolean;
     dealsDamage: boolean;
   };
   state: {
-    getEnemyArtsInfliction(): CombatHookEnemyArtsInflictionState | null;
-    getEnemyHpRatio(): number;
-    getEnemyVulnerabilityStacks(): number;
-    setEnemyArtsInfliction(value: CombatHookEnemyArtsInflictionState | null): void;
-    hasEnemyStatus(statusId: string): boolean;
-    hasStatus(args: { statusId: string; target?: "enemy" | "self" | "global" | "field" }): boolean;
-    getStatusSourceStepId(args: { statusId: string; target?: "enemy" | "self" | "global" | "field" }): string | null;
-    getStatusStackCount(args: { statusId: string; target?: "enemy" | "self" | "global" | "field" }): number;
+    getPrimaryEnemySlotId(): EnemySlotId | null;
+    getActiveEnemySlotIds(): EnemySlotId[];
+    getAffectedEnemySlotIds(): EnemySlotId[];
+    getEnemyArtsInfliction(enemyRef?: CombatHookEnemyRef): CombatHookEnemyArtsInflictionState | null;
+    getEnemyHpRatio(enemyRef?: CombatHookEnemyRef): number;
+    getEnemyVulnerabilityStacks(enemyRef?: CombatHookEnemyRef): number;
+    setEnemyArtsInfliction(value: CombatHookEnemyArtsInflictionState | null, enemyRef?: CombatHookEnemyRef): void;
+    hasEnemyStatus(statusId: string, enemyRef?: CombatHookEnemyRef): boolean;
+    hasStatus(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): boolean;
+    getStatusSourceStepId(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): string | null;
+    getStatusRemainingSeconds(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): number;
+    getStatusStackCount(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): number;
+    getActorStatusStackCount(args: {
+      slot: 0 | 1 | 2 | 3;
+      statusId: string;
+    }): number;
     consumeEnemyStatusStacks(args: {
       statusId: string;
       maxConsumed: number;
       useLevelAsStacks?: boolean;
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
     }): number;
     hasSelfBuff(buffId: string): boolean;
     getSelfBuffStackCount(buffId: string): number;
@@ -60,6 +101,10 @@ export type CombatResolvedHitHookContext = {
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
     getSelfAttr(attr: "STR" | "AGI" | "INT" | "WIL"): number;
+    getActorModifierValue(args: {
+      slot: 0 | 1 | 2 | 3;
+      stat: ModifierStatKey;
+    }): number;
     getSelfCommandHit(commandId: string, hitIndex: number): ResolvedCommandHitAtLevel | null;
     applySelfBuff(args: {
       buffId: string;
@@ -114,12 +159,39 @@ export type CombatResolvedHitHookContext = {
       stacks: number;
     }): { consumed: number; remaining: number };
     getTeamStatusStackCount(statusId: string): number;
+    clearTeamCryoDebuffs(): void;
     applyCommandHitHealing(args: {
       commandId: string;
       hitIndex: number;
       target?: "controlled" | "self";
       label?: string;
     }): number;
+    restoreHpToSlot(args: {
+      slot: 0 | 1 | 2 | 3;
+      baseAmount: number;
+      label?: string;
+    }): number;
+    applyStatusToSlot(args: {
+      slot: 0 | 1 | 2 | 3;
+      statusId: string;
+      label?: string;
+      effects?: Partial<ModifierStats>;
+      blocksOperatorArtsInflictionElements?: Array<"Heat" | "Cryo" | "Electric" | "Nature">;
+      durationSeconds: number;
+      timeScale?: TimeScale;
+      hidden?: boolean;
+      stacks?: number;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      independentStacks?: boolean;
+      pauseStatusIds?: string[];
+      periods?: number;
+      maxPeriods?: number;
+      initialEffects?: CommandHitEffectDefinition[];
+      periodicEffects?: CommandHitEffectDefinition[];
+      expireEffects?: CommandHitEffectDefinition[];
+      removeEffects?: CommandHitEffectDefinition[];
+    }): void;
     grantReturnedSp(amount: number, label: string): void;
     grantGeneratedSp(amount: number, label: string): void;
     markTriggerOnce(key: string): boolean;
@@ -138,6 +210,12 @@ export type CombatResolvedHitHookContext = {
       timeScale?: TimeScale;
     }): void;
     applyEffects(args: { effects: CommandHitEffectDefinition[]; stepId?: string; effectTree?: CombatEffectTree }): void;
+    applyEffectsToEnemySlot(args: {
+      enemySlotId: EnemySlotId;
+      effects: CommandHitEffectDefinition[];
+      stepId?: string;
+      effectTree?: CombatEffectTree;
+    }): void;
     shortenSelfComboCooldownByRatio(ratio: number): void;
     pauseTeamComboCooldowns(args: { durationSeconds: number }): void;
   };
@@ -174,6 +252,8 @@ export type CombatEventHookContext = {
     gameTime: number;
     effectTree?: CombatEffectTree;
     stepId?: string;
+    enemySlotId?: EnemySlotId;
+    affectedEnemySlotIds?: EnemySlotId[];
     commandId?: string;
     commandName?: string;
     hitName?: string;
@@ -191,14 +271,22 @@ export type CombatEventHookContext = {
     enemyWasStaggered?: boolean;
   };
   state: {
-    getEnemyArtsInfliction(): CombatHookEnemyArtsInflictionState | null;
-    getEnemyHpRatio(): number;
-    getEnemyVulnerabilityStacks(): number;
+    getPrimaryEnemySlotId(): EnemySlotId | null;
+    getActiveEnemySlotIds(): EnemySlotId[];
+    getAffectedEnemySlotIds(): EnemySlotId[];
+    getEnemyArtsInfliction(enemyRef?: CombatHookEnemyRef): CombatHookEnemyArtsInflictionState | null;
+    getEnemyHpRatio(enemyRef?: CombatHookEnemyRef): number;
+    getEnemyVulnerabilityStacks(enemyRef?: CombatHookEnemyRef): number;
+    getActorModifierValue(args: {
+      slot: 0 | 1 | 2 | 3;
+      stat: ModifierStatKey;
+    }): number;
     hasSelfBuff(buffId: string): boolean;
     getSelfBuffStackCount(buffId: string): number;
     getSelfBuffRemainingSeconds(buffId: string): number;
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
+    getSelfAttr(attr: "STR" | "AGI" | "INT" | "WIL"): number;
     getSelfCommandHit(commandId: string, hitIndex: number): ResolvedCommandHitAtLevel | null;
     applySelfBuff(args: {
       buffId: string;
@@ -258,12 +346,39 @@ export type CombatEventHookContext = {
       stacks: number;
     }): { consumed: number; remaining: number };
     getTeamStatusStackCount(statusId: string): number;
+    clearTeamCryoDebuffs(): void;
     applyCommandHitHealing(args: {
       commandId: string;
       hitIndex: number;
       target?: "controlled" | "self";
       label?: string;
     }): number;
+    restoreHpToSlot(args: {
+      slot: 0 | 1 | 2 | 3;
+      baseAmount: number;
+      label?: string;
+    }): number;
+    applyStatusToSlot(args: {
+      slot: 0 | 1 | 2 | 3;
+      statusId: string;
+      label?: string;
+      effects?: Partial<ModifierStats>;
+      blocksOperatorArtsInflictionElements?: Array<"Heat" | "Cryo" | "Electric" | "Nature">;
+      durationSeconds: number;
+      timeScale?: TimeScale;
+      hidden?: boolean;
+      stacks?: number;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+      independentStacks?: boolean;
+      pauseStatusIds?: string[];
+      periods?: number;
+      maxPeriods?: number;
+      initialEffects?: CommandHitEffectDefinition[];
+      periodicEffects?: CommandHitEffectDefinition[];
+      expireEffects?: CommandHitEffectDefinition[];
+      removeEffects?: CommandHitEffectDefinition[];
+    }): void;
     grantReturnedSp(amount: number, label: string): void;
     grantGeneratedSp(amount: number, label: string): void;
     markTriggerOnce(key: string): boolean;
@@ -275,13 +390,40 @@ export type CombatEventHookContext = {
     resetSelfComboCooldown(): void;
     shortenSelfComboCooldownByRatio(ratio: number): void;
     pauseTeamComboCooldowns(args: { durationSeconds: number }): void;
-    hasStatus(args: { statusId: string; target?: "enemy" | "self" | "global" | "field" }): boolean;
-    getStatusSourceStepId(args: { statusId: string; target?: "enemy" | "self" | "global" | "field" }): string | null;
-    getStatusStackCount(args: { statusId: string; target?: "enemy" | "self" | "global" | "field" }): number;
+    hasStatus(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): boolean;
+    getStatusSourceStepId(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): string | null;
+    getStatusRemainingSeconds(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): number;
+    getStatusStackCount(args: {
+      statusId: string;
+      target?: "enemy" | "self" | "global" | "field";
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
+    }): number;
+    getActorStatusStackCount(args: {
+      slot: 0 | 1 | 2 | 3;
+      statusId: string;
+    }): number;
     consumeEnemyStatusStacks(args: {
       statusId: string;
       maxConsumed: number;
       useLevelAsStacks?: boolean;
+      enemy?: CombatHookEnemySelector;
+      enemySlotId?: EnemySlotId;
     }): number;
     emitEvent(event: {
       type: string;
@@ -292,6 +434,12 @@ export type CombatEventHookContext = {
       timeScale?: TimeScale;
     }): void;
     applyEffects(args: { effects: CommandHitEffectDefinition[]; stepId?: string; effectTree?: CombatEffectTree }): void;
+    applyEffectsToEnemySlot(args: {
+      enemySlotId: EnemySlotId;
+      effects: CommandHitEffectDefinition[];
+      stepId?: string;
+      effectTree?: CombatEffectTree;
+    }): void;
   };
 };
 

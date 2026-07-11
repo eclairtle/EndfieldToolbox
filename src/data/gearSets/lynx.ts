@@ -81,7 +81,7 @@ export const LYNX: GearBase[] = [
         "value": 41
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.414
       }
     ],
@@ -140,7 +140,7 @@ export const LYNX: GearBase[] = [
         "value": 21
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.414
       }
     ],

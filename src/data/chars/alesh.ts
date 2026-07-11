@@ -26,7 +26,6 @@ const ALESH_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "cycling",
     basicAttackVariant: "sequence",
     durationFrames: flat12(191.88),
     spCost: flat12(0),
@@ -124,8 +123,7 @@ const ALESH_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
-    basicAttackVariant: "finisher",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }],
@@ -136,7 +134,6 @@ const ALESH_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "dive_attack",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -148,7 +145,6 @@ const ALESH_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(100.2),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -167,7 +163,6 @@ const ALESH_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(78),
     spCost: flat12(0),
     comboCooldownSeconds: flat12(9),
@@ -190,7 +185,6 @@ const ALESH_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     enhanced: true,
     durationFrames: flat12(78),
     spCost: flat12(0),
@@ -214,7 +208,6 @@ const ALESH_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(192),
     spCost: flat12(0),
     energyCost: flat12(85),
@@ -289,12 +282,12 @@ const ALESH_HOOKS: CharacterCombatHooks = {
     }
 
     if (ctx.source.commandId === ALESH_BATTLE_SKILL_ID) {
-      const currentInfliction = ctx.state.getEnemyArtsInfliction();
+      const currentInfliction = ctx.state.getEnemyArtsInfliction({ enemy: "primary" });
       if (currentInfliction?.element !== "Cryo") {
         return;
       }
       const consumedStacks = Math.max(1, Math.min(4, currentInfliction.stacks));
-      ctx.state.setEnemyArtsInfliction(null);
+      ctx.state.setEnemyArtsInfliction(null, { enemy: "primary" });
       ctx.state.applyEffects({
         effects: [
           {

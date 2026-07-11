@@ -22,7 +22,7 @@ export const ARMORED_MSGR: GearBase[] = [
         "value": 29
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.105
       }
     ],
@@ -56,7 +56,7 @@ export const ARMORED_MSGR: GearBase[] = [
         "value": 21
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.21
       }
     ],
@@ -98,7 +98,7 @@ export const ARMORED_MSGR: GearBase[] = [
         "value": 41
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.147
       }
     ],

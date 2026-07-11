@@ -2,18 +2,18 @@ import type { CharacterBase } from "@/data/characters";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
 const CHENQIANYU_COMMANDS: CommandDefinition[] = [
-  { id: "chenqianyu_basic_sequence", name: "Basic Attack Sequence", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "cycling", durationFrames: flat12(200), spCost: flat12(0), hits: [
+  { id: "chenqianyu_basic_sequence", name: "Basic Attack Sequence", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", durationFrames: flat12(200), spCost: flat12(0), hits: [
     { name: "Hit 1", multiplier: pct([20,22,24,26,28,30,32,34,36,39,42,45]), offsetFrames: flat12(16) },
     { name: "Hit 2", multiplier: pct([24,26,29,31,34,36,38,41,43,46,50,54]), offsetFrames: flat12(44) },
     { name: "Hit 3", multiplier: pct([27,29,32,35,38,40,43,46,48,52,56,60]), offsetFrames: flat12(76) },
     { name: "Hit 4", multiplier: pct([30,33,36,39,42,45,48,51,54,58,62,68]), offsetFrames: flat12(110) },
     { name: "Hit 5", multiplier: pct([40,44,48,52,56,60,64,68,72,77,83,90]), stagger: flat12(16), offsetFrames: flat12(165) },
   ] },
-  { id: "chenqianyu_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
-  { id: "chenqianyu_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
-  { id: "chenqianyu_battle_skill", name: "Ascending Strike", skill: "battleSkill", attackType: "BATTLE_SKILL", damageType: "Physical", mode: "single", durationFrames: flat12(50), spCost: flat12(100), energyGain: flat12(0), hits: [{ multiplier: pct([169,186,203,219,236,253,270,287,304,325,350,380]), stagger: flat12(10), offsetFrames: flat12(26) }] },
-  { id: "chenqianyu_combo_skill", name: "Soar to the Stars", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Physical", mode: "single", durationFrames: flat12(46), spCost: flat12(0), hits: [{ multiplier: pct([120,132,144,156,168,180,192,204,216,231,249,270]), stagger: flat12(10), offsetFrames: flat12(34) }] },
-  { id: "chenqianyu_ultimate", name: "Blade Gale", skill: "ultimate", attackType: "ULTIMATE", damageType: "Physical", mode: "single", durationFrames: flat12(224), spCost: flat12(0), energyCost: flat12(70), hits: [
+  { id: "chenqianyu_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
+  { id: "chenqianyu_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
+  { id: "chenqianyu_battle_skill", name: "Ascending Strike", skill: "battleSkill", attackType: "BATTLE_SKILL", damageType: "Physical", durationFrames: flat12(50), spCost: flat12(100), energyGain: flat12(0), hits: [{ multiplier: pct([169,186,203,219,236,253,270,287,304,325,350,380]), stagger: flat12(10), offsetFrames: flat12(26) }] },
+  { id: "chenqianyu_combo_skill", name: "Soar to the Stars", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Physical", durationFrames: flat12(46), spCost: flat12(0), hits: [{ multiplier: pct([120,132,144,156,168,180,192,204,216,231,249,270]), stagger: flat12(10), energyReturn: flat12(10), offsetFrames: flat12(34) }] },
+  { id: "chenqianyu_ultimate", name: "Blade Gale", skill: "ultimate", attackType: "ULTIMATE", damageType: "Physical", durationFrames: flat12(224), spCost: flat12(0), energyCost: flat12(70), hits: [
     { name: "Slash x6", multiplier: pct([36,40,43,47,50,54,58,61,65,69,75,81]), times: 6, repeatIntervalFrames: flat12(9), offsetFrames: flat12(116) },
     { name: "Final Slash", multiplier: pct([455,500,545,591,636,682,727,773,818,875,943,1023]), stagger: flat12(20), offsetFrames: flat12(206) },
   ] },

@@ -1,6 +1,6 @@
 import { skillY } from "@/lib/build/weaponSkills";
 import type { WeaponBase } from "@/data/weapons";
-import { ATK_TABLE_51_500 } from "@/data/weap/baseAtkTables";
+import { ATK_TABLE_42_411, ATK_TABLE_51_500 } from "@/data/weap/baseAtkTables";
 
 function percent(value: number) {
   return `${value.toFixed(1)}%`;
@@ -9,6 +9,30 @@ function percent(value: number) {
 function scaledPercentFromRank1(rank1Percent: number, y: number): number {
   return rank1Percent * (0.8 + 0.2 * y);
 }
+
+const CHIMERIC_JUSTICE_CRIT_RATE_PCT = [
+  0.03,
+  0.036,
+  0.042,
+  0.048,
+  0.054,
+  0.06,
+  0.066,
+  0.072,
+  0.084,
+] as const;
+
+const CHIMERIC_JUSTICE_ATK_PCT = [
+  0.15,
+  0.18,
+  0.21,
+  0.24,
+  0.27,
+  0.3,
+  0.33,
+  0.36,
+  0.42,
+] as const;
 
 export const JET: WeaponBase = {
   id: "jet",
@@ -151,5 +175,58 @@ export const MOUNTAIN_BEARER: WeaponBase = {
         eventType: "WEAPON_BUFF_APPLIED",
       });
     }
+  },
+};
+
+export const CHIMERIC_JUSTICE: WeaponBase = {
+  id: "chimeric_justice",
+  name: "Chimeric Justice",
+  rarity: 5,
+  imagePath: "/weapons/lance/wpn_lance_0004.webp",
+  weaponType: "POLEARM",
+  baseAtkTable: ATK_TABLE_42_411,
+  tuningMaterials: ["item_weapon_break_high ×30", "item_char_skill_specialize_1 ×16"],
+  skills: [
+    { id: "STR_UP", name: "Strength Boost [M]", rank: 2, implemented: true },
+    { id: "ULT_GAIN_UP", name: "Ultimate Gain Efficiency Boost [M]", rank: 2, implemented: true },
+    { id: "UNIQUE", name: "Brutality: Cemented Fury", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (uniqueSkillLevel) => ({
+    CRIT_RATE_PCT: CHIMERIC_JUSTICE_CRIT_RATE_PCT[Math.max(0, uniqueSkillLevel - 1)] ?? 0,
+  }),
+  getUniqueSkillDescription: (uniqueSkillLevel) => {
+    const critRatePct = (CHIMERIC_JUSTICE_CRIT_RATE_PCT[Math.max(0, uniqueSkillLevel - 1)] ?? 0) * 100;
+    const atkPct = (CHIMERIC_JUSTICE_ATK_PCT[Math.max(0, uniqueSkillLevel - 1)] ?? 0) * 100;
+    return [
+      `Critical Rate +${percent(critRatePct)}.`,
+      `When the wielder applies Vulnerability to an enemy with no Vulnerability stacks, the wielder gains ATK +${percent(atkPct)} for 15s.`,
+      "Effects of the same name cannot stack.",
+    ].join("\n");
+  },
+  onCombatEvent: (ctx) => {
+    const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
+    if (
+      sourceSlot !== ctx.wearer.slot
+      || ctx.event.type !== "ENEMY_DEBUFF_APPLIED"
+      || ctx.event.label !== "Vulnerability Applied"
+      || ctx.event.enemyHadVulnerability
+    ) {
+      return;
+    }
+
+    if (!ctx.helpers.markOnce(`weapon_chimeric_justice:${ctx.wearer.slot}:${ctx.event.stepId ?? ctx.event.time}`)) {
+      return;
+    }
+
+    const atkPct = CHIMERIC_JUSTICE_ATK_PCT[Math.max(0, (ctx.wearer.weaponSkillLevels[2] ?? 1) - 1)] ?? 0;
+    ctx.helpers.applySelfBuff({
+      buffId: "weapon_chimeric_justice_atk",
+      label: "Chimeric Justice",
+      durationSeconds: 15,
+      effects: {
+        ATK_PCT: atkPct,
+      },
+      eventType: "WEAPON_BUFF_APPLIED",
+    });
   },
 };

@@ -1,4 +1,4 @@
-import type { PartySlot } from "@/lib/combat/rotation";
+import type { EnemySlotId, PartySlot } from "@/lib/combat/rotation";
 import type { TimeScale } from "@/lib/commands";
 
 export type UnifiedStatusScope = "enemy" | "actor" | "team" | "global";
@@ -22,6 +22,7 @@ export type UnifiedCombatStatus = {
   timeScale: TimeScale;
   ownerSlot?: PartySlot;
   targetSlot?: PartySlot;
+  enemySlotId?: EnemySlotId;
   stacks?: number;
   hidden?: boolean;
   fieldStatus?: boolean;

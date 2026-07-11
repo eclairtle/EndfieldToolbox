@@ -8,7 +8,11 @@ const YVONNE_COMBAT_HOOKS: CharacterCombatHooks = {
       return;
     }
 
-    if (!ctx.state.hasEnemyStatus("solidification")) {
+    const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+    const enemySlotIds = affectedEnemySlotIds.length > 0
+      ? affectedEnemySlotIds
+      : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+    if (!enemySlotIds.some((enemySlotId) => ctx.state.hasEnemyStatus("solidification", enemySlotId))) {
       return;
     }
 
@@ -165,8 +169,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
-    mode: "single",
-    basicAttackVariant: "finisher",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
@@ -182,7 +185,6 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
-    mode: "single",
     basicAttackVariant: "dive_attack",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -359,7 +361,6 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(67.8),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -388,7 +389,6 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(40),
     timeFreezeSeconds: flat12(37 / 60),
     comboCooldownSeconds: [20, 20, 20, 20, 20, 20, 20, 20, 19, 19, 19, 18],
@@ -396,12 +396,19 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     hits: [
       {
-        name: "Energy Release x4",
+        name: "Energy Release 1",
+        multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]),
+        registerOffsetFrames: flat12(37),
+        offsetFrames: flat12(37),
+        energyReturn: flat12(20),
+      },
+      {
+        name: "Energy Release x3",
         multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]),
         registerOffsetFrames: flat12(37),
         repeatRegisterOffsetWithInterval: false,
-        offsetFrames: flat12(37),
-        times: 4,
+        offsetFrames: flat12(82),
+        times: 3,
         repeatIntervalFrames: flat12(45),
       },
       {
@@ -429,12 +436,17 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(127.8),
     timeFreezeSeconds: flat12(121.8 / 60),
     cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(220),
+    initialEffects: [
+      {
+        type: "FORCE_CONTROL_SWITCH",
+        label: "Yvonne Switched In",
+      },
+    ],
     hits: [
       { name: "Enhanced Final Strike", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), stagger: flat12(20), offsetFrames: flat12(121.8) },
       {

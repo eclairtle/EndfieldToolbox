@@ -22,7 +22,7 @@ export const MORDVOLT_RESISTANT: GearBase[] = [
         "value": 29
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.105
       }
     ],
@@ -98,7 +98,7 @@ export const MORDVOLT_RESISTANT: GearBase[] = [
         "value": 41
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.147
       }
     ],
@@ -167,4 +167,3 @@ export const MORDVOLT_RESISTANT: GearBase[] = [
     ],
   }
 ];
-

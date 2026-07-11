@@ -11,6 +11,7 @@ const XAIHI_TALENT_EXECUTE_PROCESS_1 = "xaihi_execute_process_1";
 const XAIHI_TALENT_EXECUTE_PROCESS_2 = "xaihi_execute_process_2";
 const XAIHI_TALENT_FREEZE_PROTOCOL = "xaihi_freeze_protocol";
 const XAIHI_EXECUTE_PROCESS_DEBUFF_ID = "xaihi_execute_process_cryo_taken";
+const XAIHI_FREEZE_PROTOCOL_LABEL = "Freeze Protocol";
 
 const XAIHI_COMBAT_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
@@ -54,11 +55,18 @@ const XAIHI_COMBAT_HOOKS: CharacterCombatHooks = {
       ctx.event.type === "COMBO_SKILL_HIT"
       && ctx.event.sourceSlot === ctx.self.slot
       && ctx.event.commandId === "xaihi_combo_skill"
-      && (
-        ctx.state.getEnemyArtsInfliction()?.element === "Cryo"
-        || ctx.state.hasStatus({ statusId: "solidification", target: "enemy" })
-      )
     ) {
+      const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+      const enemySlotIds = affectedEnemySlotIds.length > 0
+        ? affectedEnemySlotIds
+        : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+      const canApplyExecuteProcess = enemySlotIds.some((enemySlotId) =>
+        ctx.state.getEnemyArtsInfliction(enemySlotId)?.element === "Cryo"
+        || ctx.state.hasStatus({ statusId: "solidification", target: "enemy", enemySlotId })
+      );
+      if (!canApplyExecuteProcess) {
+        return;
+      }
       const cryoTakenPct = ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_EXECUTE_PROCESS_2)
         ? 0.10
         : ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_EXECUTE_PROCESS_1)
@@ -84,16 +92,15 @@ const XAIHI_COMBAT_HOOKS: CharacterCombatHooks = {
       }
     }
 
-    // Freeze Protocol (talent 2) dispels operator-side Cryo Infliction/Solidification.
-    // Operator debuff stacks are not modeled in the current simulator yet.
     if (
       ctx.event.type === "ULTIMATE_CAST"
       && ctx.event.sourceSlot === ctx.self.slot
       && ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_FREEZE_PROTOCOL)
     ) {
+      ctx.state.clearTeamCryoDebuffs();
       ctx.state.emitEvent({
         type: "ACTOR_BUFF_APPLIED",
-        label: "Freeze Protocol (operator dispel pending engine support)",
+        label: XAIHI_FREEZE_PROTOCOL_LABEL,
       });
     }
   },
@@ -212,8 +219,7 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
-    basicAttackVariant: "finisher",
-    mode: "single",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -225,7 +231,6 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
     basicAttackVariant: "dive_attack",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
@@ -236,7 +241,6 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -265,7 +269,6 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(49.8),
     timeFreezeSeconds: flat12(38 / 60),
     comboCooldownSeconds: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7],
@@ -273,7 +276,7 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     hits: [
       { multiplier: pct([200, 220, 240, 260, 280, 300, 320, 340, 360, 385, 415, 450]), 
-        stagger: flat12(10), offsetFrames: flat12(48), 
+        stagger: flat12(10), energyReturn: flat12(10), offsetFrames: flat12(48), 
       effects: [{ type: "APPLY_ARTS_INFLICTION", element: "Cryo", stacks: 1 }],
       }
     ],
@@ -284,7 +287,6 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(133.8),
     timeFreezeSeconds: flat12(64 / 60),
     cutscene: true,

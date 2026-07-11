@@ -36,11 +36,14 @@ export type ContingencyContractVariant = {
   description: string;
   zhName?: string;
   zhDescription?: string;
+  iconId?: string;
+  hidden?: boolean;
   effects: ContingencyContractEffect[];
 };
 
 export type ContingencyContractDefinition = {
   id: string;
+  groupAlias?: string;
   variants: ContingencyContractVariant[];
 };
 
@@ -53,7 +56,15 @@ export type ResolvedContingencyContracts = {
   operatorModifierEffects: Partial<Record<ModifierStatKey, number>>;
   enemyModifierEffects: Partial<Record<ModifierStatKey, number>>;
   disabledGenericActions: Set<GenericActionType>;
-  suppressionOnInflictionValues: number[];
+  encasementActive: boolean;
+  swiftendActive: boolean;
+  suppressionOnInflictionEffects: Array<{
+    value: number;
+    durationSeconds: number;
+    timeScale: TimeScale;
+  }>;
+  battleSkillDamagePctValues: number[];
+  nonCommandDamagePctValues: number[];
   battleTimeLimitSeconds?: number;
   decapitationDamageTakenPct?: number;
   bladebreakingUltimateDmgPct?: number;
@@ -77,6 +88,498 @@ function makeVariant(
     zhName,
     zhDescription,
     effects,
+  };
+}
+
+type ContingencyContractVariantText = {
+  name: string;
+  description: string;
+  zhName: string;
+  zhDescription: string;
+};
+
+type ContingencyContractUiMetadata = {
+  groupAlias?: string;
+  variantIconIds?: Partial<Record<string, string>>;
+};
+
+const HIDDEN_CONTRACT_VARIANT_IDS = new Set<string>([]);
+
+const CONTRACT_VARIANT_TEXTS: Partial<Record<string, ContingencyContractVariantText>> = {
+  main_attr_down_1: {
+    name: "Team: WeakenⅠ",
+    description: "Operator Attributes -10%.",
+    zhName: "队列：萎缩Ⅰ",
+    zhDescription: "干员主能力值-10%",
+  },
+  main_attr_down_2: {
+    name: "Team: WeakenⅡ",
+    description: "Operator Attributes -20%.",
+    zhName: "队列：萎缩Ⅱ",
+    zhDescription: "干员主能力值-20%",
+  },
+  main_attr_down_3: {
+    name: "Team: WeakenⅢ",
+    description: "Operator Attributes -40%.",
+    zhName: "队列：萎缩Ⅲ",
+    zhDescription: "干员主能力值-40%",
+  },
+  stimulation_1: {
+    name: "Edit: ThrillⅠ",
+    description: "DMG Dealt by enemies +30%.",
+    zhName: "改写：刺激Ⅰ",
+    zhDescription: "敌人造成伤害+30%",
+  },
+  stimulation_2: {
+    name: "Edit: ThrillⅡ",
+    description: "DMG Dealt by enemies +80%.",
+    zhName: "改写：刺激Ⅱ",
+    zhDescription: "敌人造成伤害+80%",
+  },
+  time_limit_1: {
+    name: "Ambient: Time LimitⅠ",
+    description: "Timer -100s.",
+    zhName: "环境：时限Ⅰ",
+    zhDescription: "倒计时-100秒",
+  },
+  time_limit_2: {
+    name: "Ambient: Time LimitⅡ",
+    description: "Timer -200s.",
+    zhName: "环境：时限Ⅱ",
+    zhDescription: "倒计时-200秒",
+  },
+  time_limit_3: {
+    name: "Ambient: Time LimitⅢ",
+    description: "Timer -300s.",
+    zhName: "环境：时限Ⅲ",
+    zhDescription: "倒计时-300秒",
+  },
+  vitality_1: {
+    name: "Edit: VitalityⅠ",
+    description: "Enemy HP +50%.",
+    zhName: "改写：活性Ⅰ",
+    zhDescription: "敌人生命值+50%",
+  },
+  vitality_2: {
+    name: "Edit: VitalityⅡ",
+    description: "Enemy HP +100%.",
+    zhName: "改写：活性Ⅱ",
+    zhDescription: "敌人生命值+100%",
+  },
+  vitality_3: {
+    name: "Edit: VitalityⅢ",
+    description: "Enemy HP +200%.",
+    zhName: "改写：活性Ⅲ",
+    zhDescription: "敌人生命值+200%",
+  },
+  decapitation_1: {
+    name: "Team: DecapitateⅠ",
+    description: "DMG Taken by the controlled operator +50%.",
+    zhName: "队列：斩首Ⅰ",
+    zhDescription: "主控干员受到伤害+50%",
+  },
+  decapitation_2: {
+    name: "Team: DecapitateⅡ",
+    description: "DMG Taken by the controlled operator +100%.",
+    zhName: "队列：斩首Ⅱ",
+    zhDescription: "主控干员受到伤害+100%",
+  },
+  imprisonment_1: {
+    name: "Ambient: Hypoxia",
+    description: "Stamina Regen Rate -50%.",
+    zhName: "环境：厌氧",
+    zhDescription: "体力恢复速度-50%",
+  },
+  imprisonment_2: {
+    name: "Ambient: Mire",
+    description: "Dodge cannot be performed.",
+    zhName: "环境：禁锢",
+    zhDescription: "禁止闪避",
+  },
+  healing_cluster_1: {
+    name: "Ambient: WitheringⅠ",
+    description: "Only 1 Healing Mass is generated between waves.",
+    zhName: "环境：枯萎Ⅰ",
+    zhDescription: "波次间隔只产生1个治愈团块",
+  },
+  healing_cluster_2: {
+    name: "Ambient: WitheringⅡ",
+    description: "No Healing Masses are generated between waves.",
+    zhName: "环境：枯萎Ⅱ",
+    zhDescription: "波次间隔不产生治愈团块",
+  },
+  bladebreaking_1: {
+    name: "Team: Bent EdgesⅠ",
+    description: "Whenever an operator casts an ultimate, Ultimate DMG Dealt by the said operator's subsequent ultimates -50%.",
+    zhName: "队列：折刃Ⅰ",
+    zhDescription: "干员每施放一次终结技，该干员之后的终结技伤害-50%",
+  },
+  bladebreaking_2: {
+    name: "Team: Bent EdgesⅡ",
+    description: "Whenever an operator casts an ultimate, Ultimate DMG Dealt by the said operator's subsequent ultimates -100%.",
+    zhName: "队列：折刃Ⅱ",
+    zhDescription: "干员每施放一次终结技，该干员之后的终结技伤害-100%",
+  },
+  barrier_1: {
+    name: "Edit: Effect Barrier",
+    description: "Vulnerability or Arts Infliction of the same element can only be applied to the same enemy once every 5s.",
+    zhName: "改写：屏障",
+    zhDescription: "每个敌人每5秒只能被施加一次破防或同类型的法术附着",
+  },
+  swiftend_1: {
+    name: "Edit: Rush",
+    description: "Enemy movement speed +100%. Enemies also do not suffer more than 25% Max HP of DMG within 0.1s.",
+    zhName: "改写：奔腾",
+    zhDescription: "敌人移动速度+100%，0.1秒内受到的伤害不会超过最大生命值的25%",
+  },
+  rebounding_vitality_1: {
+    name: "Ambient: Synced Growth",
+    description: "Whenever the controlled operator is restored for 10% Max HP or acquires a shield with 20% Max HP, every enemy in the battlefield is also restored for 8% Max HP.",
+    zhName: "环境：同步生长",
+    zhDescription: "主控干员每实际回复10%最大生命值或获得20%最大生命值的护盾时，场上敌人回复8%最大生命值",
+  },
+  encumbered_1: {
+    name: "Team: EncumberedⅠ",
+    description: "Natural SP Recovery is temporarily paused when the controlled operator has not dealt a Final Strike to the enemy for 12 seconds.",
+    zhName: "队列：重负Ⅰ",
+    zhDescription: "主控干员12秒内未对敌人造成重击时，暂停技力自然恢复",
+  },
+  basic_attack_breakdown_1: {
+    name: "Team: Poor Basics",
+    description: "Operator's Basic Attack DMG Dealt -70%.",
+    zhName: "队列：脱力",
+    zhDescription: "干员普通攻击伤害-70%",
+  },
+  life_cap_wound_1: {
+    name: "Team: Whittle Down",
+    description: "When operators take DMG, part of that DMG will be converted to Max HP Reduction. Conversion rates: 30% (for melee operators) / 50% (for ranged operators)",
+    zhName: "队列：衰竭",
+    zhDescription: "近战干员受到伤害的30%会转为减少生命值上限，远程干员转化率为50%",
+  },
+  auxiliary_rebalance_misc: {
+    name: "Ambient: Tremor",
+    description: "Operators' DMG Dealt +100% for any DMG not dealt by Basic Attack, Battle Skill, Combo Skill, or Ultimate. Battle Skill DMG Dealt -60%.",
+    zhName: "环境：震荡",
+    zhDescription: "干员除普通攻击、战技、连携技和终结技以外的伤害+100%，战技伤害-60%",
+  },
+  auxiliary_rebalance_combo: {
+    name: "Ambient: Overclock",
+    description: "Length of Operator Combo Skill Cooldown -60%; Battle Skill DMG Dealt -60%.",
+    zhName: "环境：过速",
+    zhDescription: "干员连携技冷却时间-60%，战技伤害-60%",
+  },
+  suppression_1: {
+    name: "Team: RestraintⅠ",
+    description: "When an operator applies Vulnerability or Arts Infliction stacks, DMG Dealt (of the corresponding type) by the said operator -45% for 10s.",
+    zhName: "队列：扼制Ⅰ",
+    zhDescription: "干员使敌人的破防或法术附着层数增加后，该干员造成的对应类型伤害-45%，持续10秒",
+  },
+  suppression_2: {
+    name: "Team: RestraintⅡ",
+    description: "When an operator applies Vulnerability or Arts Infliction stacks, DMG Dealt (of the corresponding type) by the said operator -90% for 10s.",
+    zhName: "队列：扼制Ⅱ",
+    zhDescription: "干员使敌人的破防或法术附着层数增加后，该干员造成的对应类型伤害-90%，持续10秒",
+  },
+  locked_control_1: {
+    name: "Ambient: Partition",
+    description: "Cannot switch controlled operator once battle begins.",
+    zhName: "环境：分隔",
+    zhDescription: "战斗开始后，禁止切换主控干员",
+  },
+  encasement_1: {
+    name: "Edit: Encasement",
+    description: "For each stack of Vulnerability or Arts Infliction on an enemy, DMG Dealt of the corresponding type to them -10%. This effect disappears 0.1s after those stacks expire.",
+    zhName: "改写：裹附",
+    zhDescription: "每个敌人每有一层破防或法术附着，受到的对应类型伤害-10%。该效果会在破防或法术附着结束后延迟0.1秒消失",
+  },
+  toxic_remains_1: {
+    name: "Edit: Toxic ResidueⅠ",
+    description: "A defeated enemy will leave a patch of toxins on the battlefield. Operators caught within the patch take 2% Max HP of DMG per second.",
+    zhName: "改写：遗毒Ⅰ",
+    zhDescription: "敌人被击败后会留下有毒物质，干员处于其中时每秒受到2%最大生命值伤害",
+  },
+  toxic_remains_2: {
+    name: "Edit: Toxic ResidueⅡ",
+    description: "A defeated enemy will leave a patch of toxins on the battlefield. Operators caught within the patch take 5% Max HP of DMG per second.",
+    zhName: "改写：遗毒Ⅱ",
+    zhDescription: "敌人被击败后会留下有毒物质，干员处于其中时每秒受到5%最大生命值伤害",
+  },
+  battle_skill_cryo_1: {
+    name: "Team: Battle ChillⅠ",
+    description: "Whenever operators cast battle skill 2 time(s), apply 1 stack of Cryo Infliction to the controlled operator. Effect trigger cooldown for each operator: 3s.",
+    zhName: "队列：失温Ⅰ",
+    zhDescription: "干员每施放2次战技，主控干员获得一层寒冷附着。每名干员3秒冷却时间",
+  },
+  battle_skill_cryo_2: {
+    name: "Team: Battle ChillⅡ",
+    description: "Whenever operators cast battle skill 1 time(s), apply 1 stack of Cryo Infliction to the controlled operator. Effect trigger cooldown for each operator: 3s.",
+    zhName: "队列：失温Ⅱ",
+    zhDescription: "干员每施放1次战技，主控干员获得一层寒冷附着。每名干员3秒冷却时间",
+  },
+  combo_skill_cryo_1: {
+    name: "Team: Heat LossⅠ",
+    description: "Whenever operators cast combo skill 2 time(s), apply 1 stack of Cryo Infliction to the controlled operator. Effect trigger cooldown for each operator: 3s.",
+    zhName: "队列：热流失Ⅰ",
+    zhDescription: "干员每施放2次连携技，主控干员获得一层寒冷附着。每名干员3秒冷却时间",
+  },
+  combo_skill_cryo_2: {
+    name: "Team: Heat LossⅡ",
+    description: "Whenever operators cast combo skill 1 time(s), apply 1 stack of Cryo Infliction to the controlled operator. Effect trigger cooldown for each operator: 3s.",
+    zhName: "队列：热流失Ⅱ",
+    zhDescription: "干员每施放1次连携技，主控干员获得一层寒冷附着。每名干员3秒冷却时间",
+  },
+  frozen_duration_heat: {
+    name: "Ambient: Thermolysis",
+    description: "Duration of Solidification applied to the controlled operator is extended to 15s. Casting Heat-type skills can dispel the Solidification.",
+    zhName: "环境：融化",
+    zhDescription: "主控干员受到的冻结时间增加至15秒，施放灼热类型技能可以解除冻结",
+  },
+  frozen_duration_nature: {
+    name: "Ambient: Biolysis",
+    description: "Duration of Solidification applied to the controlled operator is extended to 15s. Casting Nature-type skills can dispel the Solidification.",
+    zhName: "环境：升华",
+    zhDescription: "主控干员受到的冻结时间增加至15秒，施放自然类型技能可以解除冻结",
+  },
+  frozen_duration_electric: {
+    name: "Ambient: Electrolysis",
+    description: "Duration of Solidification applied to the controlled operator is extended to 15s. Casting Electric-type skills can dispel the Solidification.",
+    zhName: "环境：电解",
+    zhDescription: "主控干员受到的冻结时间增加至15秒，施放电磁类型技能可以解除冻结",
+  },
+  frozen_duration_physical: {
+    name: "Ambient: Physicolysis",
+    description: "Duration of Solidification applied to the controlled operator is extended to 15s. Casting Physical-type skills can dispel the Solidification.",
+    zhName: "环境：切削",
+    zhDescription: "主控干员受到的冻结时间增加至15秒，施放物理类型技能可以解除冻结",
+  },
+  direct_freeze_1: {
+    name: "Edit: FlashfreezeⅡ",
+    description: "If an enemy applies Cryo Infliction to the controlled operator, directly convert the effect to Solidification instead.",
+    zhName: "改写：热量汲取Ⅱ",
+    zhDescription: "敌人对主控干员施加寒冷附着时，转为直接施加冻结",
+  },
+  controlled_healing_1: {
+    name: "Edit: RegenerationⅠ",
+    description: "An enemy under crowd control effects regenerates 5% Max HP per second.",
+    zhName: "改写：愈合Ⅰ",
+    zhDescription: "敌人受到控制效果影响时，每秒回复5%最大生命值",
+  },
+  controlled_healing_2: {
+    name: "Edit: RegenerationⅡ",
+    description: "An enemy under crowd control effects regenerates 15% Max HP per second.",
+    zhName: "改写：愈合Ⅱ",
+    zhDescription: "敌人受到控制效果影响时，每秒回复15%最大生命值",
+  },
+  final_wave_replacement_1: {
+    name: "Ambient: RE-ConstructⅠ",
+    description: "Heavy Ram and Heavy Sting enemies in the final wave are replaced by Heavy Ram α and Heavy Sting α.",
+    zhName: "环境：再构成Ⅰ",
+    zhDescription: "最终波次的“刚角天使”与“重刺天使”变为“刚角天使α”与“重刺天使α”",
+  },
+  final_wave_replacement_2: {
+    name: "Ambient: RE-ConstructⅡ",
+    description: "Heavy Ram and Heavy Sting enemies in the third and fourth waves are replaced by Heavy Ram α and Heavy Sting α.",
+    zhName: "环境：再构成Ⅱ",
+    zhDescription: "第三、四波次的“刚角天使”与“重刺天使”变为“刚角天使α”与“重刺天使α”",
+  },
+};
+
+const CONTRACT_UI_METADATA: Partial<Record<string, ContingencyContractUiMetadata>> = {
+  main_attr_down: {
+    variantIconIds: {
+      main_attr_down_1: "302",
+      main_attr_down_2: "303",
+      main_attr_down_3: "304",
+    },
+  },
+  stimulation: {
+    variantIconIds: {
+      stimulation_1: "101",
+      stimulation_2: "102",
+    },
+  },
+  time_limit: {
+    variantIconIds: {
+      time_limit_1: "111",
+      time_limit_2: "112",
+      time_limit_3: "301",
+    },
+  },
+  vitality: {
+    variantIconIds: {
+      vitality_1: "114",
+      vitality_2: "115",
+      vitality_3: "116",
+    },
+  },
+  decapitation: {
+    variantIconIds: {
+      decapitation_1: "117",
+      decapitation_2: "118",
+    },
+  },
+  imprisonment: {
+    variantIconIds: {
+      imprisonment_1: "103",
+      imprisonment_2: "104",
+    },
+  },
+  healing_cluster: {
+    variantIconIds: {
+      healing_cluster_1: "107",
+      healing_cluster_2: "108",
+    },
+  },
+  bladebreaking: {
+    variantIconIds: {
+      bladebreaking_1: "207",
+      bladebreaking_2: "208",
+    },
+  },
+  barrier: {
+    groupAlias: "barrier_swiftend_breakdown",
+    variantIconIds: {
+      barrier_1: "124",
+    },
+  },
+  swiftend: {
+    groupAlias: "barrier_swiftend_breakdown",
+    variantIconIds: {
+      swiftend_1: "136",
+    },
+  },
+  rebounding_vitality: {
+    groupAlias: "encumbered_rebounding_vitality_life_cap_wound",
+    variantIconIds: {
+      rebounding_vitality_1: "307",
+    },
+  },
+  encumbered: {
+    groupAlias: "encumbered_rebounding_vitality_life_cap_wound",
+    variantIconIds: {
+      encumbered_1: "312",
+    },
+  },
+  basic_attack_breakdown: {
+    groupAlias: "barrier_swiftend_breakdown",
+    variantIconIds: {
+      basic_attack_breakdown_1: "209",
+    },
+  },
+  life_cap_wound: {
+    groupAlias: "encumbered_rebounding_vitality_life_cap_wound",
+    variantIconIds: {
+      life_cap_wound_1: "127",
+    },
+  },
+  auxiliary_rebalance: {
+    variantIconIds: {
+      auxiliary_rebalance_misc: "306",
+      auxiliary_rebalance_combo: "201",
+    },
+  },
+  suppression: {
+    variantIconIds: {
+      suppression_1: "122",
+      suppression_2: "123",
+    },
+  },
+  locked_control: {
+    groupAlias: "encasement_locked_control",
+    variantIconIds: {
+      locked_control_1: "125",
+    },
+  },
+  encasement: {
+    groupAlias: "encasement_locked_control",
+    variantIconIds: {
+      encasement_1: "308",
+    },
+  },
+  toxic_remains: {
+    variantIconIds: {
+      toxic_remains_1: "129",
+      toxic_remains_2: "130",
+    },
+  },
+  battle_skill_cryo: {
+    variantIconIds: {
+      battle_skill_cryo_1: "203",
+      battle_skill_cryo_2: "204",
+    },
+  },
+  combo_skill_cryo: {
+    variantIconIds: {
+      combo_skill_cryo_1: "205",
+      combo_skill_cryo_2: "206",
+    },
+  },
+  frozen_duration: {
+    variantIconIds: {
+      frozen_duration_heat: "132",
+      frozen_duration_nature: "133",
+      frozen_duration_electric: "134",
+      frozen_duration_physical: "210",
+    },
+  },
+  direct_freeze: {
+    variantIconIds: {
+      direct_freeze_1: "135",
+    },
+  },
+  controlled_healing: {
+    variantIconIds: {
+      controlled_healing_1: "119",
+      controlled_healing_2: "120",
+    },
+  },
+  final_wave_replacement: {
+    variantIconIds: {
+      final_wave_replacement_1: "310",
+      final_wave_replacement_2: "311",
+    },
+  },
+};
+
+function applyContractVariantTexts(
+  contract: ContingencyContractDefinition,
+): ContingencyContractDefinition {
+  return {
+    ...contract,
+    variants: contract.variants.map((variant) => {
+      const text = CONTRACT_VARIANT_TEXTS[variant.id];
+      if (!text) {
+        return {
+          ...variant,
+          hidden: HIDDEN_CONTRACT_VARIANT_IDS.has(variant.id),
+        };
+      }
+      return {
+        ...variant,
+        name: text.name,
+        description: text.description,
+        zhName: text.zhName,
+        zhDescription: text.zhDescription,
+        hidden: HIDDEN_CONTRACT_VARIANT_IDS.has(variant.id),
+      };
+    }),
+  };
+}
+
+function applyContractUiMetadata(
+  contract: ContingencyContractDefinition,
+): ContingencyContractDefinition {
+  const metadata = CONTRACT_UI_METADATA[contract.id];
+  if (!metadata) {
+    return contract;
+  }
+  return {
+    ...contract,
+    groupAlias: metadata.groupAlias ?? contract.groupAlias,
+    variants: contract.variants.map((variant) => ({
+      ...variant,
+      iconId: metadata.variantIconIds?.[variant.id] ?? variant.iconId,
+    })),
   };
 }
 
@@ -312,6 +815,19 @@ const REBOUNDING_VITALITY: ContingencyContractDefinition = {
   ],
 };
 
+const ENCUMBERED: ContingencyContractDefinition = {
+  id: "encumbered",
+  variants: [
+    makeVariant(
+      "encumbered_1",
+      1,
+      "Encumbered I",
+      "Natural SP Recovery is temporarily paused when the controlled operator has not dealt a Final Strike to the enemy for 12 seconds.",
+      "主控干员12秒内未对敌人造成重击时，暂停技力自然恢复",
+    ),
+  ],
+};
+
 const BASIC_ATTACK_BREAKDOWN: ContingencyContractDefinition = {
   id: "basic_attack_breakdown",
   variants: [
@@ -321,6 +837,7 @@ const BASIC_ATTACK_BREAKDOWN: ContingencyContractDefinition = {
       "Basic Attack Breakdown III",
       "Operators' Basic Attack DMG -70%",
       "干员的普通攻击伤害-70%",
+      [{ type: "APPLY_OPERATOR_MODIFIER", stat: "BASIC_ATK_DMG_PCT", value: -0.7 }],
     ),
   ],
 };
@@ -347,13 +864,17 @@ const AUXILIARY_REBALANCE: ContingencyContractDefinition = {
       "Auxiliary Rebalance III",
       "DMG other than Basic Attack, Battle Skill, Combo Skill, and Ultimate +100%; Battle Skill DMG -60%",
       "干员除普通攻击、战技、连携技和终结技以外的伤害+100%，战技伤害-60%",
+      [],
     ),
     makeVariant(
       "auxiliary_rebalance_combo",
       3,
-      "Auxiliary Rebalance III (Combo)",
-      "Combo Skill cooldown -60%; Battle Skill DMG -60%",
-      "连携技冷却时间-60%，战技伤害-60%",
+        "Auxiliary Rebalance III (Combo)",
+        "Combo Skill cooldown -60%; Battle Skill DMG -60%",
+        "连携技冷却时间-60%，战技伤害-60%",
+      [
+        { type: "APPLY_OPERATOR_MODIFIER", stat: "COMBO_COOLDOWN_TOTAL", value: -0.6 },
+      ],
     ),
   ],
 };
@@ -364,10 +885,18 @@ const SUPPRESSION: ContingencyContractDefinition = {
     makeVariant(
       "suppression_1",
       1,
-      "Suppression I",
-      "For each layer of Vulnerability or Arts Infliction on the enemy, corresponding DMG taken -10%",
-      "敌人每有一层破防或法术附着，其受到的对应种类伤害-10%。",
-      [{ type: "SUPPRESSION_ON_INFLICTION_APPLIED", value: -0.45 }],
+      "Team: Restraint I",
+      "When an operator applies Vulnerability or Arts Infliction stacks, DMG Dealt (of the corresponding type) by the said operator -45% for 10s.",
+      "干员使敌人的破防或法术附着层数增加后，该干员造成的对应类型伤害-45%，持续10秒",
+      [{ type: "SUPPRESSION_ON_INFLICTION_APPLIED", value: -0.45, durationSeconds: 10, timeScale: "game" }],
+    ),
+    makeVariant(
+      "suppression_2",
+      2,
+      "Team: Restraint II",
+      "When an operator applies Vulnerability or Arts Infliction stacks, DMG Dealt (of the corresponding type) by the said operator -90% for 10s.",
+      "干员使敌人的破防或法术附着层数增加后，该干员造成的对应类型伤害-90%，持续10秒",
+      [{ type: "SUPPRESSION_ON_INFLICTION_APPLIED", value: -0.9, durationSeconds: 10, timeScale: "game" }],
     ),
   ],
 };
@@ -381,6 +910,19 @@ const LOCKED_CONTROL: ContingencyContractDefinition = {
       "Locked Control II",
       "Cannot switch the controlled operator after battle starts",
       "战斗开始后，禁止切换主控干员",
+    ),
+  ],
+};
+
+const ENCASEMENT: ContingencyContractDefinition = {
+  id: "encasement",
+  variants: [
+    makeVariant(
+      "encasement_1",
+      1,
+      "Encasement I",
+      "For each stack of Vulnerability or Arts Infliction on an enemy, DMG Dealt of the corresponding type to them -10%",
+      "每个敌人每有一层破防或法术附着，受到的对应类型伤害-10%",
     ),
   ],
 };
@@ -517,10 +1059,17 @@ const FINAL_WAVE_REPLACEMENT: ContingencyContractDefinition = {
   variants: [
     makeVariant(
       "final_wave_replacement_1",
-      1,
-      "Final Wave Replacement I",
-      "In the final wave, Horned Angel and Heavy Stinger Angel are replaced by Horned Angel α and Heavy Stinger Angel α",
-      "最终波次的冈角天使和重刺天使替换为冈角天使 α 和重刺天使 α",
+      2,
+      "RE-Construct I",
+      "Heavy Ram and Heavy Sting enemies in the final wave are replaced by Heavy Ram α and Heavy Sting α",
+      "最终波次的“刚角天使”与“重刺天使”变为“刚角天使α”与“重刺天使α”",
+    ),
+    makeVariant(
+      "final_wave_replacement_2",
+      3,
+      "RE-Construct II",
+      "Heavy Ram and Heavy Sting enemies in the third and fourth waves are replaced by Heavy Ram α and Heavy Sting α",
+      "第三、四波次的“刚角天使”与“重刺天使”变为“刚角天使α”与“重刺天使α”",
     ),
   ],
 };
@@ -530,6 +1079,7 @@ export const CONTINGENCY_CONTRACTS: ContingencyContractDefinition[] = [
   STIMULATION,
   TIME_LIMIT,
   VITALITY,
+  SUPPRESSION,
   DECAPITATION,
   IMPRISONMENT,
   HEALING_CLUSTER,
@@ -537,11 +1087,12 @@ export const CONTINGENCY_CONTRACTS: ContingencyContractDefinition[] = [
   BARRIER,
   SWIFTEND,
   REBOUNDING_VITALITY,
+  ENCUMBERED,
   BASIC_ATTACK_BREAKDOWN,
   LIFE_CAP_WOUND,
   AUXILIARY_REBALANCE,
-  SUPPRESSION,
   LOCKED_CONTROL,
+  ENCASEMENT,
   TOXIC_REMAINS,
   BATTLE_SKILL_CRYO,
   COMBO_SKILL_CRYO,
@@ -549,7 +1100,7 @@ export const CONTINGENCY_CONTRACTS: ContingencyContractDefinition[] = [
   DIRECT_FREEZE,
   CONTROLLED_HEALING,
   FINAL_WAVE_REPLACEMENT,
-];
+].map(applyContractVariantTexts).map(applyContractUiMetadata);
 
 export const CONTINGENCY_CONTRACT_BY_ID: Record<string, ContingencyContractDefinition> =
   Object.fromEntries(CONTINGENCY_CONTRACTS.map((contract) => [contract.id, contract]));
@@ -581,6 +1132,18 @@ export function getLocalizedContingencyContractVariantDescription(
   return locale === "zh-CN"
     ? (variant.zhDescription ?? variant.description)
     : variant.description;
+}
+
+export function getContingencyContractVariantIconAssetPath(
+  variant: ContingencyContractVariant,
+): string | null {
+  return variant.iconId
+    ? `/item-icons/contracts/icon_activity_contract_tag_${variant.iconId}.webp`
+    : null;
+}
+
+export function isContingencyContractVariantVisible(variant: ContingencyContractVariant): boolean {
+  return variant.hidden !== true;
 }
 
 export function normalizeActiveContingencyContracts(value: unknown): ActiveContingencyContract[] {
@@ -628,7 +1191,11 @@ export function resolveContingencyContracts(
     operatorModifierEffects: {},
     enemyModifierEffects: {},
     disabledGenericActions: new Set<GenericActionType>(),
-    suppressionOnInflictionValues: [],
+    encasementActive: false,
+    swiftendActive: false,
+    suppressionOnInflictionEffects: [],
+    battleSkillDamagePctValues: [],
+    nonCommandDamagePctValues: [],
   };
 
   for (const active of activeContracts ?? []) {
@@ -652,7 +1219,11 @@ export function resolveContingencyContracts(
         continue;
       }
       if (effect.type === "SUPPRESSION_ON_INFLICTION_APPLIED") {
-        resolved.suppressionOnInflictionValues.push(effect.value);
+        resolved.suppressionOnInflictionEffects.push({
+          value: effect.value,
+          durationSeconds: effect.durationSeconds ?? 10,
+          timeScale: effect.timeScale ?? "game",
+        });
         continue;
       }
       if (effect.type === "SET_BATTLE_TIME_LIMIT") {
@@ -676,6 +1247,20 @@ export function resolveContingencyContracts(
         resolved.bladebreakingUltimateDmgPct ?? 0,
         variant.level === 2 ? -1 : -0.5,
       );
+    }
+    if (active.id === "auxiliary_rebalance") {
+      if (active.variantId === "auxiliary_rebalance_misc") {
+        resolved.nonCommandDamagePctValues.push(1.0);
+        resolved.battleSkillDamagePctValues.push(-0.6);
+      } else if (active.variantId === "auxiliary_rebalance_combo") {
+        resolved.battleSkillDamagePctValues.push(-0.6);
+      }
+    }
+    if (active.id === "encasement") {
+      resolved.encasementActive = true;
+    }
+    if (active.id === "swiftend") {
+      resolved.swiftendActive = true;
     }
     if (active.id === "barrier") {
       resolved.barrierInflictionIntervalSeconds = Math.max(

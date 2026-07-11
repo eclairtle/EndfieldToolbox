@@ -55,33 +55,48 @@ const LAEVATAIN_COMBAT_HOOKS: CharacterCombatHooks = {
       return;
     }
 
-    const enemyInfliction = ctx.state.getEnemyArtsInfliction();
-    if (!enemyInfliction || enemyInfliction.element !== "Heat" || enemyInfliction.stacks <= 0) {
-      return;
-    }
-
     const currentStacks = ctx.state.getSelfMeltingFlameStacks();
     const absorbLimit = Math.max(0, 4 - currentStacks);
     if (absorbLimit <= 0) {
       return;
     }
 
-    const absorbedStacks = Math.min(absorbLimit, enemyInfliction.stacks);
-    if (absorbedStacks <= 0) {
-      return;
+    const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+    const enemySlotIds = affectedEnemySlotIds.length > 0
+      ? affectedEnemySlotIds
+      : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+
+    let remainingAbsorbLimit = absorbLimit;
+    let totalAbsorbedStacks = 0;
+    for (const enemySlotId of enemySlotIds) {
+      if (remainingAbsorbLimit <= 0) {
+        break;
+      }
+      const enemyInfliction = ctx.state.getEnemyArtsInfliction(enemySlotId);
+      if (!enemyInfliction || enemyInfliction.element !== "Heat" || enemyInfliction.stacks <= 0) {
+        continue;
+      }
+      const absorbedStacks = Math.min(remainingAbsorbLimit, enemyInfliction.stacks);
+      if (absorbedStacks <= 0) {
+        continue;
+      }
+      const remainingStacks = enemyInfliction.stacks - absorbedStacks;
+      ctx.state.setEnemyArtsInfliction(
+        remainingStacks > 0
+          ? {
+              ...enemyInfliction,
+              stacks: remainingStacks,
+            }
+          : null,
+        enemySlotId,
+      );
+      totalAbsorbedStacks += absorbedStacks;
+      remainingAbsorbLimit -= absorbedStacks;
     }
 
-    const remainingStacks = enemyInfliction.stacks - absorbedStacks;
-    ctx.state.setEnemyArtsInfliction(
-      remainingStacks > 0
-        ? {
-            ...enemyInfliction,
-            stacks: remainingStacks,
-          }
-        : null,
-    );
-
-    ctx.state.gainSelfMeltingFlameStacks(absorbedStacks, `Laevatain: Melting Flame +${absorbedStacks}`);
+    if (totalAbsorbedStacks > 0) {
+      ctx.state.gainSelfMeltingFlameStacks(totalAbsorbedStacks, `Laevatain: Melting Flame +${totalAbsorbedStacks}`);
+    }
   },
   onEvent: (ctx) => {
     if (ctx.event.type === "MELTING_FLAME_FULL" && ctx.event.slot === ctx.self.slot) {
@@ -265,8 +280,7 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
-    basicAttackVariant: "finisher",
-    mode: "single",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
@@ -283,7 +297,6 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     basicAttackVariant: "dive_attack",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
@@ -301,7 +314,6 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
-    mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -335,7 +347,6 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     damageType: "Heat",
     variant: "enhanced_battle_skill",
     hiddenInLibrary: true,
-    mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -363,7 +374,6 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Heat",
-    mode: "single",
     durationFrames: flat12(80),
     timeFreezeSeconds: flat12(37 / 60),
     comboCooldownSeconds: [...flat12(10).slice(0, 11), 9],
@@ -387,12 +397,17 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Heat",
-    mode: "single",
     durationFrames: flat12(142),
     timeFreezeSeconds: flat12(2.07),
     cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(300),
+    initialEffects: [
+      {
+        type: "FORCE_CONTROL_SWITCH",
+        label: "Laevatain Switched In",
+      },
+    ],
     hits: [
       {
         multiplier: flat12(0),
@@ -429,7 +444,6 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     damageType: "Heat",
     variant: "enhanced_battle_skill",
     hiddenInLibrary: true,
-    mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -459,7 +473,6 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     damageType: "Heat",
     variant: "enhanced_battle_skill",
     hiddenInLibrary: true,
-    mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -501,7 +514,6 @@ const LAEVATAIN_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "sequence",
     noFinisherTransform: true,
     hiddenInLibrary: true,
-    mode: "cycling",
     durationFrames: flat12(197),
     spCost: flat12(0),
     expandsToCommandIds: [

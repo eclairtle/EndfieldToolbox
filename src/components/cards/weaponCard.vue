@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import type { CharacterBase } from "@/data/characters";
 import type { WeaponBase } from "@/data/weapons";
-import { getWeaponImagePath } from "@/lib/assets/imagePaths";
+import { getWeaponImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
 import { useLocale } from "@/i18n/useLocale";
 import { getWeaponDisplayNameByWeapon } from "@/i18n/domain/displayNames";
 import { getWeaponSkillDisplayName } from "@/i18n/domain/skillNames";
@@ -148,6 +148,10 @@ function getLiveBonus(index: number) {
     return t("builder.selectCharacterToPreviewWeaponSkill");
   }
   return getWeaponSkillLiveBonus(weapon, skill, props.weaponSkillLevels[index] ?? skillRanges.value[index]!.min, props.character);
+}
+
+function getBuildCostIconPath(path?: string) {
+  return path ? toAssetUrl(path) : "";
 }
 
 </script>
@@ -330,7 +334,7 @@ function getLiveBonus(index: number) {
             <span class="flex min-w-0 items-center gap-2 text-[#666]">
               <img
                 v-if="line.iconPath"
-                :src="line.iconPath"
+                :src="getBuildCostIconPath(line.iconPath)"
                 :alt="line.name"
                 class="h-4 w-4 shrink-0 rounded object-contain"
                 loading="lazy"

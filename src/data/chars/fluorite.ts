@@ -2,17 +2,17 @@ import type { CharacterBase } from "@/data/characters";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
 const FLUORITE_COMMANDS: CommandDefinition[] = [
-  { id: "fluorite_basic_sequence", name: "Basic Attack Sequence", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Nature", mode: "cycling", durationFrames: flat12(222), spCost: flat12(0), hits: [
+  { id: "fluorite_basic_sequence", name: "Basic Attack Sequence", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Nature", durationFrames: flat12(222), spCost: flat12(0), hits: [
       { name: "Hit 1", multiplier: pct([25, 28, 30, 33, 35, 38, 40, 43, 45, 48, 52, 56]), offsetFrames: flat12(26) },
       { name: "Hit 2", multiplier: pct([33, 36, 39, 42, 46, 49, 52, 55, 59, 63, 67, 73]), offsetFrames: flat12(64) },
       { name: "Hit 3", multiplier: pct([26, 28, 31, 33, 36, 38, 41, 43, 46, 49, 53, 57]), offsetFrames: flat12(96) },
       { name: "Hit 4", multiplier: pct([60, 66, 72, 78, 84, 90, 96, 102, 108, 116, 125, 135]), offsetFrames: flat12(174) },
   ] },
-  { id: "fluorite_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Nature", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
-  { id: "fluorite_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Nature", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
-  { id: "fluorite_battle_skill", name: "Battle Skill", skill: "battleSkill", attackType: "BATTLE_SKILL", damageType: "Nature", mode: "single", durationFrames: flat12(68), spCost: flat12(100), energyGain: flat12(0), hits: [{ multiplier: pct([187, 206, 224, 243, 262, 280, 299, 318, 336, 360, 388, 420]), stagger: flat12(10), offsetFrames: flat12(178) }] },
-  { id: "fluorite_combo_skill", name: "Combo Skill", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Nature", mode: "single", durationFrames: flat12(34), spCost: flat12(0), hits: [{ multiplier: pct([169, 186, 203, 220, 237, 254, 270, 287, 304, 325, 351, 380]), stagger: flat12(10), offsetFrames: flat12(30) }] },
-  { id: "fluorite_ultimate", name: "Ultimate", skill: "ultimate", attackType: "ULTIMATE", damageType: "Nature", mode: "single", durationFrames: flat12(154), spCost: flat12(0), energyCost: flat12(72), hits: [
+  { id: "fluorite_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Nature", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
+  { id: "fluorite_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Nature", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
+  { id: "fluorite_battle_skill", name: "Battle Skill", skill: "battleSkill", attackType: "BATTLE_SKILL", damageType: "Nature", durationFrames: flat12(68), spCost: flat12(100), energyGain: flat12(0), hits: [{ multiplier: pct([187, 206, 224, 243, 262, 280, 299, 318, 336, 360, 388, 420]), stagger: flat12(10), offsetFrames: flat12(178) }] },
+  { id: "fluorite_combo_skill", name: "Combo Skill", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Nature", durationFrames: flat12(34), spCost: flat12(0), hits: [{ multiplier: pct([169, 186, 203, 220, 237, 254, 270, 287, 304, 325, 351, 380]), stagger: flat12(10), energyReturn: flat12(10), offsetFrames: flat12(30) }] },
+  { id: "fluorite_ultimate", name: "Ultimate", skill: "ultimate", attackType: "ULTIMATE", damageType: "Nature", durationFrames: flat12(154), spCost: flat12(0), energyCost: flat12(72), hits: [
       { name: "Seq 1", multiplier: pct([111, 122, 133, 144, 156, 167, 178, 189, 200, 214, 231, 250]), offsetFrames: flat12(118) },
       { name: "Seq 2", multiplier: pct([111, 122, 133, 144, 156, 167, 178, 189, 200, 214, 231, 250]), offsetFrames: flat12(126) },
       { name: "Seq 3", multiplier: pct([111, 122, 133, 144, 156, 167, 178, 189, 200, 214, 231, 250]), offsetFrames: flat12(134) },

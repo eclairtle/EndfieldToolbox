@@ -16,7 +16,7 @@ import {
   type CharacterTalentToggles,
 } from "@/lib/build/characterTalents";
 import type { CharacterSkillLevels, CharacterSkillKey } from "@/lib/build/characterSkills";
-import { getCharacterImagePath } from "@/lib/assets/imagePaths";
+import { getCharacterImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
 import { useLocale } from "@/i18n/useLocale";
 import { getCharacterDisplayNameByCharacter } from "@/i18n/domain/displayNames";
 import {
@@ -103,6 +103,10 @@ function formatCompareValue(currentValue: string | number, compareValue?: string
     return String(currentValue);
   }
   return `${currentValue} -> ${compareValue}`;
+}
+
+function getBuildCostIconPath(path?: string) {
+  return path ? toAssetUrl(path) : "";
 }
 
 function syncLevelInput() {
@@ -388,7 +392,7 @@ function pickCharacter(id: string) {
             <span class="flex min-w-0 items-center gap-2 text-[#666]">
               <img
                 v-if="line.iconPath"
-                :src="line.iconPath"
+                :src="getBuildCostIconPath(line.iconPath)"
                 :alt="line.name"
                 class="h-4 w-4 shrink-0 rounded object-contain"
                 loading="lazy"

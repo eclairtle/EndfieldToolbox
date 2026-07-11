@@ -66,7 +66,7 @@ const ARDELIA_COMBAT_HOOKS: CharacterCombatHooks = {
       return;
     }
 
-    if (!ctx.state.hasStatus({ statusId: "corrosion", target: "enemy" })) {
+    if (!ctx.state.hasStatus({ statusId: "corrosion", target: "enemy", enemy: "primary" })) {
       return;
     }
 
@@ -77,11 +77,22 @@ const ARDELIA_COMBAT_HOOKS: CharacterCombatHooks = {
       return;
     }
 
-    if (ctx.state.hasStatus({ statusId: "vulnerability", target: "enemy" })) {
-      return;
-    }
+    const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+    const canTriggerFromAnyAffectedEnemy =
+      (affectedEnemySlotIds.length > 0 ? affectedEnemySlotIds : [ctx.state.getPrimaryEnemySlotId()]).some((enemySlotId) => {
+        if (!enemySlotId) {
+          return false;
+        }
+        if (ctx.state.hasStatus({ statusId: "vulnerability", target: "enemy", enemySlotId })) {
+          return false;
+        }
+        if (ctx.state.getEnemyArtsInfliction(enemySlotId) != null) {
+          return false;
+        }
+        return true;
+      });
 
-    if (ctx.state.getEnemyArtsInfliction() != null) {
+    if (!canTriggerFromAnyAffectedEnemy) {
       return;
     }
 
@@ -99,7 +110,6 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "TALENT",
     damageType: "Healing",
-    mode: "single",
     durationFrames: flat12(30),
     spCost: flat12(0),
     showNameInHitTimeline: true,
@@ -251,8 +261,7 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
-    basicAttackVariant: "finisher",
-    mode: "single",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -264,7 +273,6 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Nature",
     basicAttackVariant: "dive_attack",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
@@ -275,7 +283,6 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Nature",
-    mode: "single",
     durationFrames: flat12(94),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -307,14 +314,13 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Nature",
-    mode: "single",
     durationFrames: flat12(42),
     timeFreezeSeconds: flat12(37 / 60),
     comboCooldownSeconds: flat12(18),
     comboCooldownTimeScale: "real",
     spCost: flat12(0),
     hits: [
-      { name: "Volcanic Cloud", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), registerOffsetFrames: flat12(40), offsetFrames: flat12(49) },
+      { name: "Volcanic Cloud", multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]), energyReturn: flat12(10), registerOffsetFrames: flat12(40), offsetFrames: flat12(49) },
       {
         name: "Explosion",
         multiplier: pct([111, 122, 133, 144, 155, 167, 178, 189, 200, 214, 230, 250]),
@@ -331,7 +337,6 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Nature",
-    mode: "single",
     durationFrames: flat12(288),
     timeFreezeSeconds: flat12(105 / 60),
     cutscene: true,

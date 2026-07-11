@@ -14,6 +14,7 @@ type TimelineActionInput = {
   realStartTime: number;
   missed?: boolean;
   interrupted?: boolean;
+  nullified?: boolean;
   buildSwapMap?: [number, number, number, number];
 };
 
@@ -220,6 +221,7 @@ function buildTimelineInputs(rotation: Rotation, party: CharacterCombatSnapshot[
       realStartTime: round(realStartTime),
       missed: step.missed === true,
       interrupted: step.interrupted === true,
+      nullified: step.nullified === true,
       buildSwapMap: step.buildSwapMap,
     });
 
@@ -386,6 +388,7 @@ function resolveAction(
     cutscene: action.command.cutscene,
     missed: action.missed,
     interrupted: action.interrupted,
+    nullified: action.nullified,
     buildSwapMap: action.buildSwapMap,
   };
 }

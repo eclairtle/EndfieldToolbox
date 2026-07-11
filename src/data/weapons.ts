@@ -20,6 +20,7 @@ export type WeaponSkillId =
   | "ARTS_DMG_UP"
   | "PHYSICAL_DMG_UP"
   | "CRYO_DMG_UP"
+  | "HEAT_DMG_UP"
   | "HEALING_UP"
   | "UNIQUE"
   | "NotImplemented";
@@ -139,8 +140,10 @@ export const WEAPONS: WeaponBase[] = [
   handcannon.ARTSY_TYRANNICAL,
   handcannon.CLANNIBAL,
   handcannon.BRIGANDS_CALLING,
+  handcannon.RATIONAL_FAREWELL,
   polearm.JET,
   polearm.MOUNTAIN_BEARER,
+  polearm.CHIMERIC_JUSTICE,
   artsunit.DELIVERY_GUARANTEED,
   artsunit.STANZA_OF_MEMORIALS,
   artsunit.DETONATION_UNIT,

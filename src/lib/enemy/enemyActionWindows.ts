@@ -26,6 +26,14 @@ const DUMMY_ATTACK_DEFINITION: EnemyCommandDefinition = {
   durationSeconds: 1,
 };
 
+const SET_TARGET_DEFINITION: EnemyCommandDefinition = {
+  id: "set_target",
+  label: "Set To Target",
+  durationSeconds: 0.05,
+  startEffects: [{ type: "SET_TARGET_ENEMY" }],
+  interruptible: false,
+};
+
 const RHODAGN_COMMAND_DEFINITIONS: EnemyCommandDefinition[] = [
   {
     id: "opening_attack",
@@ -71,7 +79,7 @@ const NEFARITH_COMMAND_DEFINITIONS: EnemyCommandDefinition[] = [
 ];
 
 export function getEnemyCommandDefinitions(enemyId: string): EnemyCommandDefinition[] {
-  const baseDefinitions: EnemyCommandDefinition[] = [{ ...DUMMY_ATTACK_DEFINITION }];
+  const baseDefinitions: EnemyCommandDefinition[] = [{ ...DUMMY_ATTACK_DEFINITION }, { ...SET_TARGET_DEFINITION }];
   if (enemyId === "rhodagn") {
     return baseDefinitions.concat(RHODAGN_COMMAND_DEFINITIONS.map((definition) => ({
       ...definition,

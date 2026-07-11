@@ -21,7 +21,6 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "cycling",
     durationFrames: flat12(0),
     spCost: flat12(0),
     basicAttackVariant: "sequence",
@@ -39,7 +38,6 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 1,
     sequenceSegmentTotal: 4,
@@ -54,7 +52,6 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 2,
     sequenceSegmentTotal: 4,
@@ -69,7 +66,6 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 3,
     sequenceSegmentTotal: 4,
@@ -84,7 +80,6 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 4,
     sequenceSegmentTotal: 4,
@@ -93,15 +88,14 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     hits: [{ multiplier: pct([68, 74, 81, 88, 95, 101, 108, 115, 122, 130, 140, 152]), stagger: flat12(19), spGenerated: flat12(21), offsetFrames: flat12(36) }],
   },
-  { id: "lifeng_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "lifeng_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "lifeng_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "lifeng_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "lifeng_battle_skill",
     name: "Turbid Avatar",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(134),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -125,14 +119,13 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(100),
     timeFreezeSeconds: flat12(30 / 60),
     spCost: flat12(0),
     comboWindowDurationSeconds: flat12(20),
     comboCooldownSeconds: [16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 15],
     hits: [
-      { name: "Seq 1", multiplier: pct([47, 51, 56, 61, 65, 70, 75, 79, 84, 90, 97, 105]), offsetFrames: flat12(38) },
+      { name: "Seq 1", multiplier: pct([47, 51, 56, 61, 65, 70, 75, 79, 84, 90, 97, 105]), energyReturn: flat12(10), offsetFrames: flat12(38) },
       { name: "Seq 2", multiplier: pct([167, 183, 200, 217, 233, 250, 267, 283, 300, 321, 346, 375]), stagger: flat12(10), offsetFrames: flat12(96) },
     ],
   },
@@ -142,7 +135,6 @@ const LIFENG_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(132),
     spCost: flat12(0),
     energyCost: flat12(90),
@@ -229,12 +221,19 @@ const LIFENG_HOOKS: CharacterCombatHooks = {
     if (
       ctx.source.isControlledOperatorHit
       && ctx.flags.isFinalStrikeOfBasicSequence
-      && (
-        ctx.state.hasStatus({ statusId: LIFENG_TURBID_AVATAR_PHYSICAL_SUS_BASE_ID, target: "enemy" })
-        || ctx.state.hasStatus({ statusId: LIFENG_TURBID_AVATAR_PHYSICAL_SUS_POT2_ID, target: "enemy" })
-        || ctx.state.hasStatus({ statusId: "breach", target: "enemy" })
-      )
     ) {
+      const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+      const enemySlotIds = affectedEnemySlotIds.length > 0
+        ? affectedEnemySlotIds
+        : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+      const canTriggerCombo = enemySlotIds.some((enemySlotId) =>
+        ctx.state.hasStatus({ statusId: LIFENG_TURBID_AVATAR_PHYSICAL_SUS_BASE_ID, target: "enemy", enemySlotId })
+        || ctx.state.hasStatus({ statusId: LIFENG_TURBID_AVATAR_PHYSICAL_SUS_POT2_ID, target: "enemy", enemySlotId })
+        || ctx.state.hasStatus({ statusId: "breach", target: "enemy", enemySlotId })
+      );
+      if (!canTriggerCombo) {
+        return;
+      }
       ctx.state.triggerSelfCombo({
         label: "Lifeng Combo Triggered",
         sourceEventType: "BASIC_ATTACK_FINAL_STRIKE_HIT",

@@ -1,6 +1,6 @@
 import type { ModifierStats } from "@/lib/build/stats";
 import type { EnemyResolvedStats } from "@/lib/enemy/enemyScaling";
-import type { ResolvedCommandAtLevel, ResolvedExecuteHitAtLevel } from "@/lib/commands";
+import type { ResolvedCommandAtLevel, ResolvedCommandHitAtLevel, ResolvedExecuteHitAtLevel, TimeScale } from "@/lib/commands";
 import type { AttackType } from "@/lib/commands";
 import type { ElementType } from "@/data/characters";
 import type { CharacterClass } from "@/data/characters";
@@ -11,9 +11,21 @@ import type { AscensionStage, PotentialLevel } from "@/lib/build/progression";
 import type { ActiveGearSetInfo } from "@/lib/combat/gearSetEffects";
 import type { CharacterConditionalModifierDefinition } from "@/data/characters";
 import type { CombatEffectTree } from "@/lib/combat/effectTree";
-import type { UnifiedStatusChangeLogEntry } from "@/lib/combat/statusModel";
+import type { UnifiedCombatStatus, UnifiedStatusChangeLogEntry } from "@/lib/combat/statusModel";
+import type { UnifiedStatusChangeType, UnifiedStatusKind, UnifiedStatusScope } from "@/lib/combat/statusModel";
+import type { EnemyBase } from "@/data/enemies";
 
 export type PartySlot = 0 | 1 | 2 | 3;
+export type EnemySlotId = string;
+
+export type EnemySlotState = {
+  slotId: EnemySlotId;
+  enemyId: string;
+  level: number;
+  spawnTimeEnabled?: boolean;
+  spawnTime?: number;
+  noDeath?: boolean;
+};
 
 export type RotationStep = {
   id: string;
@@ -23,6 +35,7 @@ export type RotationStep = {
   groupId?: string;
   missed?: boolean;
   interrupted?: boolean;
+  nullified?: boolean;
   buildSwapMap?: [number, number, number, number];
 };
 
@@ -106,6 +119,8 @@ export type DamageTimelineEntry = {
   commandName: string;
   hitIndex: number;
   hitName?: string;
+  targetEnemySlotId?: EnemySlotId;
+  affectedEnemySlotIds?: EnemySlotId[];
 
   damageType: ElementType;
 
@@ -132,6 +147,8 @@ export type DamageTimelineEntry = {
     enemyDef: number;
     hitTimes: number;
     linkMultiplier: number;
+    contractDamageMultiplier?: number;
+    contractFlatModifier?: number;
     consumedArtsInflictionStacksForBonus?: number;
     reactionBaseMultiplier?: number;
     applierLevel?: number;
@@ -166,6 +183,7 @@ export type CompiledRotationAction = {
   cutscene: boolean;
   missed?: boolean;
   interrupted?: boolean;
+  nullified?: boolean;
   buildSwapMap?: [number, number, number, number];
 };
 
@@ -198,6 +216,7 @@ export type ActorActiveStatusState = {
   expiresAt: number;
   timeScale: "real" | "game";
   fieldStatus?: boolean;
+  stacks?: number;
 };
 
 export type ActorCombatStateSnapshot = {
@@ -214,7 +233,16 @@ export type ActorCombatStateSnapshot = {
   activeTeamStatuses: TeamActiveStatusState[];
 };
 
+export type RotationSimulationInitialResourceState = {
+  teamSpGenerated: number;
+  teamSpReturned: number;
+  spRegenRate: number;
+  energyBySlot: Map<PartySlot, number>;
+  energyMaxBySlot: Map<PartySlot, number>;
+};
+
 export type EnemyActiveDebuffState = {
+  enemySlotId?: EnemySlotId;
   label?: string;
   stat: ModifierStatKey;
   value: number;
@@ -223,10 +251,12 @@ export type EnemyActiveDebuffState = {
 };
 
 export type EnemyActiveStatusState = {
+  enemySlotId?: EnemySlotId;
   instanceId?: string;
   id: string;
   label: string;
   stacks?: number;
+  hidden?: boolean;
   expiresAt: number;
   timeScale: "real" | "game";
 };
@@ -235,6 +265,10 @@ export type EnemyCombatStateSnapshot = {
   sequence?: number;
   time: number;
   gameTime: number;
+  enemySlotId?: EnemySlotId;
+  isPresent?: boolean;
+  isDead?: boolean;
+  deadAt?: number;
   enemyId: string;
   enemyName: string;
   baseMaxHp: number;
@@ -256,7 +290,7 @@ export type EnemyCombatStateSnapshot = {
 };
 
 export type EnemyActionEffect = {
-  type: "RESET_STAGGER" | "INTERRUPT_ONGOING_COMMANDS" | "CLEAR_FIELD_EFFECTS" | "REINITIALIZE_COMBAT";
+  type: "RESET_STAGGER" | "INTERRUPT_ONGOING_COMMANDS" | "CLEAR_FIELD_EFFECTS" | "REINITIALIZE_COMBAT" | "SET_TARGET_ENEMY";
 } | {
   type: "TRANSFORM_ENEMY";
   enemyId: string;
@@ -265,6 +299,7 @@ export type EnemyActionEffect = {
 
 export type EnemyActionWindow = {
   id: string;
+  enemySlotId?: EnemySlotId;
   commandId?: string;
   label: string;
   startTime: number;
@@ -277,6 +312,186 @@ export type EnemyActionWindow = {
   interrupted?: boolean;
   interruptedSpGain?: number;
   interruptedStagger?: number;
+};
+
+export type RotationSimulationCheckpointTimedEnemyDebuff = {
+  enemySlotId?: EnemySlotId;
+  id?: string;
+  buffId?: string;
+  label?: string;
+  stat: ModifierStatKey;
+  value: number;
+  expiresAt: number;
+  timeScale: TimeScale;
+};
+
+export type RotationSimulationCheckpointTimedContractDamageModifier = {
+  slot: PartySlot;
+  value: number;
+  attackType?: AttackType;
+  damageType?: ElementType;
+  expiresAt: number;
+  timeScale: TimeScale;
+};
+
+export type RotationSimulationCheckpointPendingArtsBurst = {
+  executeGameTime: number;
+  enemySlotId?: EnemySlotId;
+  sourceSlot: PartySlot;
+  element: Extract<ElementType, "Heat" | "Cryo" | "Electric" | "Nature">;
+  stepId: string;
+  sourceCommandId?: string;
+  sourceCommandName?: string;
+};
+
+export type RotationSimulationCheckpointPendingExecuteHit = {
+  actor: CharacterCombatSnapshot;
+  hit: ResolvedCommandHitAtLevel;
+  hitIndex: number;
+  repeatIndex: number;
+  hitName?: string;
+  executeCritRigId?: string;
+  critRigStepId?: string;
+  effectTree?: CombatEffectTree;
+  sourceCommandId: string;
+  sourceCommandName: string;
+  sourceCommandAttackType?: RotationCombatEvent["commandAttackType"];
+  stepId: string;
+  executionTime: number;
+  executionGameTime: number;
+  registerTime: number;
+  registerGameTime: number;
+  triggerSlots: PartySlot[];
+  linkSourceStepId?: string;
+  applySourceCommandModifiers?: boolean;
+};
+
+export type RotationSimulationCheckpointPendingTriggerResume = {
+  instanceId: string;
+  triggerId: string;
+  event: RotationCombatEvent;
+  actions: Array<Record<string, unknown>>;
+  nextActionIndex: number;
+  executionTime: number;
+  executionGameTime: number;
+};
+
+export type RotationSimulationCheckpointRuntimeEnemySlot = {
+  slotId: EnemySlotId;
+  level: number;
+  spawnTime: number;
+  hasConfiguredEnemy: boolean;
+  isPresent: boolean;
+  isDead: boolean;
+  deadAt?: number;
+  noDeath: boolean;
+  base: EnemyBase;
+  stats: EnemyResolvedStats;
+  modifierBase: ModifierStats;
+  damageTaken: number;
+  currentStaggerForEvents: number;
+  staggerLastUpdateTime: number;
+  isStaggeredForEvents: boolean;
+  reachedStaggerNodeThresholds: Set<number>;
+};
+
+export type RotationSimulationCheckpoint = {
+  chunkIndex: number;
+  time: number;
+  gameTime: number;
+  outputCounts: {
+    totalDamage: number;
+    riggedCritCount: number;
+    timelineCount: number;
+    eventCount: number;
+    comboWindowCount: number;
+    enemyLifecycleCount: number;
+    countdownCount: number;
+    relayCount: number;
+    enemyTransitionCount: number;
+    actorStateCount: number;
+    enemyStateCount: number;
+    comboTriggerDebugCount: number;
+    passiveListenerDebugCount: number;
+    statusChangeLogCount: number;
+  };
+  sequences: {
+    stateSnapshotSequence: number;
+    statusInstanceSequence: number;
+    statusChangeSequence: number;
+    triggerInstanceSequence: number;
+    actorBuffInstanceCounter: number;
+  };
+  runtime: {
+    damageBySlot: Map<PartySlot, number>;
+    timedEnemyDebuffs: RotationSimulationCheckpointTimedEnemyDebuff[];
+    runtimeStatuses: UnifiedCombatStatus[];
+    triggerVariableValuesById: Map<string, string | number | boolean>;
+    customTriggerRuntimeEnabledById: Map<string, boolean>;
+    comboCooldownUntilBySlot: Map<PartySlot, number>;
+    pendingComboCooldownBySlot: Map<PartySlot, { durationSeconds: number; timeScale: TimeScale }>;
+    comboCooldownPauseIntervalsBySlot: Map<PartySlot, Array<{ startTime: number; endTime: number }>>;
+    activeComboWindowBySlot: Map<PartySlot, ComboTriggerWindow>;
+    lastComboTriggerTimeBySlot: Map<PartySlot, number>;
+    perfectTimingStepIds: Set<string>;
+    repeatedHitKeys: Set<string>;
+    terminatedRepeatHitChains: Set<string>;
+    setTriggerFlags: Set<string>;
+    listenerCooldowns: Map<string, { expiresAt: number; timeScale: TimeScale }>;
+    listenerCounters: Map<string, number>;
+    commandModifierByStepId: Map<string, Partial<ModifierStats>>;
+    bladebreakingPendingBySlot: Map<PartySlot, boolean>;
+    stepContractDamageMultiplierByStepId: Map<string, number>;
+    timedContractDamageModifiers: RotationSimulationCheckpointTimedContractDamageModifier[];
+    critThresholdProgressBySlot: Map<PartySlot, number>;
+    commandLinkedStacksByStepId: Map<string, number>;
+    commandAttackTypeByStepId: Map<string, ResolvedCommandAtLevel["attackType"]>;
+    castEventEmittedByStepId: Map<string, { battleSkill: boolean; ultimate: boolean }>;
+    interruptedAtByStepId: Map<string, number>;
+    pendingArtsBursts: RotationSimulationCheckpointPendingArtsBurst[];
+    pendingExecuteHits: RotationSimulationCheckpointPendingExecuteHit[];
+    pendingTriggerResumes: RotationSimulationCheckpointPendingTriggerResume[];
+    pendingEnemyListenerWindowEnds: Array<{
+      enemySlotId: EnemySlotId;
+      executionTime: number;
+      executionGameTime: number;
+      effects: EnemyActionEffect[];
+    }>;
+    triggerExecutionBlockedUntil: number;
+    triggerExecutionGloballyBlocked: boolean;
+    triggerExecutionTotalCount: number;
+    recentTriggerExecutionTimes: number[];
+    activeTriggerRunIds: Set<string>;
+    stoppedTriggerInstanceIds: Set<string>;
+    triggerInstanceIdsByTriggerId: Map<string, Set<string>>;
+    actorMaxHpBySlot: Map<PartySlot, number>;
+    actorCurrentHpBySlot: Map<PartySlot, number>;
+    teamSpGenerated: number;
+    teamSpReturned: number;
+    spRegenRate: number;
+    energyBySlot: Map<PartySlot, number>;
+    energyMaxBySlot: Map<PartySlot, number>;
+    controlledOperatorSlot: PartySlot;
+    activeBuildVariantBySlot: Map<PartySlot, number>;
+    switchBackLockedUntilBySlot: Map<PartySlot, number>;
+    enemyRuntimeBySlot: Map<EnemySlotId, RotationSimulationCheckpointRuntimeEnemySlot>;
+    enemyHpHistoryBySlot: Map<EnemySlotId, Array<{ time: number; hp: number; maxHp: number }>>;
+    enemyHpDeltaHistoryBySlot: Map<EnemySlotId, Array<{ time: number; hpDelta: number }>>;
+    currentTargetedEnemySlotId: EnemySlotId;
+    nextEnemyActionStartEffectWindowIndex: number;
+    nextEnemyActionEndEffectWindowIndex: number;
+    nextEnemyInterruptedCommandWindowIndex: number;
+  };
+};
+
+export type RotationSimulationInitialState = {
+  startTime: number;
+  startGameTime: number;
+  displayTimeOffset: number;
+  displayGameTimeOffset: number;
+  initialResources: RotationSimulationInitialResourceState;
+  sequences: RotationSimulationCheckpoint["sequences"];
+  runtime: RotationSimulationCheckpoint["runtime"];
 };
 
 export type RotationSimulationResult = {
@@ -297,12 +512,61 @@ export type RotationSimulationResult = {
   actorStateTimeline: ActorCombatStateSnapshot[];
   enemyStateTimeline: EnemyCombatStateSnapshot[];
   enemyActionWindows: EnemyActionWindow[];
+  enemyLifecycleTimeline: EnemyLifecycleTimelineEntry[];
+  countdownTimeline: CountdownTimelineEntry[];
+  relayTimeline: RelayTimelineEntry[];
+  enemyTransitionTimeline: EnemyTransitionTimelineEntry[];
+  relayStartTime?: number | null;
+  relayStartGameTime?: number | null;
+  displayTimeOffset?: number;
+  displayGameTimeOffset?: number;
+  initialResources: RotationSimulationInitialResourceState;
+  enemySlots?: EnemySlotState[];
+  targetedEnemySlotId?: EnemySlotId;
   enemyStaggerDecayRate: number;
   riggedCritCount: number;
   comboTriggerDebug: ComboTriggerDebugEntry[];
   passiveListenerDebug: PassiveListenerDebugEntry[];
   statusChangeLog: UnifiedStatusChangeLogEntry[];
+  simulationCheckpoints?: RotationSimulationCheckpoint[];
   warnings?: string[];
+};
+
+export type EnemyLifecycleTimelineEntry = {
+  enemySlotId: EnemySlotId;
+  time: number;
+  gameTime: number;
+  enemyId: string;
+  type: "spawned" | "replaced" | "transformed" | "defeated";
+};
+
+export type CountdownTimelineEntry = {
+  time: number;
+  gameTime: number;
+  value: number;
+  triggerId: string;
+  triggerName: string;
+  instanceId: string;
+};
+
+export type RelayTimelineEntry = {
+  time: number;
+  gameTime: number;
+  triggerId: string;
+  triggerName: string;
+  instanceId: string;
+  inherited?: boolean;
+};
+
+export type EnemyTransitionTimelineEntry = {
+  enemySlotId: EnemySlotId;
+  time: number;
+  gameTime: number;
+  endTime: number;
+  endGameTime: number;
+  commandId?: string;
+  label: string;
+  tintColor?: string;
 };
 
 export type PassiveListenerKind = "COMBAT_HOOK" | "GEAR_SET" | "WEAPON";
@@ -351,6 +615,10 @@ export type ComboTriggerDebugEntry = {
 };
 
 export type RotationCombatEventType =
+  | "ROTATION_RELAYED"
+  | "ENEMY_SPAWNED"
+  | "ENEMY_REPLACED"
+  | "SKILL_CAST"
   | "ULTIMATE_CAST"
   | "ULTIMATE_END"
   | "CRIT_THRESHOLD_REACHED"
@@ -389,6 +657,7 @@ export type RotationCombatEventType =
   | "ARTS_INFLICTION_APPLIED"
   | "ARTS_BURST_APPLIED"
   | "ARTS_BURST_HIT"
+  | "STATUS_UPDATED"
   | "TEAM_STATUS_GAINED"
   | "TEAM_STATUS_CONSUMED"
   | "HEALING_HIT_EXECUTED"
@@ -402,6 +671,9 @@ export type RotationCombatEvent = {
   type: RotationCombatEventType;
   time: number;
   gameTime: number;
+  enemySlotId?: EnemySlotId;
+  enemyId?: string;
+  affectedEnemySlotIds?: EnemySlotId[];
   effectTree?: CombatEffectTree;
   stepId?: string;
   commandId?: string;
@@ -414,6 +686,15 @@ export type RotationCombatEvent = {
   label: string;
   triggeredSlot?: PartySlot;
   buffId?: string;
+  statusId?: string;
+  statusScope?: UnifiedStatusScope;
+  statusKind?: UnifiedStatusKind;
+  statusChangeType?: UnifiedStatusChangeType;
+  statusReason?: string;
+  statusStacks?: number;
+  statusDurationSeconds?: number;
+  statusTargetSlot?: PartySlot;
+  statusOwnerSlot?: PartySlot;
   debuffStat?: ModifierStatKey;
   durationSeconds?: number;
   timeScale?: "real" | "game";
@@ -427,6 +708,7 @@ export type RotationCombatEvent = {
   consumedStacks?: number;
   healedAmount?: number;
   enemyHpRatio?: number;
+  enemyHadVulnerability?: boolean;
   enemyHadPhysicalSusceptibility?: boolean;
   enemyWasStaggered?: boolean;
   enemyHadOriginiumCrystal?: boolean;

@@ -18,7 +18,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "cycling",
     durationFrames: flat12(0),
     spCost: flat12(0),
     basicAttackVariant: "sequence",
@@ -37,7 +36,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 1,
     sequenceSegmentTotal: 5,
@@ -52,7 +50,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 2,
     sequenceSegmentTotal: 5,
@@ -67,7 +64,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 3,
     sequenceSegmentTotal: 5,
@@ -82,7 +78,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 4,
     sequenceSegmentTotal: 5,
@@ -97,7 +92,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 5,
     sequenceSegmentTotal: 5,
@@ -106,15 +100,14 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     hits: [{ multiplier: pct([40, 44, 48, 52, 56, 60, 64, 68, 72, 77, 83, 90]), stagger: flat12(18), spGenerated: flat12(20), offsetFrames: flat12(32) }],
   },
-  { id: "endministrator_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "endministrator_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "endministrator_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "endministrator_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "endministrator_battle_skill",
     name: "Constructive Sequence",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(80),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -131,7 +124,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(95),
     timeFreezeSeconds: flat12(54 / 60),
     comboCooldownSeconds: [16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 15],
@@ -140,6 +132,7 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
       {
         multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]),
         stagger: flat12(10),
+        energyReturn: flat12(10),
         offsetFrames: flat12(57),
         effects: [
           {
@@ -160,7 +153,6 @@ const ENDMINISTRATOR_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(124),
     cutscene: true,
     timeFreezeSeconds: flat12(115 / 60),
@@ -224,7 +216,7 @@ const ENDMINISTRATOR_HOOKS: CharacterCombatHooks = {
         (ctx.event.type === "ENEMY_DEBUFF_APPLIED" && ctx.event.label === "Vulnerability Applied")
         || ctx.event.type === "PHYSICAL_REACTION_APPLIED"
       )
-      && ctx.state.hasStatus({ statusId: ENDMIN_CRYSTAL_STATUS, target: "enemy" });
+      && ctx.state.hasStatus({ statusId: ENDMIN_CRYSTAL_STATUS, target: "enemy", enemy: "primary" });
     if (!shouldConsumeByEvent) {
       return;
     }
@@ -278,11 +270,12 @@ const ENDMINISTRATOR_HOOKS: CharacterCombatHooks = {
       ctx.source.slot === ctx.self.slot
       && ctx.source.commandId === "endministrator_ultimate"
       && ctx.source.hitIndex === 1
-      && ctx.state.hasStatus({ statusId: ENDMIN_CRYSTAL_STATUS, target: "enemy" })
+      && ctx.state.hasStatus({ statusId: ENDMIN_CRYSTAL_STATUS, target: "enemy", enemy: "primary" })
     ) {
       const crystalSourceStepId = ctx.state.getStatusSourceStepId({
         statusId: ENDMIN_CRYSTAL_STATUS,
         target: "enemy",
+        enemy: "primary",
       });
       ctx.state.applyEffects({
         effects: [

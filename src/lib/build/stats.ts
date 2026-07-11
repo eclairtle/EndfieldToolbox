@@ -39,6 +39,7 @@ export const MODIFIER_STAT_KEYS = [
   "CRIT_DMG_PCT",
   "ULT_GAIN_PCT",
   "COMBO_COOLDOWN_RATE",
+  "COMBO_COOLDOWN_TOTAL",
   "ULTIMATE_COST_REDUCTION_PCT",
   "ALL_ATTR_PCT",
   "STR_PCT",
@@ -77,6 +78,7 @@ export const MODIFIER_STAT_KEYS = [
   "BATTLE_SKILL_ELECTRIC_DMG_PCT",
   "COMBO_SKILL_DMG_PCT",
   "ULTIMATE_DMG_PCT",
+  "NON_COMMAND_DMG_PCT",
   "DMG_TAKEN_PCT",
   "ARTS_DMG_TAKEN_PCT",
   "PHYSICAL_DMG_TAKEN_PCT",
@@ -101,6 +103,7 @@ export const MODIFIER_STAT_KEYS = [
   "HEALING_PCT",
   "HEALING_RECEIVED_PCT",
   "FINAL_DMG_REDUCTION_PCT",
+  "WEAKNESS_PCT",
   "SUS_PCT",
   "PHYSICAL_SUS_PCT",
   "ARTS_SUS_PCT",
@@ -147,6 +150,7 @@ export function makeBaseModifierStats(): ModifierStats {
     CRIT_DMG_PCT: 0.50,               // 50%
     ULT_GAIN_PCT: 1.0,                // 100%
     COMBO_COOLDOWN_RATE: 1.0,         // 100%
+    COMBO_COOLDOWN_TOTAL: 0,
     ULTIMATE_COST_REDUCTION_PCT: 0,
 
     ALL_ATTR_PCT: 0,
@@ -186,6 +190,7 @@ export function makeBaseModifierStats(): ModifierStats {
     BATTLE_SKILL_ELECTRIC_DMG_PCT: 0,
     COMBO_SKILL_DMG_PCT: 0,
     ULTIMATE_DMG_PCT: 0,
+    NON_COMMAND_DMG_PCT: 0,
     DMG_TAKEN_PCT: 0,
     ARTS_DMG_TAKEN_PCT: 0,
     PHYSICAL_DMG_TAKEN_PCT: 0,
@@ -210,6 +215,7 @@ export function makeBaseModifierStats(): ModifierStats {
     HEALING_PCT: 0,
     HEALING_RECEIVED_PCT: 0,
     FINAL_DMG_REDUCTION_PCT: 0,
+    WEAKNESS_PCT: 0,
     SUS_PCT: 0,
     PHYSICAL_SUS_PCT: 0,
     ARTS_SUS_PCT: 0,

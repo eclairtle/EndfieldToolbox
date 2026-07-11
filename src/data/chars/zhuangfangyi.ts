@@ -28,8 +28,9 @@ const ZHUANGFANGYI_POTENTIAL_1_FIRST_BATTLE_SKILL_READY_BUFF = "zhuangfangyi_pot
 const ZHUANGFANGYI_NORMAL_THUNDERSTRIKE_HIT_PREFIX = "zhuangfangyi_battle_skill_thunderstrike";
 const ZHUANGFANGYI_ULTIMATE_THUNDERSTRIKE_HIT_PREFIX = "zhuangfangyi_ultimate_battle_skill_thunderstrike";
 const ZHUANGFANGYI_COMBO_TRIGGER_ID = "zhuangfangyi_combo";
-const ZHUANGFANGYI_THUNDERSTRIKE_START_DELAY_FRAMES = 12;
-const ZHUANGFANGYI_THUNDERSTRIKE_REPEAT_INTERVAL_FRAMES = 18;
+const ZHUANGFANGYI_THUNDERSTRIKE_START_DELAY_FRAMES = 14;
+const ZHUANGFANGYI_THUNDERSTRIKE_REPEAT_INTERVAL_FRAMES = 14;
+const ZHUANGFANGYI_FINAL_THUNDERSTRIKE_EXTRA_DELAY_FRAMES = 22;
 const ZHUANGFANGYI_SUNDERBLADE_MAX_STACKS = 9;
 const ZHUANGFANGYI_SUNDERBLADE_FREE_CREATE_LIMIT = 3;
 const ZHUANGFANGYI_SUNDERBLADE_CREATE_PER_CAST_LIMIT = 3;
@@ -171,7 +172,8 @@ function buildThunderStrikeExecuteEffects(args: {
     hitName: "Final Thunder Strike",
     executeDelayFrames:
       ZHUANGFANGYI_THUNDERSTRIKE_START_DELAY_FRAMES
-      + repeatedStrikeCount * ZHUANGFANGYI_THUNDERSTRIKE_REPEAT_INTERVAL_FRAMES,
+      + repeatedStrikeCount * ZHUANGFANGYI_THUNDERSTRIKE_REPEAT_INTERVAL_FRAMES
+      + ZHUANGFANGYI_FINAL_THUNDERSTRIKE_EXTRA_DELAY_FRAMES,
     registerAtInitialTime: true,
   });
 
@@ -374,12 +376,18 @@ const ZHUANGFANGYI_HOOKS: CharacterCombatHooks = {
     });
   },
   onResolvedHit: (ctx) => {
-    const electricInfliction = ctx.state.getEnemyArtsInfliction();
+    const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+    const enemySlotIds = affectedEnemySlotIds.length > 0
+      ? affectedEnemySlotIds
+      : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+    const canTriggerCombo = enemySlotIds.some((enemySlotId) => {
+      const electricInfliction = ctx.state.getEnemyArtsInfliction(enemySlotId);
+      return electricInfliction?.element === "Electric" && electricInfliction.stacks > 0;
+    });
     if (
       (ctx.flags.isFinalStrikeOfBasicSequence || ctx.flags.isFinisherHit)
       && ctx.source.isControlledOperatorHit
-      && electricInfliction?.element === "Electric"
-      && electricInfliction.stacks > 0
+      && canTriggerCombo
     ) {
       ctx.state.triggerSelfCombo({
         sourceEventType: ctx.flags.isFinisherHit ? "FINISHER_HIT" : "BASIC_ATTACK_FINAL_STRIKE_HIT",
@@ -494,6 +502,7 @@ const ZHUANGFANGYI_HOOKS: CharacterCombatHooks = {
       return;
     }
 
+    const electricInfliction = ctx.state.getEnemyArtsInfliction({ enemy: "primary" });
     if (electricInfliction?.element !== "Electric" || electricInfliction.stacks <= 0) {
       return;
     }
@@ -501,7 +510,7 @@ const ZHUANGFANGYI_HOOKS: CharacterCombatHooks = {
     const consumedStacks = Math.max(1, Math.min(4, electricInfliction.stacks));
     const nextElectrificationLevel = Math.min(
       4,
-      consumedStacks + (ctx.state.hasEnemyStatus("electrification") ? 1 : 0),
+      consumedStacks + (ctx.state.hasEnemyStatus("electrification", { enemy: "primary" }) ? 1 : 0),
     );
 
     ctx.state.emitEvent({
@@ -532,7 +541,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
-    durationFrames: flat12(228),
+    durationFrames: flat12(246.24),
     spCost: flat12(0),
     basicAttackVariant: "sequence",
     transforms: [
@@ -564,7 +573,8 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     splitMultiplier: true,
     hits: [
-      { multiplier: pct([16, 18, 19, 21, 22, 24, 26, 27, 29, 31, 33, 36]), offsetFrames: flat12(16) },
+      { multiplier: pct([16, 18, 19, 21, 22, 24, 26, 27, 29, 31, 33, 36]), offsetFrames: flat12(12) },
+      { multiplier: pct([16, 18, 19, 21, 22, 24, 26, 27, 29, 31, 33, 36]), offsetFrames: flat12(15.6) },
     ],
   },
   {
@@ -577,11 +587,11 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 2,
     sequenceSegmentTotal: 5,
-    durationFrames: flat12(42),
+    durationFrames: flat12(30),
     spCost: flat12(0),
     splitMultiplier: true,
     hits: [
-      { multiplier: pct([24, 26, 29, 31, 34, 36, 38, 41, 43, 46, 50, 54]), offsetFrames: flat12(20) },
+      { multiplier: pct([24, 26, 29, 31, 34, 36, 38, 41, 43, 46, 50, 54]), offsetFrames: flat12(16.2) },
     ],
   },
   {
@@ -594,11 +604,12 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 3,
     sequenceSegmentTotal: 5,
-    durationFrames: flat12(48),
+    durationFrames: flat12(52.02),
     spCost: flat12(0),
     splitMultiplier: true,
     hits: [
-      { multiplier: pct([32, 35, 39, 42, 45, 48, 52, 55, 58, 62, 67, 72]), offsetFrames: flat12(24) },
+      { multiplier: pct([32, 35, 39, 42, 45, 48, 52, 55, 58, 62, 67, 72]), offsetFrames: flat12(27.6) },
+      { multiplier: pct([32, 35, 39, 42, 45, 48, 52, 55, 58, 62, 67, 72]), offsetFrames: flat12(31.8) },
     ],
   },
   {
@@ -611,11 +622,11 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 4,
     sequenceSegmentTotal: 5,
-    durationFrames: flat12(54),
+    durationFrames: flat12(34.02),
     spCost: flat12(0),
     splitMultiplier: true,
     hits: [
-      { multiplier: pct([45, 50, 54, 59, 63, 68, 72, 77, 81, 87, 93, 101]), offsetFrames: flat12(28) },
+      { multiplier: pct([45, 50, 54, 59, 63, 68, 72, 77, 81, 87, 93, 101]), offsetFrames: flat12(21.6) },
     ],
   },
   {
@@ -628,7 +639,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 5,
     sequenceSegmentTotal: 5,
-    durationFrames: flat12(54),
+    durationFrames: flat12(100.2),
     spCost: flat12(0),
     splitMultiplier: true,
     hits: [
@@ -637,7 +648,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
         stagger: flat12(18),
         spGenerated: flat12(18),
         requiresControlledOperator: true,
-        offsetFrames: flat12(32),
+        offsetFrames: flat12(40.2),
       },
     ],
   },
@@ -647,8 +658,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
-    basicAttackVariant: "finisher",
-    mode: "single",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -660,7 +670,6 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
     basicAttackVariant: "dive_attack",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }],
@@ -671,8 +680,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Electric",
-    mode: "single",
-    durationFrames: flat12(96),
+    durationFrames: flat12(42),
     spCost: flat12(100),
     energyGain: flat12(0),
     transforms: [
@@ -705,12 +713,12 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
         name: "Create Sunderblades",
         multiplier: flat12(0),
         ignoreEnemyInvulnerability: true,
-        offsetFrames: flat12(30),
+        offsetFrames: flat12(12),
       },
       {
         name: "Invoke Thunder Strikes",
         multiplier: flat12(0),
-        offsetFrames: flat12(46),
+        offsetFrames: flat12(42),
       },
     ],
   },
@@ -720,8 +728,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Electric",
-    mode: "single",
-    durationFrames: flat12(102),
+    durationFrames: flat12(84),
     comboCooldownSeconds: flat12(18),
     comboCooldownTimeScale: "real",
     comboTriggerId: ZHUANGFANGYI_COMBO_TRIGGER_ID,
@@ -735,7 +742,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
       },
     ],
     hits: [
-      { multiplier: pct([160, 176, 192, 208, 224, 240, 256, 272, 288, 308, 332, 360]), stagger: flat12(10), offsetFrames: flat12(62) },
+      { multiplier: pct([160, 176, 192, 208, 224, 240, 256, 272, 288, 308, 332, 360]), stagger: flat12(10), offsetFrames: flat12(72) },
     ],
   },
   {
@@ -749,7 +756,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     enhanced: true,
     basicAttackVariant: "sequence",
     noFinisherTransform: true,
-    durationFrames: flat12(156),
+    durationFrames: flat12(217.8),
     spCost: flat12(0),
     expandsToCommandIds: [
       "zhuangfangyi_ultimate_basic_sequence_1",
@@ -770,10 +777,10 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 1,
     sequenceSegmentTotal: 3,
-    durationFrames: flat12(42),
+    durationFrames: flat12(43.8),
     spCost: flat12(0),
     hits: [
-      { multiplier: pct([67, 73, 80, 86, 93, 100, 106, 113, 120, 128, 138, 150]), offsetFrames: flat12(22) },
+      { multiplier: pct([67, 73, 80, 86, 93, 100, 106, 113, 120, 128, 138, 150]), offsetFrames: flat12(15.6) },
     ],
   },
   {
@@ -788,10 +795,10 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 2,
     sequenceSegmentTotal: 3,
-    durationFrames: flat12(48),
+    durationFrames: flat12(54),
     spCost: flat12(0),
     hits: [
-      { multiplier: pct([94, 103, 112, 122, 131, 140, 150, 159, 168, 180, 194, 210]), offsetFrames: flat12(24) },
+      { multiplier: pct([94, 103, 112, 122, 131, 140, 150, 159, 168, 180, 194, 210]), offsetFrames: flat12(18) },
     ],
   },
   {
@@ -806,7 +813,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 3,
     sequenceSegmentTotal: 3,
-    durationFrames: flat12(66),
+    durationFrames: flat12(120),
     spCost: flat12(0),
     hits: [
       {
@@ -814,7 +821,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
         stagger: flat12(18),
         spGenerated: flat12(20),
         requiresControlledOperator: true,
-        offsetFrames: flat12(38),
+        offsetFrames: flat12(66),
       },
     ],
   },
@@ -827,8 +834,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     hiddenInLibrary: true,
     variant: "enhanced_battle_skill",
     enhanced: true,
-    mode: "single",
-    durationFrames: flat12(96),
+    durationFrames: flat12(42),
     spCost: flat12(100),
     transforms: [
       {
@@ -858,7 +864,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
         target: "self",
         statusId: ZHUANGFANGYI_ULTIMATE_PAUSE_STATUS,
         label: "Empyrean of Truth Pause",
-        durationSeconds: 96 / 60,
+        durationSeconds: 42 / 60,
         timeScale: "game",
         pauseStatusIds: [
           ZHUANGFANGYI_ULTIMATE_BUFF,
@@ -872,7 +878,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
         target: "self",
         buffId: ZHUANGFANGYI_ULTIMATE_FREE_BATTLE_SKILL_CAST_BUFF,
         label: "Empyrean Free Battle Skill Cast",
-        durationSeconds: 96 / 60,
+        durationSeconds: 42 / 60,
         timeScale: "game",
         hidden: true,
         requiresSelfBuffId: ZHUANGFANGYI_ULTIMATE_FREE_BATTLE_SKILL_BUFF,
@@ -889,12 +895,12 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
         name: "Create Sunderblades",
         multiplier: flat12(0),
         ignoreEnemyInvulnerability: true,
-        offsetFrames: flat12(30),
+        offsetFrames: flat12(12),
       },
       {
         name: "Invoke Thunder Strikes",
         multiplier: flat12(0),
-        offsetFrames: flat12(46),
+        offsetFrames: flat12(42),
       },
     ],
   },
@@ -906,8 +912,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     damageType: "Electric",
     hiddenInLibrary: true,
     enhanced: true,
-    mode: "single",
-    durationFrames: flat12(102),
+    durationFrames: flat12(72),
     comboCooldownSeconds: flat12(18),
     comboCooldownTimeScale: "real",
     comboTriggerId: ZHUANGFANGYI_COMBO_TRIGGER_ID,
@@ -920,7 +925,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
         target: "self",
         statusId: ZHUANGFANGYI_ULTIMATE_PAUSE_STATUS,
         label: "Empyrean of Truth Pause",
-        durationSeconds: 102 / 60,
+        durationSeconds: 72 / 60,
         timeScale: "game",
         pauseStatusIds: [
           ZHUANGFANGYI_ULTIMATE_BUFF,
@@ -931,7 +936,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
       },
     ],
     hits: [
-      { multiplier: pct([240, 264, 288, 312, 336, 360, 384, 408, 432, 462, 498, 540]), stagger: flat12(10), offsetFrames: flat12(62) },
+      { multiplier: pct([240, 264, 288, 312, 336, 360, 384, 408, 432, 462, 498, 540]), stagger: flat12(10), offsetFrames: flat12(48) },
     ],
   },
   {
@@ -940,16 +945,15 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Electric",
-    mode: "single",
-    durationFrames: flat12(120),
+    durationFrames: flat12(168),
     spCost: flat12(0),
     energyCost: flat12(240),
     cutscene: true,
-    timeFreezeSeconds: flat12(96 / 60),
+    timeFreezeSeconds: flat12(159 / 60),
     hits: [
       {
         multiplier: flat12(0),
-        offsetFrames: flat12(90),
+        offsetFrames: flat12(159),
         effects: [
           {
             type: "APPLY_BUFF",

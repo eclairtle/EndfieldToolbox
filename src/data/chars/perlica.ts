@@ -87,15 +87,14 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
       { name: "Hit 1", multiplier: pct([57, 62, 68, 73, 79, 85, 90, 96, 102, 109, 117, 127]), offsetFrames: flat12(17) },
     ],
   },
-  { id: "perlica_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "perlica_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "perlica_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "perlica_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Electric", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "perlica_battle_skill",
     name: "Battle Skill",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Electric",
-    mode: "single",
     durationFrames: flat12(56),
     spCost: flat12(100),
     hits: [{
@@ -113,16 +112,15 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Electric",
-    mode: "single",
     durationFrames: flat12(50),
     timeFreezeSeconds: flat12(0.77),
     spCost: flat12(0),
     comboCooldownSeconds: flat12(20),
-    energyGain: flat12(10),
     hits: [
       {
         multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),
         stagger: flat12(10),
+        energyReturn: flat12(10),
         offsetFrames: flat12(48),
         effects: [
           {
@@ -141,7 +139,6 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Electric",
-    mode: "single",
     durationFrames: flat12(126),
     spCost: flat12(0),
     energyCost: flat12(80),

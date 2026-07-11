@@ -98,7 +98,7 @@ export const ROVING_MSGR: GearBase[] = [
         "value": 41
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.147
       }
     ],
@@ -188,4 +188,3 @@ export const ROVING_MSGR: GearBase[] = [
     ],
   }
 ];
-

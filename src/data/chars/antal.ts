@@ -1,5 +1,332 @@
 import type { CharacterBase } from "@/data/characters";
-import { flat12, pct, type CommandDefinition } from "@/lib/commands";
+import type { CharacterCombatHooks } from "@/lib/combat/hooks";
+import {
+  flat12,
+  pct,
+  type CommandDefinition,
+  type CommandHitEffectDefinition,
+} from "@/lib/commands";
+
+const ANTAL_FOCUS_STATUS_ID = "antal_focus";
+const ANTAL_FOCUS_ENHANCED_STATUS_ID = "antal_focus_enhanced";
+const ANTAL_FOCUS_DURATION_SECONDS = 60;
+const ANTAL_FOCUS_POTENTIAL_DELAY_SECONDS = 20;
+const ANTAL_FOCUS_POTENTIAL_BONUS = 0.04;
+const ANTAL_COMBO_MARKER_DURATION_SECONDS = 10;
+const ANTAL_TALENT_1_1 = "antal_talent_1_1";
+const ANTAL_TALENT_1_2 = "antal_talent_1_2";
+const ANTAL_TALENT_1_ICD_STATUS_ID = "antal_talent_1_icd";
+const ANTAL_MARKER_STATUS_IDS = {
+  breach: "antal_combo_marker_breach",
+  crush: "antal_combo_marker_crush",
+  lift: "antal_combo_marker_lift",
+  knockdown: "antal_combo_marker_knockdown",
+  heat: "antal_combo_marker_heat_infliction",
+  cryo: "antal_combo_marker_cryo_infliction",
+  electric: "antal_combo_marker_electric_infliction",
+  nature: "antal_combo_marker_nature_infliction",
+} as const;
+
+const ANTAL_ALL_MARKER_STATUS_IDS = Object.values(ANTAL_MARKER_STATUS_IDS);
+const ANTAL_AMP_STATS = [
+  "DMG_AMP_PCT",
+  "PHYSICAL_DMG_AMP_PCT",
+  "HEAT_DMG_AMP_PCT",
+  "CRYO_DMG_AMP_PCT",
+  "ELECTRIC_DMG_AMP_PCT",
+  "NATURE_DMG_AMP_PCT",
+  "AETHER_DMG_AMP_PCT",
+] as const;
+
+function getAntalTalent1Healing(args: {
+  isTalent2: boolean;
+  strength: number;
+}): number {
+  const flat = args.isTalent2 ? 108 : 72;
+  const ratio = args.isTalent2 ? 0.9 : 0.6;
+  return flat + args.strength * ratio;
+}
+
+function buildAntalFocusApplyEffect(args: {
+  enhancedAfterSeconds?: number;
+  enhancedSusPct?: number;
+}): CommandHitEffectDefinition {
+  return {
+    type: "APPLY_STATUS",
+    target: "enemy",
+    statusId: ANTAL_FOCUS_STATUS_ID,
+    label: "Focus",
+    durationSeconds: ANTAL_FOCUS_DURATION_SECONDS,
+    timeScale: "game",
+    stacks: 1,
+    maxStacks: 1,
+    independentStacks: true,
+    refreshExistingStacks: true,
+    effects: {
+      ELECTRIC_SUS_PCT: 0.1,
+      HEAT_SUS_PCT: 0.1,
+    },
+    ...(args.enhancedAfterSeconds != null && args.enhancedSusPct != null
+      ? {
+        periods: Math.max(1, ANTAL_FOCUS_DURATION_SECONDS / args.enhancedAfterSeconds),
+        maxPeriods: 1,
+        periodicEffects: [{
+          type: "APPLY_STATUS",
+          target: "enemy",
+          statusId: ANTAL_FOCUS_ENHANCED_STATUS_ID,
+          label: "Focus Enhancement",
+          hidden: true,
+          durationSeconds: 9999,
+          timeScale: "game",
+          stacks: 1,
+          maxStacks: 1,
+          refreshExistingStacks: true,
+          effects: {
+            ELECTRIC_SUS_PCT: args.enhancedSusPct,
+            HEAT_SUS_PCT: args.enhancedSusPct,
+          },
+        }],
+        removeEffects: [{ type: "REMOVE_STATUS", target: "enemy", statusId: ANTAL_FOCUS_ENHANCED_STATUS_ID }],
+        expireEffects: [{ type: "REMOVE_STATUS", target: "enemy", statusId: ANTAL_FOCUS_ENHANCED_STATUS_ID }],
+      }
+      : {}),
+  };
+}
+
+function removeAntalComboMarkers(): CommandHitEffectDefinition[] {
+  return ANTAL_ALL_MARKER_STATUS_IDS.map((statusId) => ({
+    type: "REMOVE_STATUS",
+    target: "self",
+    statusId,
+  }));
+}
+
+function getAntalMarkerStatusIdFromEvent(ctx: {
+  type: string;
+  label: string;
+  consumedElement?: "Heat" | "Cryo" | "Electric" | "Nature";
+}): string | null {
+  if (ctx.type === "ARTS_INFLICTION_APPLIED") {
+    switch (ctx.consumedElement) {
+      case "Heat":
+        return ANTAL_MARKER_STATUS_IDS.heat;
+      case "Cryo":
+        return ANTAL_MARKER_STATUS_IDS.cryo;
+      case "Electric":
+        return ANTAL_MARKER_STATUS_IDS.electric;
+      case "Nature":
+        return ANTAL_MARKER_STATUS_IDS.nature;
+      default:
+        return null;
+    }
+  }
+  if (ctx.type !== "PHYSICAL_REACTION_APPLIED") {
+    return null;
+  }
+  if (ctx.label.startsWith("Breach")) {
+    return ANTAL_MARKER_STATUS_IDS.breach;
+  }
+  if (ctx.label.startsWith("Crush")) {
+    return ANTAL_MARKER_STATUS_IDS.crush;
+  }
+  if (ctx.label.startsWith("Lift")) {
+    return ANTAL_MARKER_STATUS_IDS.lift;
+  }
+  if (ctx.label.startsWith("Knockdown")) {
+    return ANTAL_MARKER_STATUS_IDS.knockdown;
+  }
+  return null;
+}
+
+function getAntalReplayEffectFromMarkerStatusId(statusId: string): CommandHitEffectDefinition | null {
+  switch (statusId) {
+    case ANTAL_MARKER_STATUS_IDS.breach:
+      return { type: "APPLY_REACTION", reaction: "Breach", forceApply: true };
+    case ANTAL_MARKER_STATUS_IDS.crush:
+      return { type: "APPLY_REACTION", reaction: "Crush", forceApply: true };
+    case ANTAL_MARKER_STATUS_IDS.lift:
+      return { type: "APPLY_REACTION", reaction: "Lift", forceApply: true };
+    case ANTAL_MARKER_STATUS_IDS.knockdown:
+      return { type: "APPLY_REACTION", reaction: "Knockdown", forceApply: true };
+    case ANTAL_MARKER_STATUS_IDS.heat:
+      return { type: "APPLY_ARTS_INFLICTION", element: "Heat", stacks: 1 };
+    case ANTAL_MARKER_STATUS_IDS.cryo:
+      return { type: "APPLY_ARTS_INFLICTION", element: "Cryo", stacks: 1 };
+    case ANTAL_MARKER_STATUS_IDS.electric:
+      return { type: "APPLY_ARTS_INFLICTION", element: "Electric", stacks: 1 };
+    case ANTAL_MARKER_STATUS_IDS.nature:
+      return { type: "APPLY_ARTS_INFLICTION", element: "Nature", stacks: 1 };
+    default:
+      return null;
+  }
+}
+
+function getAntalFocusedEnemySlotId(args: {
+  getActiveEnemySlotIds: () => string[];
+  hasStatus: (args: {
+    statusId: string;
+    target?: "enemy" | "self" | "global" | "field";
+    enemySlotId?: string;
+  }) => boolean;
+}): string | null {
+  return args.getActiveEnemySlotIds().find((enemySlotId) =>
+    args.hasStatus({
+      statusId: ANTAL_FOCUS_STATUS_ID,
+      target: "enemy",
+      enemySlotId,
+    })) ?? null;
+}
+
+const ANTAL_COMBAT_HOOKS: CharacterCombatHooks = {
+  onEvent: (ctx) => {
+    if (
+      (ctx.event.type === "BATTLE_SKILL_HIT" || ctx.event.type === "COMBO_SKILL_HIT" || ctx.event.type === "ULTIMATE_HIT")
+      && ctx.event.sourceSlot != null
+      && ctx.event.dealsDamage
+      && (ctx.state.isSelfUniqueTalentEnabled(ANTAL_TALENT_1_1) || ctx.state.isSelfUniqueTalentEnabled(ANTAL_TALENT_1_2))
+    ) {
+      const targetSlot = ctx.event.sourceSlot;
+      if (ctx.state.getActorStatusStackCount({ slot: targetSlot, statusId: ANTAL_TALENT_1_ICD_STATUS_ID }) > 0) {
+        return;
+      }
+      const hasAmp = ANTAL_AMP_STATS.some((stat) => ctx.state.getActorModifierValue({ slot: targetSlot, stat }) > 0);
+      if (hasAmp) {
+        const isTalent2 = ctx.state.isSelfUniqueTalentEnabled(ANTAL_TALENT_1_2);
+        ctx.state.restoreHpToSlot({
+          slot: targetSlot,
+          baseAmount: getAntalTalent1Healing({
+            isTalent2,
+            strength: ctx.state.getSelfAttr("STR"),
+          }),
+          label: "Arts Talent",
+        });
+        ctx.state.applyStatusToSlot({
+          slot: targetSlot,
+          statusId: ANTAL_TALENT_1_ICD_STATUS_ID,
+          label: "Arts Talent Cooldown",
+          durationSeconds: 30,
+          timeScale: "real",
+          hidden: true,
+          stacks: 1,
+          maxStacks: 1,
+          refreshExistingStacks: true,
+          independentStacks: true,
+        });
+      }
+    }
+
+    if (
+      ctx.event.type !== "PHYSICAL_REACTION_APPLIED"
+      && ctx.event.type !== "ARTS_INFLICTION_APPLIED"
+    ) {
+      return;
+    }
+
+    const enemySlotIds = ctx.event.affectedEnemySlotIds?.length
+      ? ctx.event.affectedEnemySlotIds
+      : (ctx.event.enemySlotId ? [ctx.event.enemySlotId] : []);
+    if (!enemySlotIds.some((enemySlotId) =>
+      ctx.state.hasStatus({
+        statusId: ANTAL_FOCUS_STATUS_ID,
+        target: "enemy",
+        enemySlotId,
+      }))) {
+      return;
+    }
+
+    const markerStatusId = getAntalMarkerStatusIdFromEvent({
+      type: ctx.event.type,
+      label: ctx.event.label,
+      consumedElement: ctx.event.consumedElement,
+    });
+    if (markerStatusId == null) {
+      return;
+    }
+
+    ctx.state.applyEffects({
+      stepId: `${ctx.event.stepId ?? "event"}:antal_combo_marker`,
+      effectTree: ctx.event.effectTree,
+      effects: [
+        ...removeAntalComboMarkers(),
+        {
+          type: "APPLY_STATUS",
+          target: "self",
+          statusId: markerStatusId,
+          label: "Focused Marker",
+          hidden: true,
+          durationSeconds: ANTAL_COMBO_MARKER_DURATION_SECONDS,
+          timeScale: "real",
+          stacks: 1,
+          maxStacks: 1,
+          refreshExistingStacks: true,
+        },
+      ],
+    });
+
+    ctx.state.triggerSelfCombo({
+      label: "Antal Combo Triggered",
+      sourceEventType: ctx.event.type,
+    });
+  },
+  onResolvedHit: (ctx) => {
+    if (
+      ctx.source.slot === ctx.self.slot
+      && ctx.source.commandId === "antal_battle_skill"
+      && ctx.source.hitName === "Focus"
+      && ctx.enemySlotId
+    ) {
+      for (const enemySlotId of ctx.state.getActiveEnemySlotIds()) {
+        if (enemySlotId === ctx.enemySlotId) {
+          continue;
+        }
+        ctx.state.applyEffectsToEnemySlot({
+          enemySlotId,
+          stepId: `${ctx.stepId}:antal_focus_clear_others`,
+          effectTree: ctx.effectTree,
+          effects: [
+            { type: "REMOVE_STATUS", target: "enemy", statusId: ANTAL_FOCUS_STATUS_ID },
+            { type: "REMOVE_STATUS", target: "enemy", statusId: ANTAL_FOCUS_ENHANCED_STATUS_ID },
+          ],
+        });
+      }
+      return;
+    }
+
+    if (
+      ctx.source.slot !== ctx.self.slot
+      || ctx.source.commandId !== "antal_combo_skill"
+      || !ctx.flags.dealsDamage
+    ) {
+      return;
+    }
+
+    const markerStatusId = ANTAL_ALL_MARKER_STATUS_IDS.find((statusId) =>
+      ctx.state.hasStatus({ statusId, target: "self" }));
+    if (markerStatusId == null) {
+      return;
+    }
+
+    const focusedEnemySlotId = getAntalFocusedEnemySlotId({
+      getActiveEnemySlotIds: ctx.state.getActiveEnemySlotIds,
+      hasStatus: ctx.state.hasStatus,
+    });
+    const replayEffect = getAntalReplayEffectFromMarkerStatusId(markerStatusId);
+    if (focusedEnemySlotId != null && replayEffect != null) {
+      ctx.state.applyEffectsToEnemySlot({
+        enemySlotId: focusedEnemySlotId,
+        stepId: `${ctx.stepId}:antal_combo_replay`,
+        effectTree: ctx.effectTree,
+        effects: [replayEffect],
+      });
+    }
+
+    ctx.state.applyEffects({
+      stepId: `${ctx.stepId}:antal_combo_marker_consume`,
+      effectTree: ctx.effectTree,
+      effects: removeAntalComboMarkers(),
+    });
+  },
+};
 
 const ANTAL_COMMANDS: CommandDefinition[] = [
   {
@@ -8,7 +335,6 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
-    mode: "cycling",
     durationFrames: flat12(198),
     spCost: flat12(0),
     hits: [
@@ -24,8 +350,7 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
-    mode: "single",
-    basicAttackVariant: "finisher",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -36,7 +361,6 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Electric",
-    mode: "single",
     basicAttackVariant: "dive_attack",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -48,11 +372,23 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Electric",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(100),
     energyGain: flat12(0),
-    hits: [{ multiplier: pct([89, 98, 107, 116, 124, 133, 142, 151, 160, 171, 185, 200]), offsetFrames: flat12(40) }],
+    hits: [
+      {
+        name: "Focus",
+        multiplier: pct([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        offsetFrames: flat12(40),
+        ignoreEnemyInvulnerability: true,
+        targets: "targeted_enemy",
+        effects: [buildAntalFocusApplyEffect({})],
+      },
+      {
+        multiplier: pct([89, 98, 107, 116, 124, 133, 142, 151, 160, 171, 185, 200]),
+        offsetFrames: flat12(40),
+      },
+    ],
   },
   {
     id: "antal_combo_skill",
@@ -60,10 +396,9 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Electric",
-    mode: "single",
     durationFrames: flat12(48),
     spCost: flat12(0),
-    hits: [{ multiplier: pct([151, 166, 181, 196, 211, 227, 242, 257, 272, 291, 313, 340]), stagger: flat12(10), offsetFrames: flat12(42) }],
+    hits: [{ multiplier: pct([151, 166, 181, 196, 211, 227, 242, 257, 272, 291, 313, 340]), stagger: flat12(10), energyReturn: flat12(10), offsetFrames: flat12(42) }],
   },
   {
     id: "antal_ultimate",
@@ -71,7 +406,6 @@ const ANTAL_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Electric",
-    mode: "single",
     durationFrames: flat12(112),
     spCost: flat12(0),
     energyCost: flat12(100),
@@ -102,6 +436,39 @@ export const ANTAL: CharacterBase = {
 
   weaponType: "ARTS_UNIT",
   commands: ANTAL_COMMANDS,
+  combatHooks: ANTAL_COMBAT_HOOKS,
+  uniqueTalentDefs: {
+    [ANTAL_TALENT_1_1]: { name: "Arts Talent I", condition: { minEliteStage: 1 } },
+    [ANTAL_TALENT_1_2]: {
+      name: "Arts Talent II",
+      condition: { minEliteStage: 2, requiresUniqueTalentsEnabled: [ANTAL_TALENT_1_1] },
+    },
+  },
+  mutateResolvedCommands: (commands, ctx) => {
+    if ((ctx.buildState.potentialLevel ?? 0) < 5) {
+      return commands;
+    }
+    return commands.map((command) => {
+      if (command.id !== "antal_battle_skill") {
+        return command;
+      }
+      return {
+        ...command,
+        hits: command.hits.map((hit) => {
+          if (hit.name !== "Focus") {
+            return hit;
+          }
+          return {
+            ...hit,
+            effects: [buildAntalFocusApplyEffect({
+              enhancedAfterSeconds: ANTAL_FOCUS_POTENTIAL_DELAY_SECONDS,
+              enhancedSusPct: ANTAL_FOCUS_POTENTIAL_BONUS,
+            })],
+          };
+        }),
+      };
+    });
+  },
 
   levels: {
     STR: [

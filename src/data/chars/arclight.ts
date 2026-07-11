@@ -121,7 +121,7 @@ const ARCLIGHT_COMBAT_HOOKS: CharacterCombatHooks = {
       ctx.source.commandId === "arclight_ultimate"
       && ctx.source.hitIndex === 1
     ) {
-      const enemyInfliction = ctx.state.getEnemyArtsInfliction();
+      const enemyInfliction = ctx.state.getEnemyArtsInfliction({ enemy: "primary" });
       if (enemyInfliction?.element !== "Electric" || enemyInfliction.stacks <= 0) {
         return;
       }
@@ -132,7 +132,7 @@ const ARCLIGHT_COMBAT_HOOKS: CharacterCombatHooks = {
         target: "enemy",
         stackDelta: enemyInfliction.stacks,
       });
-      ctx.state.setEnemyArtsInfliction(null);
+      ctx.state.setEnemyArtsInfliction(null, { enemy: "primary" });
       ctx.state.applyEffects({
         stepId: `${ctx.stepId}:arclight_ultimate_electrification`,
         effects: [
@@ -262,8 +262,7 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
-    basicAttackVariant: "finisher",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }],
@@ -274,7 +273,6 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "dive_attack",
     durationFrames: flat12(60),
     spCost: flat12(0),
@@ -286,7 +284,6 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(72),
     spCost: flat12(100),
     transforms: [
@@ -306,7 +303,6 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Physical",
-    mode: "single",
     hiddenInLibrary: true,
     enhanced: true,
     variant: "enhanced_battle_skill",
@@ -332,15 +328,13 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(54),
     timeFreezeSeconds: flat12(ARCLIGHT_COMBO_TIME_FREEZE_SECONDS),
     comboCooldownSeconds: flat12(3),
     spCost: flat12(0),
-    energyGain: flat12(5),
     splitMultiplier: true,
     hits: [
-      { name: "Hit 1", multiplier: pct([52, 57, 62, 67, 73, 78, 83, 88, 93, 100, 107, 117]), offsetFrames: flat12(34.2) },
+      { name: "Hit 1", multiplier: pct([52, 57, 62, 67, 73, 78, 83, 88, 93, 100, 107, 117]), energyReturn: flat12(5), offsetFrames: flat12(34.2) },
       { name: "Hit 2", multiplier: pct([52, 57, 62, 67, 73, 78, 83, 88, 93, 100, 107, 117]), offsetFrames: flat12(42) },
       {
         name: "Hit 3",
@@ -357,7 +351,6 @@ const ARCLIGHT_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Electric",
-    mode: "single",
     durationFrames: flat12(154.2),
     spCost: flat12(0),
     energyCost: flat12(90),

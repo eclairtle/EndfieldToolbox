@@ -1006,10 +1006,12 @@ function isBuildRuntimeBlank(build: SavedBuild): boolean {
 
 export const useBuildListStore = defineStore("buildListStore", () => {
   const MAX_BUILDS_PER_USER = 6;
-  const builds = ref<SavedBuild[]>([]);
+  const userBuilds = ref<SavedBuild[]>([]);
+  const templateBuilds = ref<SavedBuild[]>([]);
+  const builds = computed(() => [...templateBuilds.value, ...userBuilds.value]);
   const activeBuildId = ref<string>("");
 
-  function createSeededDefaultBuilds() {
+  function createSeededTemplateBuilds() {
     const rawBuilds = Array.isArray(defaultTemplateBuildsSeed.builds) ? defaultTemplateBuildsSeed.builds : [];
     const seededBuilds = rawBuilds.map((entry, index) =>
       normalizeStoredBuild(entry as unknown as Partial<SavedBuild> & { buildState?: BuildStoreStateSnapshot }, index),
@@ -1111,6 +1113,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   }
 
   function loadFromStorage() {
+    const seededTemplates = createSeededTemplateBuilds();
+    templateBuilds.value = seededTemplates.builds;
+
     const raw = localStorage.getItem(BUILD_LIST_STORAGE_KEY);
     if (!raw) {
       const legacySingleBuild = loadLegacySingleBuild();
@@ -1119,14 +1124,13 @@ export const useBuildListStore = defineStore("buildListStore", () => {
         first.currentBuildState = legacySingleBuild.buildState;
         first.plannedBuildState = cloneJson(legacySingleBuild.buildState);
         first.rotationState = legacySingleBuild.rotationState;
-        builds.value = [first];
+        userBuilds.value = [first];
         activeBuildId.value = first.id;
         return;
       }
 
-      const seeded = createSeededDefaultBuilds();
-      builds.value = seeded.builds;
-      activeBuildId.value = seeded.activeBuildId;
+      userBuilds.value = [];
+      activeBuildId.value = seededTemplates.activeBuildId;
       return;
     }
 
@@ -1137,17 +1141,16 @@ export const useBuildListStore = defineStore("buildListStore", () => {
         : [];
 
       if (normalized.length === 0) {
-        const first = makeDefaultBuild(1);
-        builds.value = [first];
-        activeBuildId.value = first.id;
-        return;
+        userBuilds.value = [];
+      } else {
+        userBuilds.value = normalized;
       }
 
-      builds.value = normalized;
       activeBuildId.value =
-        typeof parsed.activeBuildId === "string" && normalized.some((build) => build.id === parsed.activeBuildId)
+        typeof parsed.activeBuildId === "string"
+        && [...seededTemplates.builds, ...normalized].some((build) => build.id === parsed.activeBuildId)
           ? parsed.activeBuildId
-          : normalized[0]!.id;
+          : normalized[0]?.id ?? seededTemplates.activeBuildId;
 
       if (normalized.length === 1 && isBuildRuntimeBlank(normalized[0]!)) {
         const legacySingleBuild = loadLegacySingleBuild();
@@ -1159,9 +1162,8 @@ export const useBuildListStore = defineStore("buildListStore", () => {
       }
     } catch (error) {
       console.warn("Failed to load build list from localStorage", error);
-      const first = makeDefaultBuild(1);
-      builds.value = [first];
-      activeBuildId.value = first.id;
+      userBuilds.value = [];
+      activeBuildId.value = seededTemplates.activeBuildId;
     }
   }
 
@@ -1169,7 +1171,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     localStorage.setItem(
       BUILD_LIST_STORAGE_KEY,
       JSON.stringify({
-        builds: builds.value,
+        builds: userBuilds.value,
         activeBuildId: activeBuildId.value,
       }),
     );
@@ -1177,24 +1179,49 @@ export const useBuildListStore = defineStore("buildListStore", () => {
 
   loadFromStorage();
 
-  watch([builds, activeBuildId], saveToStorage, { deep: true });
+  watch([userBuilds, activeBuildId], saveToStorage, { deep: true });
 
   const activeBuild = computed(() => builds.value.find((build) => build.id === activeBuildId.value) ?? null);
-
-  function createBuild(): string | null {
-    if (builds.value.length >= MAX_BUILDS_PER_USER) {
+  const activeBuildSource = computed<"template" | "user" | null>(() => {
+    if (!activeBuildId.value) {
       return null;
     }
-    const next = makeDefaultBuild(builds.value.length + 1);
-    builds.value.push(next);
+    if (templateBuilds.value.some((build) => build.id === activeBuildId.value)) {
+      return "template";
+    }
+    if (userBuilds.value.some((build) => build.id === activeBuildId.value)) {
+      return "user";
+    }
+    return null;
+  });
+
+  function findBuildById(id: string): SavedBuild | null {
+    return builds.value.find((build) => build.id === id) ?? null;
+  }
+
+  function isTemplateBuild(id: string): boolean {
+    return templateBuilds.value.some((build) => build.id === id);
+  }
+
+  function isUserBuild(id: string): boolean {
+    return userBuilds.value.some((build) => build.id === id);
+  }
+
+  function createBuild(): string | null {
+    if (userBuilds.value.length >= MAX_BUILDS_PER_USER) {
+      return null;
+    }
+    const next = makeDefaultBuild(userBuilds.value.length + 1);
+    userBuilds.value.push(next);
+    seedDefaultRotationUiStateForBuild(next);
     return next.id;
   }
 
   function copyBuild(sourceBuildId: string): string | null {
-    if (builds.value.length >= MAX_BUILDS_PER_USER) {
+    if (userBuilds.value.length >= MAX_BUILDS_PER_USER) {
       return null;
     }
-    const source = builds.value.find((build) => build.id === sourceBuildId);
+    const source = findBuildById(sourceBuildId);
     if (!source) {
       return null;
     }
@@ -1203,7 +1230,64 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     next.name = `${source.name} Copy`;
     next.nameByLocale = cloneJson(source.nameByLocale ?? {});
     next.descriptionByLocale = cloneJson(source.descriptionByLocale ?? {});
-    builds.value.push(next);
+    userBuilds.value.push(next);
+    seedDefaultRotationUiStateForBuild(next);
+    return next.id;
+  }
+
+  function createBuildFromRuntime(args: {
+    sourceBuildId: string;
+    currentBuildState: BuildStoreStateSnapshot;
+    plannedBuildState: BuildStoreStateSnapshot;
+    rotationState: RotationSchemesState;
+    scopedRotationUiState?: SavedBuildScopedRotationUiState;
+    summary?: BuildSummarySnapshot;
+    damageTallyTiming: DamageTallyTiming;
+    compareSettings?: {
+      enabled: boolean;
+      leftVariantIndex: number;
+      rightVariantIndex: number;
+    };
+  }): string | null {
+    if (userBuilds.value.length >= MAX_BUILDS_PER_USER) {
+      return null;
+    }
+    const source = findBuildById(args.sourceBuildId);
+    if (!source) {
+      return null;
+    }
+    const next = cloneJson(source);
+    next.id = makeBuildId();
+    next.currentBuildState = cloneJson(args.currentBuildState);
+    next.plannedBuildState = cloneJson(args.plannedBuildState);
+    next.rotationState = cloneJson(args.rotationState);
+    next.scopedRotationUiState = args.scopedRotationUiState
+      ? cloneJson(args.scopedRotationUiState)
+      : {
+          sp: null,
+          contracts: null,
+        };
+    next.summary = args.summary
+      ? {
+          totalDamage: args.summary.totalDamage,
+          dps: args.summary.dps,
+          updatedAt: args.summary.updatedAt ?? Date.now(),
+        }
+      : {
+          totalDamage: null,
+          dps: null,
+          updatedAt: null,
+        };
+    next.damageTallyTiming = cloneJson(args.damageTallyTiming);
+    next.compareSettings = cloneJson(
+      args.compareSettings ?? {
+        enabled: false,
+        leftVariantIndex: 0,
+        rightVariantIndex: 1,
+      },
+    );
+    userBuilds.value.push(next);
+    seedDefaultRotationUiStateForBuild(next);
     return next.id;
   }
 
@@ -1227,7 +1311,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
       rightVariantIndex: number;
     };
   }) {
-    const target = builds.value.find((build) => build.id === args.buildId);
+    const target = userBuilds.value.find((build) => build.id === args.buildId);
     if (!target) {
       return;
     }
@@ -1259,7 +1343,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     name: string;
     description: string;
   }) {
-    const target = builds.value.find((build) => build.id === args.id);
+    const target = userBuilds.value.find((build) => build.id === args.id);
     const trimmedName = args.name.trim();
     if (!target || !trimmedName) {
       return;
@@ -1280,7 +1364,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   }
 
   function renameBuild(id: string, name: string) {
-    const target = builds.value.find((build) => build.id === id);
+    const target = userBuilds.value.find((build) => build.id === id);
     const trimmed = name.trim();
     if (!target || !trimmed) {
       return;
@@ -1289,37 +1373,38 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   }
 
   function removeBuild(id: string) {
-    const index = builds.value.findIndex((build) => build.id === id);
+    const index = userBuilds.value.findIndex((build) => build.id === id);
     if (index < 0) {
       return;
     }
-    builds.value.splice(index, 1);
-
-    if (builds.value.length === 0) {
-      const first = makeDefaultBuild(1);
-      builds.value = [first];
-      activeBuildId.value = first.id;
-      return;
-    }
+    userBuilds.value.splice(index, 1);
 
     if (activeBuildId.value === id) {
-      activeBuildId.value = builds.value[Math.max(0, index - 1)]!.id;
+      activeBuildId.value = userBuilds.value[Math.max(0, index - 1)]?.id ?? templateBuilds.value[0]?.id ?? "";
     }
   }
 
   function resetAll() {
-    const seeded = createSeededDefaultBuilds();
-    builds.value = seeded.builds;
+    const seeded = createSeededTemplateBuilds();
+    templateBuilds.value = seeded.builds;
+    userBuilds.value = [];
     activeBuildId.value = seeded.activeBuildId;
     saveToStorage();
   }
 
   return {
+    userBuilds,
+    templateBuilds,
     builds,
     activeBuildId,
     activeBuild,
+    activeBuildSource,
+    findBuildById,
+    isTemplateBuild,
+    isUserBuild,
     createBuild,
     copyBuild,
+    createBuildFromRuntime,
     setActiveBuild,
     updateBuildRuntime,
     updateBuildLocalizedMetadata,

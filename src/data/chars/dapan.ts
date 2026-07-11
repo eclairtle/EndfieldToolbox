@@ -17,7 +17,6 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "cycling",
     durationFrames: flat12(0),
     spCost: flat12(0),
     basicAttackVariant: "sequence",
@@ -35,7 +34,6 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 1,
     sequenceSegmentTotal: 4,
@@ -50,7 +48,6 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 2,
     sequenceSegmentTotal: 4,
@@ -65,7 +62,6 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 3,
     sequenceSegmentTotal: 4,
@@ -80,7 +76,6 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Physical",
-    mode: "single",
     basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 4,
     sequenceSegmentTotal: 4,
@@ -89,15 +84,14 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     hits: [{ name: "Hit 4", multiplier: pct([60, 66, 72, 78, 84, 90, 96, 103, 109, 116, 125, 136]), spGenerated: flat12(21), offsetFrames: flat12(70) }],
   },
-  { id: "dapan_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
-  { id: "dapan_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
+  { id: "dapan_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400, 440, 480, 520, 560, 600, 640, 680, 720, 770, 830, 900]), offsetFrames: flat12(30) }] },
+  { id: "dapan_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]), offsetFrames: flat12(30) }] },
   {
     id: "dapan_battle_skill",
     name: "FLIP DA WOK!",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(130),
     spCost: flat12(100),
     energyGain: flat12(0),
@@ -114,17 +108,16 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(112),
     timeFreezeSeconds: flat12(58 / 60),
     spCost: flat12(0),
     comboCooldownSeconds: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 19],
     comboCooldownTimeScale: "real",
-    energyGain: flat12(10),
     hits: [
       {
         multiplier: pct([289, 318, 347, 375, 404, 433, 462, 491, 520, 556, 599, 650]),
         stagger: flat12(15),
+        energyReturn: flat12(10),
         offsetFrames: flat12(106),
         effects: [
           {
@@ -142,7 +135,6 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Physical",
-    mode: "single",
     durationFrames: flat12(172),
     spCost: flat12(0),
     cutscene: true,
@@ -175,8 +167,14 @@ const DAPAN_HOOKS: CharacterCombatHooks = {
     if (
       ctx.event.type === "ENEMY_DEBUFF_APPLIED"
       && ctx.event.sourceSlot === ctx.self.slot
-      && ctx.state.getEnemyVulnerabilityStacks() >= 4
     ) {
+      const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+      const enemySlotIds = affectedEnemySlotIds.length > 0
+        ? affectedEnemySlotIds
+        : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+      if (!enemySlotIds.some((enemySlotId) => ctx.state.getEnemyVulnerabilityStacks(enemySlotId) >= 4)) {
+        return;
+      }
       ctx.state.triggerSelfCombo({
         label: "Da Pan Combo Triggered",
         sourceEventType: "ENEMY_DEBUFF_APPLIED",

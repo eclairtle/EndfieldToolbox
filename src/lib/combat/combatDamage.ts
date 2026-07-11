@@ -22,6 +22,10 @@ function getAttackTypeBonus(attackType: AttackType, mods: ModifierStats): number
       return mods.SKILL_DMG_PCT + mods.COMBO_SKILL_DMG_PCT;
     case "ULTIMATE":
       return mods.SKILL_DMG_PCT + mods.ULTIMATE_DMG_PCT;
+    case "TALENT":
+    case "REACTION":
+    case "GENERIC":
+      return mods.NON_COMMAND_DMG_PCT;
     default:
       return 0;
   }

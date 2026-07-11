@@ -92,7 +92,7 @@ export const NO_SET: GearBase[] = [
         "value": 22
       },
       {
-        "stat": "HP",
+        "stat": "HP_PCT",
         "value": 0.228
       }
     ],

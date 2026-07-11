@@ -15,7 +15,8 @@ import { useLocale } from "@/i18n/useLocale";
 import { getCharacterDisplayNameByCharacter } from "@/i18n/domain/displayNames";
 
 const props = defineProps<{
-  builds: SavedBuild[];
+  userBuilds: SavedBuild[];
+  templateBuilds: SavedBuild[];
   activeBuildId: string;
 }>();
 
@@ -36,8 +37,8 @@ const descriptionDraft = ref("");
 const pendingDeleteBuildId = ref<string | null>(null);
 const { t, locale } = useLocale();
 const MAX_BUILDS_PER_USER = 6;
-const buildCountLabel = computed(() => `${props.builds.length} / ${MAX_BUILDS_PER_USER}`);
-const canCreateBuild = computed(() => props.builds.length < MAX_BUILDS_PER_USER);
+const buildCountLabel = computed(() => `${props.userBuilds.length} / ${MAX_BUILDS_PER_USER}`);
+const canCreateBuild = computed(() => props.userBuilds.length < MAX_BUILDS_PER_USER);
 const currentBuildLocale = computed<BuildLocale>(() => locale.value === "zh-CN" ? "zh-CN" : "en");
 
 function getSlotImages(slot: CharacterBuildSlot) {
@@ -104,6 +105,10 @@ function confirmDelete() {
   emit("delete", pendingDeleteBuildId.value);
   pendingDeleteBuildId.value = null;
 }
+
+function isUserBuild(buildId: string) {
+  return props.userBuilds.some((build) => build.id === buildId);
+}
 </script>
 
 <template>
@@ -118,9 +123,15 @@ function confirmDelete() {
       </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+    <div class="space-y-3">
+      <div class="flex items-center gap-3">
+        <h3 class="text-lg font-semibold text-[#1b1b1b]">{{ t("buildList.userBuildsTitle") }}</h3>
+        <span class="rounded-md border border-[#dddddd] bg-[#f7f7f7] px-2 py-0.5 text-xs text-[#666]">{{ buildCountLabel }}</span>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
       <article
-        v-for="build in builds"
+        v-for="build in userBuilds"
         :key="build.id"
         class="flex h-[560px] cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md"
         :class="build.id === activeBuildId ? 'border-[#c8d13c]' : 'border-[#d6d6d6]'"
@@ -146,6 +157,7 @@ function confirmDelete() {
               {{ t("buildList.copy") }}
             </button>
             <button
+              v-if="isUserBuild(build.id)"
               type="button"
               class="rounded border border-[#d7d7d7] bg-white px-2 py-1 text-xs text-[#555] hover:bg-[#f4f4f4]"
               @click="beginEdit(build)"
@@ -153,6 +165,7 @@ function confirmDelete() {
               {{ t("buildList.edit") }}
             </button>
             <button
+              v-if="isUserBuild(build.id)"
               type="button"
               class="rounded border border-[#e0bcbc] bg-white px-2 py-1 text-xs text-[#8b2a2a] hover:bg-[#fdf3f3]"
               @click="requestDelete(build.id)"
@@ -223,6 +236,97 @@ function confirmDelete() {
         <span class="text-5xl leading-none">+</span>
         <span class="mt-3 text-sm font-medium uppercase tracking-[0.16em]">{{ t("buildList.newBuild") }}</span>
       </button>
+    </div>
+
+    <div v-if="templateBuilds.length > 0" class="space-y-3">
+      <div class="flex items-center gap-3">
+        <h3 class="text-lg font-semibold text-[#1b1b1b]">{{ t("buildList.templatesTitle") }}</h3>
+        <span class="rounded-md border border-[#dddddd] bg-[#f7f7f7] px-2 py-0.5 text-xs text-[#666]">{{ templateBuilds.length }}</span>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+        <article
+          v-for="build in templateBuilds"
+          :key="build.id"
+          class="flex h-[560px] cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md"
+          :class="build.id === activeBuildId ? 'border-[#c8d13c]' : 'border-[#d6d6d6]'"
+          @click="emit('open', build.id)"
+        >
+          <div class="mb-3 flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <h3 class="truncate text-lg font-semibold text-[#1b1b1b]">
+                {{ getLocalizedBuildName(build) }}
+              </h3>
+            </div>
+
+            <div class="flex items-center gap-2" @click.stop>
+              <span class="rounded-md bg-[#f2f2f2] px-2 py-1 text-xs font-medium text-[#666]">
+                {{ build.summary.updatedAt ? t("ui.updated") : t("ui.notSimulated") }}
+              </span>
+              <button
+                v-if="canCreateBuild"
+                type="button"
+                class="rounded border border-[#d7d7d7] bg-white px-2 py-1 text-xs text-[#555] hover:bg-[#f4f4f4]"
+                @click="emit('copy', build.id)"
+              >
+                {{ t("buildList.saveAsNew") }}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-1 space-y-2 overflow-hidden">
+            <div
+              v-for="(slot, slotIndex) in build.currentBuildState.slots"
+              :key="slot.id"
+              class="flex items-center gap-2 rounded-lg border border-[#ececec] bg-[#fafafa] px-2 py-2"
+            >
+              <img
+                :src="getSlotImages(slot).characterPath"
+                :alt="getSlotImages(slot).characterName"
+                class="h-11 w-11 rounded-md border border-[#dadada] bg-white object-contain"
+              />
+              <img
+                :src="getSlotImages(slot).weaponPath"
+                :alt="t('builder.weapon')"
+                class="h-8 w-8 rounded-md border border-[#dadada] bg-white object-contain"
+              />
+              <div class="flex items-center gap-1">
+                <img
+                  v-for="(gearPath, gearIndex) in getSlotImages(slot).gearPaths"
+                  :key="`${slot.id}-gear-${gearIndex}`"
+                  :src="gearPath"
+                  :alt="t('builder.gear')"
+                  class="h-6 w-6 rounded border border-[#dadada] bg-white object-contain"
+                />
+              </div>
+              <span class="ml-auto text-xs text-[#8a8a8a]">{{ t("builder.slot", { index: slotIndex + 1 }) }}</span>
+            </div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-2 gap-2">
+            <div class="rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2">
+              <div class="text-[11px] uppercase tracking-[0.12em] text-[#7a7a7a]">{{ t("rotation.totalDamage") }}</div>
+              <div class="mt-1 text-sm font-semibold text-[#1b1b1b]">
+                {{ build.summary.totalDamage == null ? "—" : Math.round(build.summary.totalDamage).toLocaleString() }}
+              </div>
+            </div>
+            <div class="rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2">
+              <div class="text-[11px] uppercase tracking-[0.12em] text-[#7a7a7a]">{{ t("rotation.dps") }}</div>
+              <div class="mt-1 text-sm font-semibold text-[#1b1b1b]">
+                {{ build.summary.dps == null ? "—" : Math.round(build.summary.dps).toLocaleString() }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-2 rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2">
+            <div class="text-[11px] uppercase tracking-[0.12em] text-[#7a7a7a]">{{ t("buildList.descriptionLabel") }}</div>
+            <div class="mt-1 h-[7.5rem] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-6 text-[#1b1b1b]">
+              {{ getLocalizedBuildDescription(build) || "—" }}
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
     </div>
 
     <div

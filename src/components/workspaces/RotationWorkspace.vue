@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute } from "vue-router";
 
@@ -18,7 +18,10 @@ import {
 import type {
   ActorCombatStateSnapshot,
   CharacterCombatSnapshot,
+  CountdownTimelineEntry,
   CritRiggingRule,
+  EnemyLifecycleTimelineEntry,
+  EnemySlotState,
   PartySlot,
   Rotation,
   RotationCombatEvent,
@@ -28,13 +31,22 @@ import type {
 } from "@/lib/combat/rotation";
 import { CRIT_RIG_HIT_INDEX_EXECUTE, CRIT_RIG_HIT_INDEX_REACTION } from "@/lib/combat/rotation";
 import { buildCombatSnapshot, buildPartySnapshotsByVariant } from "@/lib/combat/buildSnapshots";
-import { useRotationSchemes } from "@/lib/combat/rotationSchemes";
+import {
+  getRotationSchemeLocalizedDescription,
+  getRotationSchemeLocalizedName,
+  useRotationSchemes,
+  type RotationTeamSpConfig,
+} from "@/lib/combat/rotationSchemes";
 import {
   getActorStateAtTime,
   getEnemyStateAtTime,
-  simulateRotation,
   makeEnemyModifierSnapshot,
+  simulateRotation,
 } from "@/lib/combat/simulateRotation";
+import {
+  buildInitialStateFromCheckpoint,
+  createRotationSimulationCache,
+} from "@/lib/combat/simulationCache";
 import { modifierLabels } from "@/lib/modifierDisplay";
 import { getAverageCritMultiplier, getTotalDamageBonus } from "@/lib/combat/combatDamage";
 import type { EnemyResolvedStats } from "@/lib/enemy/enemyScaling";
@@ -44,8 +56,6 @@ import {
   getEnemyCommandDefinitions,
   type EnemyCommandPlacement,
 } from "@/lib/enemy/enemyActionWindows";
-import { ROTATION_SP_STORAGE_KEY } from "@/lib/storageKeys";
-import { ROTATION_CONTRACTS_STORAGE_KEY } from "@/lib/storageKeys";
 import { CONSUMABLES, CONSUMABLE_BY_ID, getConsumableDisplayName } from "@/data/consumables";
 import { getEnemyDisplayName } from "@/data/enemyCustomNames";
 import { useLocale } from "@/i18n/useLocale";
@@ -57,22 +67,73 @@ import { getLocalizedInflictionElementLabel } from "@/i18n/domain/elementLabels"
 import { getLocalizedStatusBuffLabel } from "@/i18n/domain/statusBuffLabels";
 import RotationSelectedCommandPanel from "@/components/workspaces/rotation/RotationSelectedCommandPanel.vue";
 import RotationHitDetailsModal from "@/components/workspaces/rotation/RotationHitDetailsModal.vue";
+import RotationContingencyContractsPopup from "@/components/workspaces/rotation/RotationContingencyContractsPopup.vue";
+import RotationTriggersPopup from "@/components/workspaces/rotation/RotationTriggersPopup.vue";
 import { EMPTY_SELECTION_ICON_PATH, getCharacterImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
+import { getActiveInternalCombatTriggers, getActiveInternalTriggerVariables } from "@/lib/combat/internalTriggers";
 import {
   CONTINGENCY_CONTRACTS,
+  getContingencyContractVariantIconAssetPath,
   getContingencyContractVariant,
   getLocalizedContingencyContractVariantDescription,
   getLocalizedContingencyContractVariantName,
+  isContingencyContractVariantVisible,
   normalizeActiveContingencyContracts,
   resolveContingencyContracts,
   type ActiveContingencyContract,
 } from "@/lib/combat/contracts";
+import {
+  CUSTOM_TRIGGER_ACTION_OPTIONS,
+  CUSTOM_TRIGGER_CONTRACT_VARIANT_OPTIONS,
+  CUSTOM_TRIGGER_EVENT_OPTIONS,
+  CUSTOM_TRIGGER_STATUS_BASIC_STAT_OPTIONS,
+  CUSTOM_TRIGGER_STATUS_STACKING_RULE_OPTIONS,
+  CUSTOM_TRIGGER_STATUS_OPTIONS,
+  CUSTOM_TRIGGER_TARGET_OPTIONS,
+  MAX_CUSTOM_TRIGGERS,
+  getAllTriggerVariables,
+  getCustomTriggerOptionDescription,
+  getCustomTriggerOptionLabel,
+  getDefaultTriggerVariableId,
+  getPrimaryTriggerAction,
+  makeDefaultApplyStatusAction,
+  makeDefaultComparatorTriggerCondition,
+  makeDefaultCustomTrigger,
+  makeDefaultExecuteHitAction,
+  makeDefaultFireTriggerAction,
+  makeDefaultIfThenElseAction,
+  makeDefaultLogicTriggerCondition,
+  makeDefaultModifyVariableAction,
+  makeDefaultModifyHpAction,
+  makeCustomTriggerVariableId,
+  makeDefaultReplaceEnemyAction,
+  makeDefaultRemoveStatusAction,
+  makeDefaultBreakAction,
+  makeDefaultCountdownAction,
+  makeDefaultRelayRotationAction,
+  makeDefaultStopTriggerAction,
+  makeDefaultSetTriggerEnabledAction,
+  makeDefaultSetTargetEnemyAction,
+  makeDefaultWaitAction,
+  normalizeCustomCombatTrigger,
+  normalizeCustomTriggerVariables,
+  sanitizeTriggersAgainstVariables,
+  triggerEventSupportsAlias,
+  type CustomCombatTrigger,
+  type TriggerAction,
+  type TriggerConditionNode,
+  type TriggerStatusStackingRule,
+  type TriggerNumericSource,
+  type TriggerVariableDefinition,
+} from "@/lib/combat/triggers";
 
 const props = defineProps<{
   buildId?: string;
   historyRevision?: number;
   debugMode?: boolean;
   enemies: EnemyBase[];
+  enemySlots: EnemySlotState[];
+  targetedEnemySlotId: string;
   selectedEnemyId: string;
   enemyName: string;
   enemyLevel: number;
@@ -87,14 +148,20 @@ const props = defineProps<{
     startTime: number;
     endTime: number;
   };
+  contractsPopupOpen?: boolean;
+  triggersPopupOpen?: boolean;
   canUndo?: boolean;
   canRedo?: boolean;
 }>();
 
 const emit = defineEmits<{
+  (e: "update:enemySlots", value: EnemySlotState[]): void;
+  (e: "update:targetedEnemySlotId", value: string): void;
   (e: "update:selectedEnemyId", value: string): void;
   (e: "update:enemyLevel", value: number): void;
   (e: "update:damageTallyTiming", value: { enabled: boolean; startTime: number; endTime: number }): void;
+  (e: "update:contractsPopupOpen", value: boolean): void;
+  (e: "update:triggersPopupOpen", value: boolean): void;
   (e: "undo"): void;
   (e: "redo"): void;
   (e: "historyTransientStart"): void;
@@ -109,6 +176,11 @@ const { t, locale } = useLocale();
 const AXIS_SCALE = 116;
 const AXIS_SNAP_SECONDS = 0.1;
 const TRACK_LABEL_WIDTH = 160;
+const CONTRACT_TILE_SIZE = 72;
+const CONTRACT_TILE_GAP = 8;
+const CONTRACT_CARD_PADDING = 8;
+const CONTRACT_LEVEL_ROW_HEIGHT = 92;
+const CONTRACT_COLUMN_HEIGHT = CONTRACT_LEVEL_ROW_HEIGHT * 3 + CONTRACT_TILE_GAP * 2;
 const TEAM_SP_MAX = 300;
 const PRE_BATTLE_SP_MAX = 200;
 const PRE_BATTLE_SP_REGEN_RATE = 50;
@@ -118,8 +190,9 @@ const SWITCH_BACK_COOLDOWN_SECONDS = 2;
 const TIMELINE_ROW_HEIGHT = 112;
 const CONTROL_TRACK_OFFSET = 16;
 const ENEMY_FINISHER_AVAILABLE_STATUS_ID = "enemy_finisher_available";
-const MAX_STEPS_PER_ROTATION = 256;
-const MAX_ROTATIONS_PER_BUILD = 2;
+const MAX_STEPS_PER_ROTATION = 128;
+const MAX_ROTATIONS_PER_BUILD = 4;
+const rotationSimulationCache = createRotationSimulationCache();
 
 function makeStepId(): string {
   return `step_${Math.random().toString(36).slice(2, 10)}`;
@@ -133,23 +206,10 @@ function buildSnapshot(slot: CharacterBuildSlot, index: number): CharacterCombat
   return buildCombatSnapshot(slot, index);
 }
 
-type TeamSpConfig = {
-  initialSp: number;
-  spRegenRate: number;
-  startingEnergyBySlot: number[];
-  consumableBySlot: (string | null)[];
-};
+type TeamSpConfig = RotationTeamSpConfig;
 
 function makeDefaultTeamSpConfig(): TeamSpConfig {
   return { initialSp: 200, spRegenRate: 8, startingEnergyBySlot: [100, 100, 100, 100], consumableBySlot: [null, null, null, null] };
-}
-
-const BUILD_STORAGE_SCOPE_DEFAULT = "__default__";
-
-function getBuildStorageScopeId(): string {
-  return props.buildId && props.buildId.length > 0
-    ? props.buildId
-    : BUILD_STORAGE_SCOPE_DEFAULT;
 }
 
 function normalizeTeamSpConfig(value: Partial<TeamSpConfig> | null | undefined): TeamSpConfig {
@@ -168,48 +228,6 @@ function normalizeTeamSpConfig(value: Partial<TeamSpConfig> | null | undefined):
   };
 }
 
-function loadTeamSpConfigByScheme(): Record<string, TeamSpConfig> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const raw = window.localStorage.getItem(ROTATION_SP_STORAGE_KEY);
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as
-      | Partial<TeamSpConfig>
-      | { byScheme?: Record<string, Partial<TeamSpConfig>> }
-      | { byBuild?: Record<string, { byScheme?: Record<string, Partial<TeamSpConfig>> }> }
-      | null;
-
-    if (parsed && typeof parsed === "object" && "byBuild" in parsed && parsed.byBuild) {
-      const buildScope = parsed.byBuild[getBuildStorageScopeId()];
-      if (buildScope?.byScheme) {
-        return Object.fromEntries(
-          Object.entries(buildScope.byScheme).map(([schemeId, config]) => [schemeId, normalizeTeamSpConfig(config)]),
-        );
-      }
-      return {};
-    }
-
-    if (parsed && typeof parsed === "object" && "byScheme" in parsed && parsed.byScheme) {
-      return Object.fromEntries(
-        Object.entries(parsed.byScheme).map(([schemeId, config]) => [schemeId, normalizeTeamSpConfig(config)]),
-      );
-    }
-
-    return {
-      __legacy__: normalizeTeamSpConfig(parsed as Partial<TeamSpConfig>),
-    };
-  } catch (error) {
-    console.warn("Failed to load rotation SP config from localStorage", error);
-    return {};
-  }
-}
-
 function normalizeEnemyCommandPlacement(value: Partial<EnemyCommandPlacement> | null | undefined): EnemyCommandPlacement | null {
   if (!value || typeof value.id !== "string" || typeof value.commandId !== "string") {
     return null;
@@ -224,33 +242,18 @@ function normalizeEnemyCommandPlacement(value: Partial<EnemyCommandPlacement> | 
   };
 }
 
-function loadContractsByScheme(): Record<string, ActiveContingencyContract[]> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-  const raw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
-  if (!raw) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(raw) as {
-      byBuild?: Record<string, { byScheme?: Record<string, unknown> }>;
-      byScheme?: Record<string, unknown>;
-    };
-    const scoped = parsed.byBuild?.[getBuildStorageScopeId()]?.byScheme;
-    const byScheme = scoped ?? parsed.byScheme ?? {};
-    return Object.fromEntries(
-      Object.entries(byScheme).map(([schemeId, value]) => [schemeId, normalizeActiveContingencyContracts(value)]),
-    );
-  } catch (error) {
-    console.warn("Failed to load rotation contracts from localStorage", error);
-    return {};
-  }
-}
-
 // App.vue already owns rotation-scheme hydration/scope switching.
 // Use the shared singleton state here without a second scope watcher to avoid racey reloads.
-const { rotationSchemes, activeScheme, activeRotation: rotation, setActiveScheme, addScheme, renameActiveScheme, removeActiveScheme } = useRotationSchemes();
+const {
+  rotationSchemes,
+  activeScheme,
+  activeRotation: rotation,
+  setActiveScheme,
+  addScheme,
+  updateActiveSchemeLocalizedMetadata,
+  setActiveSchemeSimulationMode,
+  removeActiveScheme,
+} = useRotationSchemes();
 const selectedLibrarySlot = ref<PartySlot>(0);
 const sidebarMode = ref<"character" | "enemy">("character");
 const controlPanelMode = ref<"simple" | "detailed">("simple");
@@ -260,11 +263,13 @@ const selectedStepIds = ref<string[]>(rotation.value.steps[0]?.id ? [rotation.va
 const selectionAnchorId = ref<string | null>(rotation.value.steps[0]?.id ?? null);
 const selectedEnemyCommandId = ref<string | null>(null);
 const cursorTime = ref(0);
-const teamSpConfigByScheme = ref<Record<string, TeamSpConfig>>(loadTeamSpConfigByScheme());
-const contractsByScheme = ref<Record<string, ActiveContingencyContract[]>>(loadContractsByScheme());
-const contractsPopupOpen = ref(false);
-const highlightedContractId = ref<string>(CONTINGENCY_CONTRACTS[0]?.id ?? "");
+const highlightedContractVariantRef = ref<{ contractId: string; variantId: string } | null>(null);
+const rotationMetadataEditorOpen = ref(false);
+const rotationNameDraft = ref("");
+const rotationDescriptionDraft = ref("");
+const CONTRACT_DISPLAY_LEVELS = [1, 2, 3] as const;
 const rotationCountLabel = computed(() => `${rotationSchemes.value.schemes.length} / ${MAX_ROTATIONS_PER_BUILD}`);
+const currentRotationLocale = computed<"en" | "zh-CN">(() => locale.value === "zh-CN" ? "zh-CN" : "en");
 const selectedConsumableId = computed(() => teamSpConfig.value.consumableBySlot[selectedLibrarySlot.value] ?? null);
 const selectedConsumable = computed(() =>
   selectedConsumableId.value ? CONSUMABLE_BY_ID[selectedConsumableId.value] ?? null : null,
@@ -279,8 +284,22 @@ const selectedConsumableIconPath = computed(() =>
     ? toAssetUrl(`/item-icons/usable/${selectedConsumableId.value}.webp`)
     : EMPTY_SELECTION_ICON_PATH,
 );
+const simulatedEnemySlots = shallowRef<EnemySlotState[] | null>(null);
+const selectedEnemyEditorSlotId = ref<string>("");
+const targetedEnemySlot = computed(() =>
+  getLogicalEnemySlots().find((slot) => slot.slotId === props.targetedEnemySlotId)
+  ?? getLogicalEnemySlots()[0]
+  ?? null,
+);
+const selectedEnemyEditorSlot = computed(() =>
+  getLogicalEnemySlots().find((slot) => slot.slotId === selectedEnemyEditorSlotId.value)
+  ?? targetedEnemySlot.value
+  ?? getLogicalEnemySlots()[0]
+  ?? null,
+);
+const targetedEnemyId = computed(() => targetedEnemySlot.value?.enemyId ?? props.selectedEnemyId);
 const selectedEnemyData = computed(() =>
-  props.enemies.find((enemy) => enemy.id === props.selectedEnemyId) ?? null,
+  props.enemies.find((enemy) => enemy.id === (selectedEnemyEditorSlot.value?.enemyId ?? props.selectedEnemyId)) ?? null,
 );
 const selectedEnemyIconPath = computed(() =>
   selectedEnemyData.value
@@ -288,70 +307,325 @@ const selectedEnemyIconPath = computed(() =>
     : EMPTY_SELECTION_ICON_PATH,
 );
 const canCreateRotationScheme = computed(() => rotationSchemes.value.schemes.length < MAX_ROTATIONS_PER_BUILD);
-const teamSpConfig = computed<TeamSpConfig>(() => {
-  const schemeId = activeScheme.value.id;
-  const existing = teamSpConfigByScheme.value[schemeId];
-  if (existing) {
-    return existing;
+const contractsPopupOpen = computed({
+  get: () => props.contractsPopupOpen === true,
+  set: (value: boolean) => emit("update:contractsPopupOpen", value),
+});
+const triggersPopupOpen = computed({
+  get: () => props.triggersPopupOpen === true,
+  set: (value: boolean) => emit("update:triggersPopupOpen", value),
+});
+const activeSchemeIndex = computed(() =>
+  rotationSchemes.value.schemes.findIndex((scheme) => scheme.id === activeScheme.value.id),
+);
+const activeSchemeCanRelay = computed(() => activeSchemeIndex.value > 0);
+const isActiveSchemeRelayed = computed(() =>
+  activeSchemeCanRelay.value && activeScheme.value.simulationMode === "relay_from_previous",
+);
+const relaySourceScheme = computed(() =>
+  activeSchemeIndex.value > 0 ? rotationSchemes.value.schemes[activeSchemeIndex.value - 1] ?? null : null,
+);
+const relayModeSummary = computed(() => {
+  if (!isActiveSchemeRelayed.value || !relaySourceScheme.value) {
+    return "";
+  }
+  return locale.value === "zh-CN"
+    ? `当前从 ${getLocalizedRotationSchemeName(relaySourceScheme.value)} 继承运行时状态`
+    : `Currently inheriting runtime state from ${getLocalizedRotationSchemeName(relaySourceScheme.value)}`;
+});
+
+function getLocalizedRotationSchemeName(scheme: typeof activeScheme.value): string {
+  return getRotationSchemeLocalizedName(scheme, currentRotationLocale.value);
+}
+
+function getLocalizedRotationSchemeDescription(scheme: typeof activeScheme.value): string {
+  return getRotationSchemeLocalizedDescription(scheme, currentRotationLocale.value);
+}
+
+const simulationDisplayTimeOffset = computed(() => simulation.value.displayTimeOffset ?? 0);
+const simulationDisplayGameTimeOffset = computed(() => simulation.value.displayGameTimeOffset ?? 0);
+
+function toDisplayedRealTime(localTime: number): number {
+  return localTime + simulationDisplayTimeOffset.value;
+}
+
+function toDisplayedGameTime(localGameTime: number): number {
+  return localGameTime + simulationDisplayGameTimeOffset.value;
+}
+
+function getStoredRotationTimeFromLocal(localTime: number): number {
+  return isActiveSchemeRelayed.value
+    ? localTime + simulationDisplayTimeOffset.value
+    : localTime;
+}
+
+function getLocalTimelineTimeFromStored(storedTime: number): number {
+  return isActiveSchemeRelayed.value
+    ? storedTime - simulationDisplayTimeOffset.value
+    : storedTime;
+}
+
+function rebaseRotationForSimulation(rotationInput: Rotation, displayOffset: number): Rotation {
+  if (!(displayOffset > 0)) {
+    return rotationInput;
+  }
+  return {
+    ...rotationInput,
+    steps: rotationInput.steps.map((step) => ({
+      ...step,
+      startTime: typeof step.startTime === "number" ? step.startTime - displayOffset : step.startTime,
+    })),
+  };
+}
+
+function rebaseEnemyActionWindowsForSimulation(windows: ReturnType<typeof getSchemeEnemyActionWindows>, displayOffset: number) {
+  if (!(displayOffset > 0)) {
+    return windows;
+  }
+  return windows.map((window) => ({
+    ...window,
+    startTime: window.startTime - displayOffset,
+    endTime: window.endTime - displayOffset,
+  }));
+}
+
+function syncSchemeRelayDisplayOffset(
+  scheme: (typeof rotationSchemes.value.schemes)[number],
+  nextDisplayTimeOffset: number,
+  nextDisplayGameTimeOffset: number,
+) {
+  if (scheme.simulationMode !== "relay_from_previous") {
+    scheme.relayDisplayTimeOffset = undefined;
+    scheme.relayDisplayGameTimeOffset = undefined;
+    return;
   }
 
-  const legacy = teamSpConfigByScheme.value.__legacy__;
-  const next = legacy ? { ...legacy } : makeDefaultTeamSpConfig();
-  if (legacy) {
-    delete teamSpConfigByScheme.value.__legacy__;
+  const previousDisplayTimeOffset = scheme.relayDisplayTimeOffset;
+  const deltaTime = previousDisplayTimeOffset == null
+    ? 0
+    : nextDisplayTimeOffset - previousDisplayTimeOffset;
+  if (Math.abs(deltaTime) > 0.0001) {
+    scheme.rotation.steps = scheme.rotation.steps.map((step) => ({
+      ...step,
+      startTime: typeof step.startTime === "number" ? step.startTime + deltaTime : step.startTime,
+    }));
+    if (scheme.enemyCommandsBySlot && typeof scheme.enemyCommandsBySlot === "object") {
+      scheme.enemyCommandsBySlot = Object.fromEntries(
+        Object.entries(scheme.enemyCommandsBySlot).map(([slotId, placements]) => [
+          slotId,
+          Array.isArray(placements)
+            ? placements.map((placement) => ({
+                ...placement,
+                startTime: Number.isFinite(placement.startTime) ? placement.startTime + deltaTime : placement.startTime,
+              }))
+            : [],
+        ]),
+      );
+    }
   }
-  teamSpConfigByScheme.value[schemeId] = next;
-  return next;
+
+  scheme.relayDisplayTimeOffset = nextDisplayTimeOffset;
+  scheme.relayDisplayGameTimeOffset = nextDisplayGameTimeOffset;
+}
+watch(
+  () => activeScheme.value.id,
+  () => {
+    activeScheme.value.teamSpConfig = normalizeTeamSpConfig(activeScheme.value.teamSpConfig);
+  },
+  { immediate: true },
+);
+const teamSpConfig = computed<TeamSpConfig>(() => {
+  return activeScheme.value.teamSpConfig ?? makeDefaultTeamSpConfig();
 });
 const activeContingencyContracts = computed<ActiveContingencyContract[]>(() => {
-  const schemeId = activeScheme.value.id;
-  return contractsByScheme.value[schemeId] ?? [];
+  try {
+    if (isActiveSchemeRelayed.value) {
+      return [];
+    }
+    const scheme = activeScheme.value;
+    if (!scheme || typeof scheme !== "object") {
+      return [];
+    }
+    return normalizeActiveContingencyContracts(scheme.activeContracts ?? []);
+  } catch (error) {
+    console.warn("Failed to resolve active contingency contracts", error);
+    return [];
+  }
+});
+const visibleContingencyContracts = computed(() => {
+  try {
+    return CONTINGENCY_CONTRACTS
+      .map((contract) => ({
+        ...contract,
+        variants: contract.variants.filter((variant) => isContingencyContractVariantVisible(variant)),
+      }))
+      .filter((contract) => contract.variants.length > 0);
+  } catch (error) {
+    console.warn("Failed to resolve visible contingency contracts", error);
+    return [];
+  }
+});
+const visibleContingencyContractColumns = computed(() => {
+  try {
+    const columns: Array<{
+      key: string;
+      cardWidth: number;
+      families: Array<{
+        key: string;
+        cardWidth: number;
+        entriesByLevel: Record<number, Array<{
+          contractId: string;
+          variantId: string;
+          level: number;
+          name: string;
+          description: string;
+          iconPath: string;
+          isActive: boolean;
+        }>>;
+      }>;
+    }> = [];
+    const byKey = new Map<string, (typeof columns)[number]>();
+
+    for (const contract of visibleContingencyContracts.value) {
+      const columnKey = contract.groupAlias ?? contract.id;
+      let column = byKey.get(columnKey);
+      if (!column) {
+        column = {
+          key: columnKey,
+          cardWidth: 0,
+          families: [],
+        };
+        byKey.set(columnKey, column);
+        columns.push(column);
+      }
+
+      const entriesByLevel: Record<number, Array<{
+        contractId: string;
+        variantId: string;
+        level: number;
+        name: string;
+        description: string;
+        iconPath: string;
+        isActive: boolean;
+      }>> = { 1: [], 2: [], 3: [] };
+
+      for (const variant of contract.variants) {
+        const row = entriesByLevel[variant.level] ?? (entriesByLevel[variant.level] = []);
+        row.push({
+          contractId: contract.id,
+          variantId: variant.id,
+          level: variant.level,
+          name: getLocalizedContingencyContractVariantName(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+          description: getLocalizedContingencyContractVariantDescription(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+          iconPath: toAssetUrl(getContingencyContractVariantIconAssetPath(variant) ?? "/icons/no_selection.svg"),
+          isActive: activeContingencyContracts.value.some((entry) => entry.id === contract.id && entry.variantId === variant.id),
+        });
+      }
+
+      const widthTracks = Math.max(
+        1,
+        ...CONTRACT_DISPLAY_LEVELS.map((level) => Math.max(1, entriesByLevel[level]?.length ?? 0)),
+      );
+
+      column.families.push({
+        key: contract.id,
+        cardWidth: widthTracks * CONTRACT_TILE_SIZE
+          + Math.max(0, widthTracks - 1) * CONTRACT_TILE_GAP
+          + CONTRACT_CARD_PADDING * 2,
+        entriesByLevel,
+      });
+    }
+
+    for (const column of columns) {
+      column.cardWidth = column.families.reduce((sum, family, index) => {
+        return sum + family.cardWidth + (index > 0 ? CONTRACT_TILE_GAP : 0);
+      }, 0);
+    }
+
+    return columns;
+  } catch (error) {
+    console.warn("Failed to build contingency contract layout", error);
+    return [];
+  }
 });
 const disabledGenericActions = computed(() =>
   resolveContingencyContracts(activeContingencyContracts.value).disabledGenericActions,
 );
 const dodgeDisabledByContracts = computed(() => disabledGenericActions.value.has("dodge"));
-const contingencyTotalLevel = computed(() =>
-  activeContingencyContracts.value.reduce((sum, entry) => {
-    const variant = getContingencyContractVariant(entry.id, entry.variantId);
-    return sum + (variant?.level ?? 0);
-  }, 0),
-);
+const contingencyTotalLevel = computed(() => {
+  try {
+    return activeContingencyContracts.value.reduce((sum, entry) => {
+      const variant = getContingencyContractVariant(entry.id, entry.variantId);
+      return sum + (variant?.level ?? 0);
+    }, 0);
+  } catch (error) {
+    console.warn("Failed to compute contingency total level", error);
+    return 0;
+  }
+});
 const activeContractSummary = computed(() => {
-  return activeContingencyContracts.value.flatMap((entry) => {
-    const variant = getContingencyContractVariant(entry.id, entry.variantId);
-    if (!variant) {
-      return [];
-    }
-    return [{
-      id: `${entry.id}:${variant.id}`,
-      name: getLocalizedContingencyContractVariantName(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
-      description: getLocalizedContingencyContractVariantDescription(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
-      level: variant.level,
-    }];
-  });
+  try {
+    return activeContingencyContracts.value.flatMap((entry) => {
+      const variant = getContingencyContractVariant(entry.id, entry.variantId);
+      if (!variant) {
+        return [];
+      }
+      return [{
+        id: `${entry.id}:${variant.id}`,
+        name: getLocalizedContingencyContractVariantName(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+        description: getLocalizedContingencyContractVariantDescription(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+        level: variant.level,
+      }];
+    });
+  } catch (error) {
+    console.warn("Failed to build active contingency contract summary", error);
+    return [];
+  }
 });
 const highlightedContract = computed(() => {
-  const byId = new Map(CONTINGENCY_CONTRACTS.map((contract) => [contract.id, contract]));
-  const contract = byId.get(highlightedContractId.value) ?? CONTINGENCY_CONTRACTS[0] ?? null;
-  if (!contract) {
+  try {
+    const highlighted = highlightedContractVariantRef.value;
+    let variant = highlighted
+      ? getContingencyContractVariant(highlighted.contractId, highlighted.variantId)
+      : null;
+
+    if (!variant) {
+      const firstEntry = visibleContingencyContractColumns.value
+        .flatMap((column) =>
+          column.families.flatMap((family) => CONTRACT_DISPLAY_LEVELS.flatMap((level) => family.entriesByLevel[level] ?? [])),
+        )[0] ?? null;
+      if (!firstEntry) {
+        return null;
+      }
+      variant = getContingencyContractVariant(firstEntry.contractId, firstEntry.variantId);
+    }
+
+    if (!variant) {
+      return null;
+    }
+
+    return {
+      id: variant.id,
+      name: getLocalizedContingencyContractVariantName(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+      description: getLocalizedContingencyContractVariantDescription(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
+      iconPath: toAssetUrl(getContingencyContractVariantIconAssetPath(variant) ?? "/icons/no_selection.svg"),
+      level: variant.level,
+    };
+  } catch (error) {
+    console.warn("Failed to resolve highlighted contingency contract", error);
     return null;
   }
-  const selectedVariantId = activeContingencyContracts.value.find((entry) => entry.id === contract.id)?.variantId ?? contract.variants[0]?.id ?? null;
-  const variant = getContingencyContractVariant(contract.id, selectedVariantId) ?? contract.variants[0] ?? null;
-  if (!variant) {
-    return null;
-  }
-  return {
-    id: contract.id,
-    name: getLocalizedContingencyContractVariantName(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
-    description: getLocalizedContingencyContractVariantDescription(variant, locale.value === "zh-CN" ? "zh-CN" : "en"),
-  };
 });
 
 function toggleContractVariant(contractId: string, variantId: string) {
-  const schemeId = activeScheme.value.id;
-  const next = [...(contractsByScheme.value[schemeId] ?? [])];
+  if (isActiveSchemeRelayed.value) {
+    return;
+  }
+  const scheme = activeScheme.value;
+  if (!scheme || typeof scheme !== "object") {
+    return;
+  }
+  const next = [...activeContingencyContracts.value];
   const existingIndex = next.findIndex((entry) => entry.id === contractId);
   if (existingIndex >= 0 && next[existingIndex]!.variantId === variantId) {
     next.splice(existingIndex, 1);
@@ -360,15 +634,1802 @@ function toggleContractVariant(contractId: string, variantId: string) {
   } else {
     next.push({ id: contractId, variantId });
   }
-  contractsByScheme.value[schemeId] = next;
+  scheme.activeContracts = next;
 }
+
+function highlightContractVariant(contractId: string, variantId: string) {
+  highlightedContractVariantRef.value = { contractId, variantId };
+}
+
+function setCurrentRotationSimulationMode(mode: "independent" | "relay_from_previous") {
+  setActiveSchemeSimulationMode(mode);
+}
+const activeCustomTriggers = computed<CustomCombatTrigger[]>(() => {
+  if (isActiveSchemeRelayed.value) {
+    return [];
+  }
+  const scheme = activeScheme.value;
+  if (!scheme || typeof scheme !== "object" || !Array.isArray(scheme.triggers)) {
+    return [];
+  }
+  return scheme.triggers;
+});
+const MAX_CUSTOM_TRIGGER_VARIABLES = 32;
+const activeCustomTriggerVariables = computed<TriggerVariableDefinition[]>(() => {
+  if (isActiveSchemeRelayed.value) {
+    return [];
+  }
+  const scheme = activeScheme.value as { triggerVariables?: TriggerVariableDefinition[] };
+  return normalizeCustomTriggerVariables(scheme.triggerVariables ?? []);
+});
+const activeInternalTriggers = computed<CustomCombatTrigger[]>(() =>
+  getActiveInternalCombatTriggers(activeContingencyContracts.value),
+);
+const activeInternalTriggerVariables = computed<TriggerVariableDefinition[]>(() =>
+  getActiveInternalTriggerVariables(activeContingencyContracts.value),
+);
+const activeTriggerVariables = computed<TriggerVariableDefinition[]>(() =>
+  getAllTriggerVariables(activeCustomTriggerVariables.value),
+);
+const triggerEditorState = ref<{
+  mode: "create" | "edit";
+  triggerId: string | null;
+  draft: CustomCombatTrigger;
+}>({
+  mode: "create",
+  triggerId: null,
+  draft: makeDefaultCustomTrigger(),
+});
+const triggerEditorTab = ref<"overview" | "conditions" | "actions" | "script">("overview");
+const triggerEditorPanel = ref<"trigger" | "variable">("trigger");
+const triggerListMode = ref<"custom" | "internal">("custom");
+const selectedTriggerVariableId = ref<string | null>(null);
+const triggerEditorScript = ref("");
+const triggerEditorScriptBaseline = ref("");
+const triggerScriptPromptState = ref<{
+  open: boolean;
+  nextTab: "overview" | "conditions" | "actions" | null;
+  continueSave: boolean;
+  error: string;
+}>({
+  open: false,
+  nextTab: null,
+  continueSave: false,
+  error: "",
+});
+
+function serializeTriggerScript(trigger: CustomCombatTrigger) {
+  const stripConditionIds = (node: TriggerConditionNode): TriggerConditionNode => {
+    if (node.kind === "logic") {
+      return {
+        kind: "logic",
+        id: "",
+        operator: node.operator,
+        conditions: node.conditions.map(stripConditionIds),
+      };
+    }
+    return {
+      kind: "comparator",
+      id: "",
+      left: node.left,
+      comparator: node.comparator,
+      right: node.right,
+    };
+  };
+  const serialized = {
+    ...trigger,
+    conditions: Array.isArray(trigger.conditions) ? trigger.conditions.map(stripConditionIds).map((node) => {
+      const { id: _id, ...rest } = node;
+      return rest;
+    }) : [],
+  };
+  const stripNestedIds = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      return value.map(stripNestedIds);
+    }
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    const objectValue = value as Record<string, unknown>;
+    const next: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(objectValue)) {
+      if (key === "id" && (objectValue.kind === "logic" || objectValue.kind === "comparator")) {
+        continue;
+      }
+      next[key] = stripNestedIds(entry);
+    }
+    return next;
+  };
+  return JSON.stringify(stripNestedIds(serialized), null, 2);
+}
+
+function syncTriggerScriptFromDraft() {
+  const serialized = serializeTriggerScript(triggerEditorState.value.draft);
+  triggerEditorScript.value = serialized;
+  triggerEditorScriptBaseline.value = serialized;
+}
+
+function isTriggerScriptDirty() {
+  return triggerEditorScript.value !== triggerEditorScriptBaseline.value;
+}
+
+function parseTriggerScriptToDraft(script: string) {
+  let parsedRaw: unknown;
+  try {
+    parsedRaw = JSON.parse(script);
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Failed to parse JSON.",
+    };
+  }
+  const normalized = normalizeCustomCombatTrigger(parsedRaw);
+  if (!normalized) {
+    return {
+      ok: false as const,
+      error: locale.value === "zh-CN"
+        ? "脚本无法解析为有效的触发器。"
+        : "Script could not be parsed as a valid trigger.",
+    };
+  }
+  sanitizeTriggersAgainstVariables([normalized], activeCustomTriggerVariables.value);
+  return {
+    ok: true as const,
+    draft: normalized,
+  };
+}
+
+function applyTriggerScriptToDraft() {
+  const result = parseTriggerScriptToDraft(triggerEditorScript.value);
+  if (!result.ok) {
+    return result;
+  }
+  triggerEditorState.value.draft = result.draft;
+  syncTriggerScriptFromDraft();
+  return result;
+}
+
+function openInvalidTriggerScriptPrompt(args: {
+  nextTab?: "overview" | "conditions" | "actions" | null;
+  continueSave?: boolean;
+  error: string;
+}) {
+  triggerScriptPromptState.value = {
+    open: true,
+    nextTab: args.nextTab ?? null,
+    continueSave: args.continueSave === true,
+    error: args.error,
+  };
+}
+
+function closeInvalidTriggerScriptPrompt() {
+  triggerScriptPromptState.value = {
+    open: false,
+    nextTab: null,
+    continueSave: false,
+    error: "",
+  };
+}
+
+function discardInvalidTriggerScriptChanges() {
+  const pendingTab = triggerScriptPromptState.value.nextTab;
+  const continueSave = triggerScriptPromptState.value.continueSave;
+  syncTriggerScriptFromDraft();
+  closeInvalidTriggerScriptPrompt();
+  if (pendingTab) {
+    triggerEditorTab.value = pendingTab;
+    return;
+  }
+  if (continueSave) {
+    saveTriggerDraft();
+  }
+}
+
+function cancelInvalidTriggerScriptPrompt() {
+  closeInvalidTriggerScriptPrompt();
+  triggerEditorTab.value = "script";
+}
+
+function resetTriggerDraft() {
+  triggerEditorState.value = {
+    mode: "create",
+    triggerId: null,
+    draft: makeDefaultCustomTrigger(),
+  };
+  triggerEditorTab.value = "overview";
+  triggerEditorPanel.value = "trigger";
+  closeInvalidTriggerScriptPrompt();
+  syncTriggerScriptFromDraft();
+}
+
+function beginCreateTrigger() {
+  triggerListMode.value = "custom";
+  resetTriggerDraft();
+}
+
+function beginEditTrigger(trigger: CustomCombatTrigger) {
+  triggerListMode.value = "custom";
+  triggerEditorPanel.value = "trigger";
+  selectedTriggerVariableId.value = null;
+  triggerEditorState.value = {
+    mode: "edit",
+    triggerId: trigger.id,
+    draft: JSON.parse(JSON.stringify(trigger)) as CustomCombatTrigger,
+  };
+  triggerEditorTab.value = "overview";
+  closeInvalidTriggerScriptPrompt();
+  syncTriggerScriptFromDraft();
+}
+
+function beginEditTriggerVariable(variable: TriggerVariableDefinition) {
+  triggerEditorPanel.value = "variable";
+  selectedTriggerVariableId.value = variable.id;
+}
+
+function stopEditingTriggerVariable() {
+  selectedTriggerVariableId.value = null;
+  triggerEditorPanel.value = "trigger";
+}
+
+function ensurePrimaryTriggerAction(draft: CustomCombatTrigger): TriggerAction {
+  if (!Array.isArray(draft.actions) || draft.actions.length === 0) {
+    draft.actions = [getPrimaryTriggerAction(makeDefaultCustomTrigger())];
+  }
+  return draft.actions[0]!;
+}
+
+function ensureTriggerActions(draft: CustomCombatTrigger): TriggerAction[] {
+  if (!Array.isArray(draft.actions) || draft.actions.length === 0) {
+    draft.actions = [getPrimaryTriggerAction(makeDefaultCustomTrigger())];
+  }
+  return draft.actions;
+}
+
+function ensureTriggerConditions(draft: CustomCombatTrigger): TriggerConditionNode[] {
+  if (!Array.isArray(draft.conditions)) {
+    draft.conditions = [];
+  }
+  return draft.conditions;
+}
+
+function ensureSchemeTriggerVariables(): TriggerVariableDefinition[] {
+  const scheme = activeScheme.value as { triggerVariables?: TriggerVariableDefinition[] };
+  if (!Array.isArray(scheme.triggerVariables)) {
+    scheme.triggerVariables = [];
+  }
+  return scheme.triggerVariables;
+}
+
+function getEditableTriggerVariable(variableId: string) {
+  return ensureSchemeTriggerVariables().find((entry) => entry.id === variableId) ?? null;
+}
+
+function sanitizeSchemeTriggersAgainstVariables() {
+  const scheme = activeScheme.value as { triggers?: CustomCombatTrigger[]; triggerVariables?: TriggerVariableDefinition[] };
+  if (!Array.isArray(scheme.triggers)) {
+    scheme.triggers = [];
+  }
+  scheme.triggerVariables = normalizeCustomTriggerVariables(scheme.triggerVariables ?? []);
+  sanitizeTriggersAgainstVariables(scheme.triggers, scheme.triggerVariables);
+  const editingTriggerId = triggerEditorState.value.triggerId;
+  if (editingTriggerId) {
+    const latest = scheme.triggers.find((entry) => entry.id === editingTriggerId);
+    if (latest) {
+      triggerEditorState.value.draft = JSON.parse(JSON.stringify(latest)) as CustomCombatTrigger;
+    }
+  } else {
+    sanitizeTriggersAgainstVariables([triggerEditorState.value.draft], scheme.triggerVariables);
+  }
+  if (triggerEditorTab.value !== "script") {
+    syncTriggerScriptFromDraft();
+  }
+}
+
+function addTriggerVariable() {
+  const variables = ensureSchemeTriggerVariables();
+  if (variables.length >= MAX_CUSTOM_TRIGGER_VARIABLES) {
+    return;
+  }
+  const variable: TriggerVariableDefinition = {
+    id: makeCustomTriggerVariableId(),
+    name: `Var ${variables.length + 1}`,
+    type: "number",
+    initialValue: { type: "number_literal", value: 0 },
+  };
+  variables.push(variable);
+  sanitizeSchemeTriggersAgainstVariables();
+  beginEditTriggerVariable(variable);
+}
+
+function removeTriggerVariable(variableId: string) {
+  const scheme = activeScheme.value as { triggerVariables?: TriggerVariableDefinition[] };
+  if (!Array.isArray(scheme.triggerVariables)) {
+    return;
+  }
+  scheme.triggerVariables = scheme.triggerVariables.filter((entry) => entry.id !== variableId);
+  if (selectedTriggerVariableId.value === variableId) {
+    stopEditingTriggerVariable();
+  }
+  sanitizeSchemeTriggersAgainstVariables();
+}
+
+function duplicateTriggerVariable(variable: TriggerVariableDefinition) {
+  const variables = ensureSchemeTriggerVariables();
+  if (variables.length >= MAX_CUSTOM_TRIGGER_VARIABLES) {
+    return;
+  }
+  const duplicated: TriggerVariableDefinition = {
+    ...JSON.parse(JSON.stringify(variable)),
+    id: makeCustomTriggerVariableId(),
+    name: `${variable.name} Copy`,
+  };
+  variables.push(duplicated);
+  sanitizeSchemeTriggersAgainstVariables();
+  beginEditTriggerVariable(duplicated);
+}
+
+function setTriggerVariableName(variable: TriggerVariableDefinition, name: string) {
+  const editable = getEditableTriggerVariable(variable.id);
+  if (!editable) return;
+  editable.name = name;
+}
+
+function setTriggerVariableType(variable: TriggerVariableDefinition, type: "string" | "number" | "boolean") {
+  const editable = getEditableTriggerVariable(variable.id);
+  if (!editable || editable.type === type) {
+    return;
+  }
+  editable.type = type;
+  editable.initialValue =
+    type === "string"
+      ? { type: "string_literal", value: "" }
+      : type === "boolean"
+        ? { type: "boolean_literal", value: false }
+        : { type: "number_literal", value: 0 };
+  sanitizeSchemeTriggersAgainstVariables();
+}
+
+function setTriggerVariableInitialString(variable: TriggerVariableDefinition, value: string) {
+  const editable = getEditableTriggerVariable(variable.id);
+  if (!editable || editable.type !== "string") return;
+  editable.initialValue = { type: "string_literal", value };
+}
+function setTriggerVariableInitialNumber(variable: TriggerVariableDefinition, value: number) {
+  const editable = getEditableTriggerVariable(variable.id);
+  if (!editable || editable.type !== "number") return;
+  editable.initialValue = { type: "number_literal", value: Number.isFinite(value) ? value : 0 };
+}
+function setTriggerVariableInitialBoolean(variable: TriggerVariableDefinition, value: boolean) {
+  const editable = getEditableTriggerVariable(variable.id);
+  if (!editable || editable.type !== "boolean") return;
+  editable.initialValue = { type: "boolean_literal", value };
+}
+
+function getTriggerVariablesByType(type: "string" | "number" | "boolean") {
+  return activeTriggerVariables.value.filter((entry) => entry.type === type);
+}
+
+const selectedCustomTriggerVariable = computed<TriggerVariableDefinition | null>(() => {
+  if (!selectedTriggerVariableId.value) {
+    return null;
+  }
+  return activeCustomTriggerVariables.value.find((entry) => entry.id === selectedTriggerVariableId.value) ?? null;
+});
+
+const selectedInternalTrigger = computed<CustomCombatTrigger | null>(() => {
+  if (!triggerEditorState.value.triggerId) {
+    return activeInternalTriggers.value[0] ?? null;
+  }
+  return activeInternalTriggers.value.find((entry) => entry.id === triggerEditorState.value.triggerId) ?? activeInternalTriggers.value[0] ?? null;
+});
+
+function setTriggerListMode(mode: "custom" | "internal") {
+  triggerListMode.value = mode;
+  if (mode === "internal") {
+    triggerEditorPanel.value = "trigger";
+    selectedTriggerVariableId.value = null;
+    const next = activeInternalTriggers.value[0] ?? null;
+    if (next) {
+      viewInternalTrigger(next);
+    }
+    return;
+  }
+  beginCreateTrigger();
+}
+
+function viewInternalTrigger(trigger: CustomCombatTrigger) {
+  triggerListMode.value = "internal";
+  triggerEditorPanel.value = "trigger";
+  selectedTriggerVariableId.value = null;
+  triggerEditorState.value = {
+    mode: "edit",
+    triggerId: trigger.id,
+    draft: JSON.parse(JSON.stringify(trigger)) as CustomCombatTrigger,
+  };
+  triggerEditorTab.value = "overview";
+  syncTriggerScriptFromDraft();
+}
+
+async function copyTriggerScript() {
+  const trigger = triggerListMode.value === "internal"
+    ? selectedInternalTrigger.value
+    : triggerEditorState.value.draft;
+  if (!trigger) {
+    return;
+  }
+  const serialized = serializeTriggerScript(trigger);
+  await copyText(serialized);
+}
+
+async function copyText(value: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+  }
+}
+
+function getNumericSourceMode(source: TriggerNumericSource) {
+  return source.type === "variable_ref" ? "variable" : "literal";
+}
+
+function setNumericSourceMode(source: TriggerNumericSource, mode: "literal" | "variable") {
+  if (mode === "variable") {
+    source.type = "variable_ref";
+    (source as TriggerNumericSource & { variableId?: string; variableType?: "number" }).variableId = getDefaultTriggerVariableId("number");
+    (source as TriggerNumericSource & { variableId?: string; variableType?: "number" }).variableType = "number";
+    delete (source as Record<string, unknown>).value;
+    return;
+  }
+  source.type = "number_literal";
+  (source as TriggerNumericSource & { value?: number }).value = 1;
+  delete (source as Record<string, unknown>).variableId;
+  delete (source as Record<string, unknown>).variableType;
+}
+
+function getNumericSourceLiteralValue(source: TriggerNumericSource) {
+  return source.type === "number_literal" ? source.value : 1;
+}
+
+function setNumericSourceLiteralValue(source: TriggerNumericSource, value: number) {
+  if (source.type !== "number_literal") return;
+  source.value = Math.max(1, Math.round(Number.isFinite(value) ? value : 1));
+}
+
+function getNumericSourceVariableId(source: TriggerNumericSource) {
+  return source.type === "variable_ref" ? source.variableId : getDefaultTriggerVariableId("number");
+}
+
+function setNumericSourceVariableId(source: TriggerNumericSource, variableId: string) {
+  if (source.type !== "variable_ref") return;
+  source.variableId = variableId;
+  source.variableType = "number";
+}
+
+function addRootComparatorTriggerCondition(draft: CustomCombatTrigger) {
+  ensureTriggerConditions(draft).push(makeDefaultComparatorTriggerCondition());
+}
+
+function addRootLogicTriggerCondition(draft: CustomCombatTrigger) {
+  ensureTriggerConditions(draft).push(makeDefaultLogicTriggerCondition());
+}
+
+function makeDefaultTriggerActionByType(actionType: TriggerAction["type"]): TriggerAction {
+  return actionType === "REMOVE_STATUS"
+    ? makeDefaultRemoveStatusAction()
+    : actionType === "REPLACE_ENEMY"
+      ? makeDefaultReplaceEnemyAction()
+        : actionType === "MODIFY_HP"
+          ? makeDefaultModifyHpAction()
+          : actionType === "MODIFY_VARIABLE"
+            ? makeDefaultModifyVariableAction()
+        : actionType === "SET_TARGET_ENEMY"
+          ? makeDefaultSetTargetEnemyAction()
+          : actionType === "EXECUTE_HIT"
+            ? makeDefaultExecuteHitAction()
+            : actionType === "WAIT"
+              ? makeDefaultWaitAction()
+    : actionType === "COUNTDOWN"
+              ? makeDefaultCountdownAction()
+            : actionType === "RELAY_ROTATION"
+              ? makeDefaultRelayRotationAction()
+            : actionType === "SET_TRIGGER_ENABLED"
+                ? makeDefaultSetTriggerEnabledAction()
+                : actionType === "STOP_TRIGGER"
+                  ? makeDefaultStopTriggerAction()
+                  : actionType === "BREAK"
+                    ? makeDefaultBreakAction()
+                : actionType === "IF_THEN_ELSE"
+                  ? makeDefaultIfThenElseAction()
+                  : actionType === "FIRE_TRIGGER"
+                    ? makeDefaultFireTriggerAction()
+                    : makeDefaultApplyStatusAction();
+}
+
+function removeRootTriggerCondition(draft: CustomCombatTrigger, index: number) {
+  if (!Array.isArray(draft.conditions)) {
+    return;
+  }
+  draft.conditions.splice(index, 1);
+}
+
+function moveRootTriggerCondition(draft: CustomCombatTrigger, index: number, direction: -1 | 1) {
+  const conditions = ensureTriggerConditions(draft);
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= conditions.length) {
+    return;
+  }
+  const [condition] = conditions.splice(index, 1);
+  if (!condition) {
+    return;
+  }
+  conditions.splice(nextIndex, 0, condition);
+}
+
+function duplicateRootTriggerCondition(draft: CustomCombatTrigger, index: number) {
+  const conditions = ensureTriggerConditions(draft);
+  const source = conditions[index];
+  if (!source) {
+    return;
+  }
+  conditions.splice(index + 1, 0, JSON.parse(JSON.stringify(source)) as TriggerConditionNode);
+}
+
+function addTriggerAction(draft: CustomCombatTrigger, type: TriggerAction["type"] = "APPLY_STATUS") {
+  const actions = ensureTriggerActions(draft);
+  actions.push(makeDefaultTriggerActionByType(type));
+}
+
+function removeTriggerAction(draft: CustomCombatTrigger, index: number) {
+  if (!Array.isArray(draft.actions)) {
+    return;
+  }
+  draft.actions.splice(index, 1);
+}
+
+function duplicateTriggerAction(draft: CustomCombatTrigger, index: number) {
+  const actions = ensureTriggerActions(draft);
+  const source = actions[index];
+  if (!source) {
+    return;
+  }
+  actions.splice(index + 1, 0, JSON.parse(JSON.stringify(source)) as TriggerAction);
+}
+
+function saveTriggerDraft() {
+  if (isActiveSchemeRelayed.value) {
+    return;
+  }
+  if (triggerEditorTab.value === "script" && isTriggerScriptDirty()) {
+    const result = applyTriggerScriptToDraft();
+    if (!result.ok) {
+      openInvalidTriggerScriptPrompt({
+        continueSave: true,
+        error: result.error,
+      });
+      return;
+    }
+  }
+  const scheme = activeScheme.value;
+  if (!scheme || typeof scheme !== "object") {
+    return;
+  }
+  if (!Array.isArray(scheme.triggers)) {
+    scheme.triggers = [];
+  }
+
+  const draft = JSON.parse(JSON.stringify(triggerEditorState.value.draft)) as CustomCombatTrigger;
+  draft.name = draft.name.trim() || t("rotation.newTrigger");
+  const actions = ensureTriggerActions(draft);
+  for (const action of actions) {
+    if (action.type === "APPLY_STATUS") {
+      if (action.durationSeconds.type === "number_literal") {
+        action.durationSeconds.value = Math.max(0, Number(action.durationSeconds.value ?? 0));
+      }
+      if (action.stacks.type === "number_literal") {
+        action.stacks.value = Math.max(1, Math.round(action.stacks.value ?? 1));
+      }
+    }
+  }
+
+  if (triggerEditorState.value.mode === "edit" && triggerEditorState.value.triggerId) {
+    const index = scheme.triggers.findIndex((entry) => entry.id === triggerEditorState.value.triggerId);
+    if (index >= 0) {
+      scheme.triggers.splice(index, 1, draft);
+    } else if (scheme.triggers.length < MAX_CUSTOM_TRIGGERS) {
+      scheme.triggers.push(draft);
+    }
+  } else if (scheme.triggers.length < MAX_CUSTOM_TRIGGERS) {
+    scheme.triggers.push(draft);
+  }
+
+  beginCreateTrigger();
+}
+
+function removeTrigger(triggerId: string) {
+  if (isActiveSchemeRelayed.value) {
+    return;
+  }
+  const scheme = activeScheme.value;
+  if (!scheme || typeof scheme !== "object" || !Array.isArray(scheme.triggers)) {
+    return;
+  }
+  scheme.triggers = scheme.triggers.filter((entry) => entry.id !== triggerId);
+  if (triggerEditorState.value.triggerId === triggerId) {
+    beginCreateTrigger();
+  }
+}
+
+function duplicateTrigger(trigger: CustomCombatTrigger) {
+  if (isActiveSchemeRelayed.value) {
+    return;
+  }
+  const scheme = activeScheme.value;
+  if (!scheme || typeof scheme !== "object") {
+    return;
+  }
+  if (!Array.isArray(scheme.triggers)) {
+    scheme.triggers = [];
+  }
+  if (scheme.triggers.length >= MAX_CUSTOM_TRIGGERS) {
+    return;
+  }
+  const clone = JSON.parse(JSON.stringify(trigger)) as CustomCombatTrigger;
+  clone.id = makeDefaultCustomTrigger().id;
+  clone.name = `${trigger.name} Copy`;
+  scheme.triggers.push(clone);
+}
+
+function moveTrigger(triggerId: string, direction: -1 | 1) {
+  if (isActiveSchemeRelayed.value) {
+    return;
+  }
+  const scheme = activeScheme.value;
+  if (!scheme || typeof scheme !== "object" || !Array.isArray(scheme.triggers)) {
+    return;
+  }
+  const index = scheme.triggers.findIndex((entry) => entry.id === triggerId);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= scheme.triggers.length) {
+    return;
+  }
+  const [trigger] = scheme.triggers.splice(index, 1);
+  if (!trigger) {
+    return;
+  }
+  scheme.triggers.splice(nextIndex, 0, trigger);
+}
+
+watch(triggersPopupOpen, (open) => {
+  if (open && !isActiveSchemeRelayed.value) {
+    beginCreateTrigger();
+  }
+});
+
+watch(isActiveSchemeRelayed, (relayed) => {
+  if (relayed) {
+    contractsPopupOpen.value = false;
+    triggersPopupOpen.value = false;
+  }
+});
+
+function getTriggerEventLabel(eventType: CustomCombatTrigger["event"]["type"]) {
+  const option = CUSTOM_TRIGGER_EVENT_OPTIONS.find((entry) => entry.id === eventType) ?? CUSTOM_TRIGGER_EVENT_OPTIONS[0]!;
+  return getCustomTriggerOptionLabel(option, locale.value === "zh-CN" ? "zh-CN" : "en");
+}
+
+function getTriggerActionLabel(actionType: TriggerAction["type"]) {
+  const option = CUSTOM_TRIGGER_ACTION_OPTIONS.find((entry) => entry.id === actionType) ?? CUSTOM_TRIGGER_ACTION_OPTIONS[0]!;
+  return getCustomTriggerOptionLabel(option, locale.value === "zh-CN" ? "zh-CN" : "en");
+}
+
+function getTriggerTargetLabel(target: "event_operator" | "controlled_operator" | "event_enemy_target" | "event_enemy_group_member" | "enemy_in_slot") {
+  const option = CUSTOM_TRIGGER_TARGET_OPTIONS.find((entry) => entry.id === target) ?? CUSTOM_TRIGGER_TARGET_OPTIONS[0]!;
+  return getCustomTriggerOptionLabel(option, locale.value === "zh-CN" ? "zh-CN" : "en");
+}
+
+function getTriggerStatusLabel(statusId: string) {
+  const option = CUSTOM_TRIGGER_STATUS_OPTIONS.find((entry) => entry.id === statusId) ?? CUSTOM_TRIGGER_STATUS_OPTIONS[0]!;
+  return locale.value === "zh-CN" ? option.label.zh : option.label.en;
+}
+
+function summarizeTriggerConditionNode(node: TriggerConditionNode): string {
+  if (node.kind === "logic") {
+    const childSummary = node.conditions.map((entry) => summarizeTriggerConditionNode(entry)).join(", ");
+    return `${node.operator}{${childSummary}}`;
+  }
+  const left = node.left.type === "enemy_identity"
+    ? (locale.value === "zh-CN" ? "敌人身份" : "Enemy Identity")
+    : node.left.type === "operator_hp_ratio"
+      ? (locale.value === "zh-CN" ? "干员生命比例" : "Operator HP Ratio")
+      : node.left.type === "enemy_hp_ratio"
+        ? (locale.value === "zh-CN" ? "敌人生命比例" : "Enemy HP Ratio")
+        : node.left.type === "status_stack_count"
+          ? (locale.value === "zh-CN" ? "状态层数" : "Status Stack Count")
+        : node.left.type;
+  const right = node.right.type === "enemy_id_literal"
+    ? node.right.enemyId
+    : node.right.type === "number_literal"
+      ? String(node.right.value)
+      : node.right.type === "boolean_literal"
+        ? String(node.right.value)
+        : node.right.type === "enemy_identity"
+          ? (locale.value === "zh-CN" ? "敌人身份" : "Enemy Identity")
+          : node.right.type === "operator_hp_ratio"
+            ? (locale.value === "zh-CN" ? "干员生命比例" : "Operator HP Ratio")
+            : node.right.type === "enemy_hp_ratio"
+              ? (locale.value === "zh-CN" ? "敌人生命比例" : "Enemy HP Ratio")
+              : node.right.type === "status_stack_count"
+                ? (locale.value === "zh-CN" ? "状态层数" : "Status Stack Count")
+              : node.right.type;
+  return `${left} ${node.comparator} ${right}`;
+}
+
+function setTriggerActionType(draft: CustomCombatTrigger, actionType: TriggerAction["type"]) {
+  const current = ensurePrimaryTriggerAction(draft);
+  if (current.type === actionType) {
+    return;
+  }
+  draft.actions = [makeDefaultTriggerActionByType(actionType)];
+}
+
+function setTriggerActionTypeAt(draft: CustomCombatTrigger, index: number, actionType: TriggerAction["type"]) {
+  const actions = ensureTriggerActions(draft);
+  const current = actions[index];
+  if (!current || current.type === actionType) {
+    return;
+  }
+  actions.splice(index, 1, makeDefaultTriggerActionByType(actionType));
+}
+
+function getTriggerActionStatusId(action: TriggerAction) {
+  if (action.type === "REPLACE_ENEMY" || action.type === "MODIFY_HP" || action.type === "MODIFY_VARIABLE" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT" || action.type === "WAIT" || action.type === "COUNTDOWN" || action.type === "RELAY_ROTATION" || action.type === "SET_TRIGGER_ENABLED" || action.type === "STOP_TRIGGER" || action.type === "BREAK" || action.type === "IF_THEN_ELSE" || action.type === "FIRE_TRIGGER") {
+    return "bladebreaking";
+  }
+  return action.status.type === "status_id_literal" ? action.status.statusId : "bladebreaking";
+}
+
+function setTriggerActionStatusId(action: TriggerAction, statusId: string) {
+  if (action.type === "REPLACE_ENEMY" || action.type === "MODIFY_HP" || action.type === "MODIFY_VARIABLE" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT" || action.type === "WAIT" || action.type === "COUNTDOWN" || action.type === "RELAY_ROTATION" || action.type === "SET_TRIGGER_ENABLED" || action.type === "STOP_TRIGGER" || action.type === "BREAK" || action.type === "IF_THEN_ELSE" || action.type === "FIRE_TRIGGER") {
+    return;
+  }
+  action.status = {
+    type: "status_id_literal",
+    statusId: (CUSTOM_TRIGGER_STATUS_OPTIONS.find((entry) => entry.id === statusId)?.id ?? "bladebreaking"),
+  };
+}
+
+function hasTriggerActionTarget(action: TriggerAction): action is Extract<
+  TriggerAction,
+  { target: unknown }
+> {
+  return action.type !== "WAIT" && action.type !== "COUNTDOWN" && action.type !== "RELAY_ROTATION" && action.type !== "SET_TRIGGER_ENABLED" && action.type !== "STOP_TRIGGER" && action.type !== "BREAK" && action.type !== "IF_THEN_ELSE" && action.type !== "FIRE_TRIGGER";
+}
+
+function getTriggerActionTargetOption(action: TriggerAction): "event_operator" | "controlled_operator" | "event_enemy_target" | "event_enemy_group_member" | "enemy_in_slot" | "team" | "global" {
+  if (!hasTriggerActionTarget(action)) {
+    return "event_operator";
+  }
+  if (action.type === "REPLACE_ENEMY" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT") {
+    if (action.target.type === "enemy_from_group") {
+      return "event_enemy_group_member";
+    }
+    if (action.target.type === "enemy_in_slot") {
+      return "enemy_in_slot";
+    }
+    return "event_enemy_target";
+  }
+  if (action.target.type === "team") {
+    return "team";
+  }
+  if (action.target.type === "global") {
+    return "global";
+  }
+  if (action.target.type === "controlled_operator") {
+    return "controlled_operator";
+  }
+  if (action.target.type === "enemy_from_group") {
+    return "event_enemy_group_member";
+  }
+  if (action.target.type === "enemy_in_slot") {
+    return "enemy_in_slot";
+  }
+  if (action.target.type === "alias_enemy") {
+    return "event_enemy_target";
+  }
+  return "event_operator";
+}
+
+function setTriggerActionTargetOption(action: TriggerAction, option: string) {
+  if (!hasTriggerActionTarget(action)) {
+    return;
+  }
+  if (action.type === "REPLACE_ENEMY" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT") {
+    if (option === "event_enemy_target") {
+      action.target = { type: "alias_enemy", alias: "event_enemy_target" };
+      return;
+    }
+    if (option === "event_enemy_group_member") {
+      action.target = { type: "enemy_from_group", alias: "event_enemy_group", index: { type: "number_literal", value: 1 } };
+      return;
+    }
+    if (option === "enemy_in_slot") {
+      action.target = { type: "enemy_in_slot", slotNumber: { type: "number_literal", value: 1 } };
+      return;
+    }
+    action.target = { type: "alias_enemy", alias: "event_enemy_target" };
+    return;
+  }
+  if ((action.type === "APPLY_STATUS" || action.type === "REMOVE_STATUS") && option === "team") {
+    action.target = { type: "team" };
+    return;
+  }
+  if ((action.type === "APPLY_STATUS" || action.type === "REMOVE_STATUS") && option === "global") {
+    action.target = { type: "global" };
+    return;
+  }
+  if (option === "controlled_operator") {
+    action.target = { type: "controlled_operator" };
+    return;
+  }
+  if (option === "event_enemy_target") {
+    action.target = { type: "alias_enemy", alias: "event_enemy_target" };
+    return;
+  }
+  if (option === "event_enemy_group_member") {
+    action.target = { type: "enemy_from_group", alias: "event_enemy_group", index: { type: "number_literal", value: 1 } };
+    return;
+  }
+  if (option === "enemy_in_slot") {
+    action.target = { type: "enemy_in_slot", slotNumber: { type: "number_literal", value: 1 } };
+    return;
+  }
+  action.target = { type: "alias_operator", alias: "event_operator" };
+}
+
+function getTriggerActionDurationValue(action: TriggerAction) {
+  if (action.type !== "APPLY_STATUS") {
+    return 0;
+  }
+  return action.durationSeconds.type === "number_literal" ? action.durationSeconds.value : 0;
+}
+
+function setTriggerActionDurationValue(action: TriggerAction, value: number) {
+  if (action.type !== "APPLY_STATUS") {
+    return;
+  }
+  action.durationSeconds = { type: "number_literal", value: Math.max(0, Number.isFinite(value) ? value : 0) };
+}
+
+function getTriggerActionDurationMode(action: TriggerAction) {
+  if (action.type !== "APPLY_STATUS") {
+    return "literal";
+  }
+  if (action.durationSeconds.type === "event_status_duration") {
+    return "event_status_duration";
+  }
+  if (action.durationSeconds.type === "variable_ref") {
+    return "variable";
+  }
+  return "literal";
+}
+
+function setTriggerActionDurationMode(action: TriggerAction, mode: string) {
+  if (action.type !== "APPLY_STATUS") {
+    return;
+  }
+  if (mode === "event_status_duration") {
+    action.durationSeconds = { type: "event_status_duration" };
+    return;
+  }
+  if (mode === "variable") {
+    action.durationSeconds = {
+      type: "variable_ref",
+      variableId: getTriggerVariablesByType("number")[0]?.id ?? "",
+      variableType: "number",
+    };
+    return;
+  }
+  action.durationSeconds = { type: "number_literal", value: 0 };
+}
+
+function getTriggerActionDurationVariableId(action: TriggerAction) {
+  if (action.type !== "APPLY_STATUS") {
+    return getTriggerVariablesByType("number")[0]?.id ?? "";
+  }
+  return action.durationSeconds.type === "variable_ref"
+    ? action.durationSeconds.variableId
+    : (getTriggerVariablesByType("number")[0]?.id ?? "");
+}
+
+function setTriggerActionDurationVariableId(action: TriggerAction, variableId: string) {
+  if (action.type !== "APPLY_STATUS") {
+    return;
+  }
+  action.durationSeconds = {
+    type: "variable_ref",
+    variableId,
+    variableType: "number",
+  };
+}
+
+function getTriggerActionStacksValue(action: TriggerAction) {
+  if (action.type !== "APPLY_STATUS") {
+    return 1;
+  }
+  return action.stacks.type === "number_literal" ? action.stacks.value : 1;
+}
+
+function setTriggerActionStacksValue(action: TriggerAction, value: number) {
+  if (action.type !== "APPLY_STATUS") {
+    return;
+  }
+  action.stacks = { type: "number_literal", value: Math.max(1, Math.round(Number.isFinite(value) ? value : 1)) };
+}
+
+function getTriggerActionMaxStacksValue(action: TriggerAction) {
+  if (action.type !== "APPLY_STATUS" || !action.maxStacks) {
+    return 1;
+  }
+  return action.maxStacks.type === "number_literal" ? action.maxStacks.value : 1;
+}
+
+function setTriggerActionMaxStacksValue(action: TriggerAction, value: number) {
+  if (action.type !== "APPLY_STATUS") {
+    return;
+  }
+  action.maxStacks = { type: "number_literal", value: Math.max(1, Math.round(Number.isFinite(value) ? value : 1)) };
+}
+
+function isTriggerActionRefreshExistingStacks(action: TriggerAction) {
+  return isApplyStatusTriggerAction(action) ? action.refreshExistingStacks !== false : true;
+}
+
+function setTriggerActionRefreshExistingStacks(action: TriggerAction, value: boolean) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  action.refreshExistingStacks = value;
+}
+
+function isTriggerActionIndependentStacks(action: TriggerAction) {
+  return isApplyStatusTriggerAction(action) && action.independentStacks === true;
+}
+
+function setTriggerActionIndependentStacks(action: TriggerAction, value: boolean) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  action.independentStacks = value;
+}
+
+function getTriggerActionTargetSlotNumber(action: TriggerAction) {
+  if (!hasTriggerActionTarget(action)) {
+    return 1;
+  }
+  return action.target.type === "enemy_in_slot" ? getNumericSourceLiteralValue(action.target.slotNumber) : 1;
+}
+function getTriggerActionTargetSlotSource(action: TriggerAction): TriggerNumericSource | null {
+  return hasTriggerActionTarget(action) && action.target.type === "enemy_in_slot" ? action.target.slotNumber : null;
+}
+
+function setTriggerActionTargetSlotNumber(action: TriggerAction, value: number) {
+  if (!hasTriggerActionTarget(action)) {
+    return;
+  }
+  if (action.target.type !== "enemy_in_slot") {
+    return;
+  }
+  setNumericSourceLiteralValue(action.target.slotNumber, value);
+}
+
+function getTriggerActionTargetGroupIndex(action: TriggerAction) {
+  if (!hasTriggerActionTarget(action)) {
+    return 1;
+  }
+  return action.target.type === "enemy_from_group" ? getNumericSourceLiteralValue(action.target.index) : 1;
+}
+function getTriggerActionTargetGroupIndexSource(action: TriggerAction): TriggerNumericSource | null {
+  return hasTriggerActionTarget(action) && action.target.type === "enemy_from_group" ? action.target.index : null;
+}
+
+function setTriggerActionTargetGroupIndex(action: TriggerAction, value: number) {
+  if (!hasTriggerActionTarget(action)) {
+    return;
+  }
+  if (action.target.type !== "enemy_from_group") {
+    return;
+  }
+  setNumericSourceLiteralValue(action.target.index, value);
+}
+
+function isApplyStatusTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "APPLY_STATUS" }> {
+  return action.type === "APPLY_STATUS";
+}
+
+function isTriggerActionPermanent(action: TriggerAction) {
+  return isApplyStatusTriggerAction(action) && action.permanent === true;
+}
+
+function setTriggerActionPermanent(action: TriggerAction, value: boolean) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  action.permanent = value;
+}
+
+function isTriggerActionHidden(action: TriggerAction) {
+  return isApplyStatusTriggerAction(action) && action.hidden === true;
+}
+
+function setTriggerActionHidden(action: TriggerAction, value: boolean) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  action.hidden = value;
+}
+
+function isTriggerActionUseDefault(action: TriggerAction) {
+  return isApplyStatusTriggerAction(action) && action.useDefault === true;
+}
+
+function setTriggerActionUseDefault(action: TriggerAction, value: boolean) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  action.useDefault = value;
+}
+
+function getTriggerActionStackingRule(action: TriggerAction): TriggerStatusStackingRule {
+  if (!isApplyStatusTriggerAction(action)) {
+    return "default";
+  }
+  return action.stackingRule ?? "default";
+}
+
+function setTriggerActionStackingRule(action: TriggerAction, value: string) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  action.stackingRule = value === "additive" || value === "replace" ? value : "default";
+}
+
+function getTriggerActionStatEntries(action: TriggerAction) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return [];
+  }
+  if (!Array.isArray(action.statEntries)) {
+    action.statEntries = [];
+  }
+  return action.statEntries;
+}
+
+function addTriggerActionStatEntry(action: TriggerAction) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  getTriggerActionStatEntries(action).push({
+    statKind: "modifier",
+    statKey: MODIFIER_STAT_KEYS[0]!,
+    value: { type: "number_literal", value: 0 },
+  });
+}
+
+function removeTriggerActionStatEntry(action: TriggerAction, index: number) {
+  if (!isApplyStatusTriggerAction(action)) {
+    return;
+  }
+  getTriggerActionStatEntries(action).splice(index, 1);
+}
+
+function getTriggerActionStatEntryKind(action: TriggerAction, index: number): "modifier" | "basic" {
+  return getTriggerActionStatEntries(action)[index]?.statKind === "basic" ? "basic" : "modifier";
+}
+
+function setTriggerActionStatEntryKind(action: TriggerAction, index: number, value: string) {
+  const entry = getTriggerActionStatEntries(action)[index];
+  if (!entry) {
+    return;
+  }
+  entry.statKind = value === "basic" ? "basic" : "modifier";
+  entry.statKey = entry.statKind === "basic"
+    ? "ATK"
+    : MODIFIER_STAT_KEYS[0]!;
+}
+
+function getTriggerActionStatEntryKey(action: TriggerAction, index: number) {
+  return String(getTriggerActionStatEntries(action)[index]?.statKey ?? "");
+}
+
+function setTriggerActionStatEntryKey(action: TriggerAction, index: number, value: string) {
+  const entry = getTriggerActionStatEntries(action)[index];
+  if (!entry) {
+    return;
+  }
+  if (entry.statKind === "basic") {
+    entry.statKey = value === "HP" ? "HP" : "ATK";
+  } else {
+    entry.statKey = MODIFIER_STAT_KEYS.find((key) => key === value) ?? MODIFIER_STAT_KEYS[0]!;
+  }
+}
+
+function getTriggerActionStatEntryValueMode(action: TriggerAction, index: number) {
+  const expression = getTriggerActionStatEntries(action)[index]?.value;
+  return expression?.type === "variable_ref" ? "variable" : "literal";
+}
+
+function setTriggerActionStatEntryValueMode(action: TriggerAction, index: number, mode: string) {
+  const entry = getTriggerActionStatEntries(action)[index];
+  if (!entry) {
+    return;
+  }
+  entry.value = mode === "variable"
+    ? { type: "variable_ref", variableId: getTriggerVariablesByType("number")[0]?.id ?? "", variableType: "number" }
+    : { type: "number_literal", value: 0 };
+}
+
+function getTriggerActionStatEntryValueNumber(action: TriggerAction, index: number) {
+  const expression = getTriggerActionStatEntries(action)[index]?.value;
+  return expression?.type === "number_literal" ? expression.value : 0;
+}
+
+function setTriggerActionStatEntryValueNumber(action: TriggerAction, index: number, value: number) {
+  const entry = getTriggerActionStatEntries(action)[index];
+  if (!entry) {
+    return;
+  }
+  entry.value = { type: "number_literal", value: Number.isFinite(value) ? value : 0 };
+}
+
+function getTriggerActionStatEntryValueVariableId(action: TriggerAction, index: number) {
+  const expression = getTriggerActionStatEntries(action)[index]?.value;
+  return expression?.type === "variable_ref" ? expression.variableId : (getTriggerVariablesByType("number")[0]?.id ?? "");
+}
+
+function setTriggerActionStatEntryValueVariableId(action: TriggerAction, index: number, variableId: string) {
+  const entry = getTriggerActionStatEntries(action)[index];
+  if (!entry) {
+    return;
+  }
+  entry.value = { type: "variable_ref", variableId, variableType: "number" };
+}
+
+function isReplaceEnemyTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "REPLACE_ENEMY" }> {
+  return action.type === "REPLACE_ENEMY";
+}
+
+function isModifyHpTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "MODIFY_HP" }> {
+  return action.type === "MODIFY_HP";
+}
+
+function isSetTargetEnemyTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "SET_TARGET_ENEMY" }> {
+  return action.type === "SET_TARGET_ENEMY";
+}
+
+function isExecuteHitTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "EXECUTE_HIT" }> {
+  return action.type === "EXECUTE_HIT";
+}
+
+function isWaitTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "WAIT" }> {
+  return action.type === "WAIT";
+}
+
+function isCountdownTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "COUNTDOWN" }> {
+  return action.type === "COUNTDOWN";
+}
+
+function isSetTriggerEnabledAction(action: TriggerAction): action is Extract<TriggerAction, { type: "SET_TRIGGER_ENABLED" }> {
+  return action.type === "SET_TRIGGER_ENABLED";
+}
+
+function isStopTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "STOP_TRIGGER" }> {
+  return action.type === "STOP_TRIGGER";
+}
+
+function getTriggerActionEnemyId(action: TriggerAction) {
+  if (!isReplaceEnemyTriggerAction(action) || action.enemyId.type !== "enemy_id_literal") {
+    return props.enemies[0]?.id ?? "rhodagn";
+  }
+  return action.enemyId.enemyId;
+}
+
+function setTriggerActionEnemyId(action: TriggerAction, enemyId: string) {
+  if (!isReplaceEnemyTriggerAction(action)) {
+    return;
+  }
+  action.enemyId = {
+    type: "enemy_id_literal",
+    enemyId,
+  };
+}
+
+function isTriggerActionResetHp(action: TriggerAction) {
+  return isReplaceEnemyTriggerAction(action)
+    ? (action.resetHp.type === "boolean_literal" ? action.resetHp.value : true)
+    : true;
+}
+
+function setTriggerActionResetHp(action: TriggerAction, value: boolean) {
+  if (!isReplaceEnemyTriggerAction(action)) {
+    return;
+  }
+  action.resetHp = {
+    type: "boolean_literal",
+    value,
+  };
+}
+
+function getTriggerActionReplaceEnemyLevel(action: TriggerAction) {
+  return isReplaceEnemyTriggerAction(action)
+    ? (action.level.type === "number_literal" ? action.level.value : 90)
+    : 90;
+}
+
+function setTriggerActionReplaceEnemyLevel(action: TriggerAction, value: number) {
+  if (!isReplaceEnemyTriggerAction(action)) {
+    return;
+  }
+  action.level = {
+    type: "number_literal",
+    value: Math.max(1, Math.round(Number.isFinite(value) ? value : 90)),
+  };
+}
+
+function isTriggerActionReplaceEnemyNoDeath(action: TriggerAction) {
+  return isReplaceEnemyTriggerAction(action)
+    ? (action.noDeath.type === "boolean_literal" ? action.noDeath.value : false)
+    : false;
+}
+
+function setTriggerActionReplaceEnemyNoDeath(action: TriggerAction, value: boolean) {
+  if (!isReplaceEnemyTriggerAction(action)) {
+    return;
+  }
+  action.noDeath = {
+    type: "boolean_literal",
+    value,
+  };
+}
+
+function getTriggerActionPrimarySummary(action: TriggerAction) {
+  if (action.type === "REPLACE_ENEMY") {
+    const enemyId = getTriggerActionEnemyId(action);
+    const enemy = props.enemies.find((entry) => entry.id === enemyId);
+    if (!enemy) {
+      return enemyId;
+    }
+    return `${getEnemyDisplayName(enemy.id, enemy.name, locale.value as "en" | "zh-CN")} Lv${getTriggerActionReplaceEnemyLevel(action)}`;
+  }
+  if (action.type === "MODIFY_HP") {
+    const amount = action.amount.type === "number_literal" ? action.amount.value : 0;
+    return `${action.operation === "heal" ? (locale.value === "zh-CN" ? "治疗" : "Heal") : (locale.value === "zh-CN" ? "伤害" : "Damage")} ${amount}`;
+  }
+  if (action.type === "MODIFY_VARIABLE") {
+    const variable = activeTriggerVariables.value.find((entry) => entry.id === action.variableId);
+    return locale.value === "zh-CN"
+      ? `${action.operation} ${variable?.name ?? action.variableId}`
+      : `${action.operation} ${variable?.name ?? action.variableId}`;
+  }
+  if (action.type === "SET_TARGET_ENEMY") {
+    return locale.value === "zh-CN" ? "切换目标敌人" : "Set Target Enemy";
+  }
+  if (action.type === "WAIT") {
+    const duration = action.durationSeconds.type === "number_literal" ? action.durationSeconds.value : 0;
+    return locale.value === "zh-CN" ? `等待 ${duration}s` : `Wait ${duration}s`;
+  }
+  if (action.type === "COUNTDOWN") {
+    const duration = action.durationSeconds.type === "number_literal" ? action.durationSeconds.value : 0;
+    return locale.value === "zh-CN" ? `倒计时 ${duration}s` : `Countdown ${duration}s`;
+  }
+  if (action.type === "SET_TRIGGER_ENABLED") {
+    const target = action.target.type === "self"
+      ? (locale.value === "zh-CN" ? "本触发器" : "This Trigger")
+      : (locale.value === "zh-CN" ? `触发器槽位 ${action.target.slotNumber}` : `Trigger Slot ${action.target.slotNumber}`);
+    const op = action.operation === "enable"
+      ? (locale.value === "zh-CN" ? "启用" : "Enable")
+      : (locale.value === "zh-CN" ? "禁用" : "Disable");
+    return `${op} ${target}`;
+  }
+  if (action.type === "STOP_TRIGGER") {
+    const target = action.target.type === "self"
+      ? (locale.value === "zh-CN" ? "本触发器" : "This Trigger")
+      : (locale.value === "zh-CN" ? `触发器槽位 ${action.target.slotNumber}` : `Trigger Slot ${action.target.slotNumber}`);
+    return locale.value === "zh-CN" ? `停止 ${target}` : `Stop ${target}`;
+  }
+  if (action.type === "BREAK") {
+    return locale.value === "zh-CN" ? "中断当前实例" : "Break Current Instance";
+  }
+  if (action.type === "IF_THEN_ELSE") {
+    return locale.value === "zh-CN" ? "条件分支" : "Conditional Branch";
+  }
+  if (action.type === "FIRE_TRIGGER") {
+    const target = action.target.type === "self"
+      ? (locale.value === "zh-CN" ? "本触发器" : "This Trigger")
+      : (locale.value === "zh-CN" ? `触发器槽位 ${action.target.slotNumber}` : `Trigger Slot ${action.target.slotNumber}`);
+    return locale.value === "zh-CN" ? `触发 ${target}` : `Fire ${target}`;
+  }
+  if (action.type === "EXECUTE_HIT") {
+    return action.hitName;
+  }
+  return getTriggerStatusLabel(getTriggerActionStatusId(action));
+}
+
+function getTriggerActionHpOperation(action: TriggerAction) {
+  return isModifyHpTriggerAction(action) ? action.operation : "damage";
+}
+
+function setTriggerActionHpOperation(action: TriggerAction, operation: "damage" | "heal") {
+  if (!isModifyHpTriggerAction(action)) {
+    return;
+  }
+  action.operation = operation;
+}
+
+function getTriggerActionHpAmount(action: TriggerAction) {
+  return isModifyHpTriggerAction(action) && action.amount.type === "number_literal" ? action.amount.value : 0;
+}
+
+function setTriggerActionHpAmount(action: TriggerAction, value: number) {
+  if (!isModifyHpTriggerAction(action)) {
+    return;
+  }
+  action.amount = {
+    type: "number_literal",
+    value: Math.max(0, Number.isFinite(value) ? value : 0),
+  };
+}
+
+function getTriggerActionExecuteHitName(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) ? action.hitName : "Execute Hit";
+}
+
+function setTriggerActionExecuteHitName(action: TriggerAction, value: string) {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.hitName = value.trim() || "Execute Hit";
+}
+
+function getTriggerActionExecuteHitAttackType(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) ? action.attackType : "BATTLE_SKILL";
+}
+
+function setTriggerActionExecuteHitAttackType(action: TriggerAction, value: "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "TALENT" | "REACTION" | "GENERIC") {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.attackType = value;
+}
+
+function getTriggerActionExecuteHitDamageType(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) ? action.damageType : "Physical";
+}
+
+function setTriggerActionExecuteHitDamageType(action: TriggerAction, value: "Physical" | "Heat" | "Cryo" | "Electric" | "Nature" | "Aether") {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.damageType = value;
+}
+
+function getTriggerActionExecuteHitTargets(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) ? action.targets : "targeted_enemy";
+}
+
+function setTriggerActionExecuteHitTargets(action: TriggerAction, value: "targeted_enemy" | "all_enemies" | "finisher") {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.targets = value;
+}
+
+function getTriggerActionExecuteHitSource(action: TriggerAction) {
+  if (!isExecuteHitTriggerAction(action)) {
+    return "event_operator";
+  }
+  return action.source.type === "controlled_operator" ? "controlled_operator" : "event_operator";
+}
+
+function setTriggerActionExecuteHitSource(action: TriggerAction, value: "event_operator" | "controlled_operator") {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.source = value === "controlled_operator"
+    ? { type: "controlled_operator" }
+    : { type: "alias_operator", alias: "event_operator" };
+}
+
+function getTriggerActionExecuteHitMultiplier(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) && action.multiplier.type === "number_literal" ? action.multiplier.value : 1;
+}
+
+function setTriggerActionExecuteHitMultiplier(action: TriggerAction, value: number) {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.multiplier = { type: "number_literal", value: Number.isFinite(value) ? value : 1 };
+}
+
+function getTriggerActionExecuteHitFlatAmount(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) && action.flatAmount.type === "number_literal" ? action.flatAmount.value : 0;
+}
+
+function setTriggerActionExecuteHitFlatAmount(action: TriggerAction, value: number) {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.flatAmount = { type: "number_literal", value: Number.isFinite(value) ? value : 0 };
+}
+
+function getTriggerActionExecuteHitStagger(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) && action.stagger.type === "number_literal" ? action.stagger.value : 0;
+}
+
+function setTriggerActionExecuteHitStagger(action: TriggerAction, value: number) {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.stagger = { type: "number_literal", value: Number.isFinite(value) ? value : 0 };
+}
+
+function isTriggerActionExecuteHitNoCrit(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) && action.noCrit === true;
+}
+
+function setTriggerActionExecuteHitNoCrit(action: TriggerAction, value: boolean) {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.noCrit = value;
+}
+
+function isTriggerActionExecuteHitIgnoreInvuln(action: TriggerAction) {
+  return isExecuteHitTriggerAction(action) && action.ignoreEnemyInvulnerability === true;
+}
+
+function setTriggerActionExecuteHitIgnoreInvuln(action: TriggerAction, value: boolean) {
+  if (!isExecuteHitTriggerAction(action)) {
+    return;
+  }
+  action.ignoreEnemyInvulnerability = value;
+}
+
+function getTriggerActionWaitSeconds(action: TriggerAction) {
+  return (isWaitTriggerAction(action) || isCountdownTriggerAction(action)) && action.durationSeconds.type === "number_literal"
+    ? action.durationSeconds.value
+    : 0;
+}
+
+function setTriggerActionWaitSeconds(action: TriggerAction, value: number) {
+  if (!isWaitTriggerAction(action) && !isCountdownTriggerAction(action)) {
+    return;
+  }
+  action.durationSeconds = { type: "number_literal", value: Math.max(0, Number.isFinite(value) ? value : 0) };
+}
+
+function getTriggerActionEnableOperation(action: TriggerAction) {
+  return isSetTriggerEnabledAction(action) ? action.operation : "disable";
+}
+
+function setTriggerActionEnableOperation(action: TriggerAction, value: "enable" | "disable") {
+  if (!isSetTriggerEnabledAction(action)) {
+    return;
+  }
+  action.operation = value;
+}
+
+function getTriggerActionEnableTarget(action: TriggerAction) {
+  if (!isSetTriggerEnabledAction(action) && !isStopTriggerAction(action)) {
+    return "self";
+  }
+  return action.target.type === "trigger_in_slot" ? "trigger_in_slot" : "self";
+}
+
+function setTriggerActionEnableTarget(action: TriggerAction, value: "self" | "trigger_in_slot") {
+  if (!isSetTriggerEnabledAction(action) && !isStopTriggerAction(action)) {
+    return;
+  }
+  action.target = value === "trigger_in_slot"
+    ? { type: "trigger_in_slot", slotNumber: { type: "number_literal", value: 1 } }
+    : { type: "self" };
+}
+
+function getTriggerActionEnableTargetSlotNumber(action: TriggerAction) {
+  return (isSetTriggerEnabledAction(action) || isStopTriggerAction(action)) && action.target.type === "trigger_in_slot" ? getNumericSourceLiteralValue(action.target.slotNumber) : 1;
+}
+function getTriggerActionEnableTargetSlotSource(action: TriggerAction): TriggerNumericSource | null {
+  return (isSetTriggerEnabledAction(action) || isStopTriggerAction(action)) && action.target.type === "trigger_in_slot" ? action.target.slotNumber : null;
+}
+
+function setTriggerActionEnableTargetSlotNumber(action: TriggerAction, value: number) {
+  if ((!isSetTriggerEnabledAction(action) && !isStopTriggerAction(action)) || action.target.type !== "trigger_in_slot") {
+    return;
+  }
+  setNumericSourceLiteralValue(action.target.slotNumber, value);
+}
+
+function isModifyVariableTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "MODIFY_VARIABLE" }> {
+  return action.type === "MODIFY_VARIABLE";
+}
+
+function getTriggerActionVariableId(action: TriggerAction) {
+  return isModifyVariableTriggerAction(action) ? action.variableId : getDefaultTriggerVariableId("number");
+}
+
+function setTriggerActionVariableId(action: TriggerAction, variableId: string) {
+  if (!isModifyVariableTriggerAction(action)) return;
+  const variable = activeTriggerVariables.value.find((entry) => entry.id === variableId);
+  const type = variable?.type ?? "number";
+  action.variableId = variableId;
+  action.variableType = type;
+  action.value =
+    type === "string"
+      ? { type: "string_literal", value: "" }
+      : type === "boolean"
+        ? { type: "boolean_literal", value: false }
+        : { type: "number_literal", value: 0 };
+  if (action.operation !== "set" && type !== "number") {
+    action.operation = "set";
+  }
+}
+
+function getTriggerActionVariableOperation(action: TriggerAction) {
+  return isModifyVariableTriggerAction(action) ? action.operation : "set";
+}
+
+function setTriggerActionVariableOperation(action: TriggerAction, operation: "set" | "add" | "subtract") {
+  if (!isModifyVariableTriggerAction(action)) return;
+  if (action.variableType !== "number" && operation !== "set") return;
+  action.operation = operation;
+}
+
+function getTriggerActionVariableValueString(action: TriggerAction) {
+  return isModifyVariableTriggerAction(action) && action.value.type === "string_literal" ? action.value.value : "";
+}
+function setTriggerActionVariableValueString(action: TriggerAction, value: string) {
+  if (!isModifyVariableTriggerAction(action)) return;
+  action.value = { type: "string_literal", value };
+}
+function getTriggerActionVariableValueNumber(action: TriggerAction) {
+  return isModifyVariableTriggerAction(action) && action.value.type === "number_literal" ? action.value.value : 0;
+}
+function setTriggerActionVariableValueNumber(action: TriggerAction, value: number) {
+  if (!isModifyVariableTriggerAction(action)) return;
+  action.value = { type: "number_literal", value: Number.isFinite(value) ? value : 0 };
+}
+function getTriggerActionVariableValueBoolean(action: TriggerAction) {
+  return isModifyVariableTriggerAction(action) && action.value.type === "boolean_literal" ? action.value.value : false;
+}
+function setTriggerActionVariableValueBoolean(action: TriggerAction, value: boolean) {
+  if (!isModifyVariableTriggerAction(action)) return;
+  action.value = { type: "boolean_literal", value };
+}
+
+function getTriggerConditionSummary(trigger: CustomCombatTrigger) {
+  if (!Array.isArray(trigger.conditions) || trigger.conditions.length === 0) {
+    return locale.value === "zh-CN" ? "无条件" : "No condition";
+  }
+  return trigger.conditions.map((entry) => summarizeTriggerConditionNode(entry)).join(" && ");
+}
+
+function setTriggerEditorTab(nextTab: "overview" | "conditions" | "actions" | "script") {
+  if (triggerEditorTab.value === nextTab) {
+    return;
+  }
+  if (nextTab === "script") {
+    syncTriggerScriptFromDraft();
+    triggerEditorTab.value = nextTab;
+    return;
+  }
+  if (triggerEditorTab.value === "script" && isTriggerScriptDirty()) {
+    const result = applyTriggerScriptToDraft();
+    if (!result.ok) {
+      openInvalidTriggerScriptPrompt({
+        nextTab,
+        error: result.error,
+      });
+      return;
+    }
+  }
+  triggerEditorTab.value = nextTab;
+}
+
+const contractsPopupVm = computed(() => ({
+  locale: locale.value,
+  t,
+  visibleContingencyContractColumns: visibleContingencyContractColumns.value,
+  highlightedContract: highlightedContract.value,
+  contingencyTotalLevel: contingencyTotalLevel.value,
+  activeContractSummary: activeContractSummary.value,
+  CONTRACT_COLUMN_HEIGHT,
+  CONTRACT_CARD_PADDING,
+  CONTRACT_LEVEL_ROW_HEIGHT,
+  CONTRACT_DISPLAY_LEVELS,
+  EMPTY_SELECTION_ICON_PATH,
+}));
+
+const triggersPopupVm = computed(() => ({
+  locale: locale.value,
+  t,
+  triggerListMode: triggerListMode.value,
+  activeCustomTriggers: activeCustomTriggers.value,
+  activeCustomTriggerVariables: activeCustomTriggerVariables.value,
+  activeInternalTriggers: activeInternalTriggers.value,
+  activeInternalTriggerVariables: activeInternalTriggerVariables.value,
+  activeTriggerVariables: activeTriggerVariables.value,
+  selectedCustomTriggerVariable: selectedCustomTriggerVariable.value,
+  selectedInternalTrigger: selectedInternalTrigger.value,
+  MAX_CUSTOM_TRIGGERS,
+  MAX_CUSTOM_TRIGGER_VARIABLES,
+  triggerEditorState: triggerEditorState.value,
+  triggerEditorTab: triggerEditorTab.value,
+  triggerEditorPanel: triggerEditorPanel.value,
+  triggerEditorScript: triggerEditorScript.value,
+  triggerScriptPromptState: triggerScriptPromptState.value,
+  setTriggerEditorScript: (value: string) => { triggerEditorScript.value = value; },
+  setTriggerEditorTab,
+  setTriggerListMode,
+  viewInternalTrigger,
+  discardInvalidTriggerScriptChanges,
+  cancelInvalidTriggerScriptPrompt,
+  beginCreateTrigger,
+  beginEditTrigger,
+  beginEditTriggerVariable,
+  stopEditingTriggerVariable,
+  copyTriggerScript,
+  copyText,
+  duplicateTrigger,
+  moveTrigger,
+  removeTrigger,
+  addTriggerVariable,
+  removeTriggerVariable,
+  duplicateTriggerVariable,
+  setTriggerVariableName,
+  setTriggerVariableType,
+  setTriggerVariableInitialString,
+  setTriggerVariableInitialNumber,
+  setTriggerVariableInitialBoolean,
+  saveTriggerDraft,
+  addRootComparatorTriggerCondition,
+  addRootLogicTriggerCondition,
+  removeRootTriggerCondition,
+  moveRootTriggerCondition,
+  duplicateRootTriggerCondition,
+  addTriggerAction,
+  ensureTriggerActions,
+  duplicateTriggerAction,
+  removeTriggerAction,
+  setTriggerActionTypeAt,
+  getTriggerEventLabel,
+  getTriggerActionLabel,
+  getPrimaryTriggerAction,
+  getTriggerActionPrimarySummary,
+  getTriggerTargetLabel,
+  getTriggerActionTargetOption,
+  setTriggerActionTargetOption,
+  getTriggerConditionSummary,
+  isTriggerActionResetHp,
+  setTriggerActionResetHp,
+  getTriggerActionReplaceEnemyLevel,
+  setTriggerActionReplaceEnemyLevel,
+  isTriggerActionReplaceEnemyNoDeath,
+  setTriggerActionReplaceEnemyNoDeath,
+  isTriggerActionPermanent,
+  setTriggerActionPermanent,
+  isTriggerActionHidden,
+  setTriggerActionHidden,
+  isTriggerActionUseDefault,
+  setTriggerActionUseDefault,
+  getTriggerActionStackingRule,
+  setTriggerActionStackingRule,
+  getTriggerActionStatEntries,
+  addTriggerActionStatEntry,
+  removeTriggerActionStatEntry,
+  getTriggerActionStatEntryKind,
+  setTriggerActionStatEntryKind,
+  getTriggerActionStatEntryKey,
+  setTriggerActionStatEntryKey,
+  getTriggerActionStatEntryValueMode,
+  setTriggerActionStatEntryValueMode,
+  getTriggerActionStatEntryValueNumber,
+  setTriggerActionStatEntryValueNumber,
+  getTriggerActionStatEntryValueVariableId,
+  setTriggerActionStatEntryValueVariableId,
+  getTriggerActionDurationMode,
+  getTriggerActionDurationValue,
+  getTriggerActionDurationVariableId,
+  setTriggerActionDurationMode,
+  setTriggerActionDurationValue,
+  setTriggerActionDurationVariableId,
+  getTriggerActionStacksValue,
+  setTriggerActionStacksValue,
+  getTriggerActionMaxStacksValue,
+  setTriggerActionMaxStacksValue,
+  isTriggerActionRefreshExistingStacks,
+  setTriggerActionRefreshExistingStacks,
+  isTriggerActionIndependentStacks,
+  setTriggerActionIndependentStacks,
+  getTriggerActionStatusId,
+  setTriggerActionStatusId,
+  getTriggerActionEnemyId,
+  setTriggerActionEnemyId,
+  getTriggerActionHpOperation,
+  setTriggerActionHpOperation,
+  getTriggerActionHpAmount,
+  setTriggerActionHpAmount,
+  getTriggerActionExecuteHitName,
+  setTriggerActionExecuteHitName,
+  getTriggerActionExecuteHitSource,
+  setTriggerActionExecuteHitSource,
+  getTriggerActionExecuteHitAttackType,
+  setTriggerActionExecuteHitAttackType,
+  getTriggerActionExecuteHitDamageType,
+  setTriggerActionExecuteHitDamageType,
+  getTriggerActionExecuteHitTargets,
+  setTriggerActionExecuteHitTargets,
+  getTriggerActionExecuteHitMultiplier,
+  setTriggerActionExecuteHitMultiplier,
+  getTriggerActionExecuteHitFlatAmount,
+  setTriggerActionExecuteHitFlatAmount,
+  getTriggerActionExecuteHitStagger,
+  setTriggerActionExecuteHitStagger,
+  isTriggerActionExecuteHitNoCrit,
+  setTriggerActionExecuteHitNoCrit,
+  isTriggerActionExecuteHitIgnoreInvuln,
+  setTriggerActionExecuteHitIgnoreInvuln,
+  getTriggerActionWaitSeconds,
+  setTriggerActionWaitSeconds,
+  getTriggerActionEnableOperation,
+  setTriggerActionEnableOperation,
+  getTriggerActionEnableTarget,
+  setTriggerActionEnableTarget,
+  getTriggerActionEnableTargetSlotNumber,
+  getTriggerActionEnableTargetSlotSource,
+  setTriggerActionEnableTargetSlotNumber,
+  getTriggerActionVariableId,
+  setTriggerActionVariableId,
+  getTriggerActionVariableOperation,
+  setTriggerActionVariableOperation,
+  getTriggerActionVariableValueString,
+  setTriggerActionVariableValueString,
+  getTriggerActionVariableValueNumber,
+  setTriggerActionVariableValueNumber,
+  getTriggerActionVariableValueBoolean,
+  setTriggerActionVariableValueBoolean,
+  getTriggerActionTargetSlotNumber,
+  getTriggerActionTargetSlotSource,
+  setTriggerActionTargetSlotNumber,
+  getTriggerActionTargetGroupIndex,
+  getTriggerActionTargetGroupIndexSource,
+  setTriggerActionTargetGroupIndex,
+  getTriggerVariablesByType,
+  getNumericSourceMode,
+  setNumericSourceMode,
+  getNumericSourceLiteralValue,
+  setNumericSourceLiteralValue,
+  getNumericSourceVariableId,
+  setNumericSourceVariableId,
+  getEnemyDisplayName,
+  modifierLabel,
+  getTriggerStatusBasicStatLabel,
+  CUSTOM_TRIGGER_EVENT_OPTIONS,
+  CUSTOM_TRIGGER_ACTION_OPTIONS,
+  CUSTOM_TRIGGER_CONTRACT_VARIANT_OPTIONS,
+  CUSTOM_TRIGGER_STATUS_STACKING_RULE_OPTIONS,
+  CUSTOM_TRIGGER_STATUS_BASIC_STAT_OPTIONS,
+  CUSTOM_TRIGGER_STATUS_OPTIONS,
+  CUSTOM_TRIGGER_TARGET_OPTIONS,
+  MODIFIER_STAT_KEYS,
+  getCustomTriggerOptionLabel,
+  getCustomTriggerOptionDescription,
+  triggerEventSupportsAlias,
+}));
 const commandListExpanded = ref(true);
 const statusListExpanded = ref(true);
-const enemyTimelineIconBroken = ref(false);
+const enemyTimelineIconBrokenBySlot = ref<Record<string, boolean>>({});
 const ENEMY_COMMAND_LABELS_ZH: Record<string, string> = {
   "Dummy Attack": "占位攻击",
   "Opening Attack": "开场攻击",
   "Phase Transition": "阶段切换",
+  "Set To Target": "设为目标",
 };
 
 function getLocalizedEnemyCommandLabel(label: string) {
@@ -377,24 +2438,26 @@ function getLocalizedEnemyCommandLabel(label: string) {
     : label;
 }
 
-const enemyCommandDefinitions = computed(() => getEnemyCommandDefinitions(props.selectedEnemyId));
+const enemyCommandDefinitions = computed(() =>
+  getEnemyCommandDefinitions(selectedEnemyEditorSlot.value?.enemyId ?? targetedEnemyId.value),
+);
 const enemyCommands = ref<EnemyCommandPlacement[]>([]);
 
 function ensureEnemyCommandsForActiveContext(): EnemyCommandPlacement[] {
-  if (!activeScheme.value.enemyCommandsByEnemy) {
-    activeScheme.value.enemyCommandsByEnemy = {};
+  if (!activeScheme.value.enemyCommandsBySlot) {
+    activeScheme.value.enemyCommandsBySlot = {};
   }
-  const enemyId = props.selectedEnemyId;
-  const byEnemy = activeScheme.value.enemyCommandsByEnemy;
+  const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
+  const bySlot = activeScheme.value.enemyCommandsBySlot;
 
-  const existing = byEnemy[enemyId];
-  if (existing) {
+  const existing = bySlot[slotId];
+  if (Array.isArray(existing)) {
     return existing;
   }
 
-  const defaults = getDefaultEnemyCommandPlacements(enemyId);
-  byEnemy[enemyId] = defaults.map((entry) => ({ ...entry }));
-  return byEnemy[enemyId]!;
+  const defaults = getDefaultEnemyCommandPlacements(selectedEnemyEditorSlot.value?.enemyId ?? targetedEnemyId.value);
+  bySlot[slotId] = defaults.map((entry) => ({ ...entry }));
+  return bySlot[slotId]!;
 }
 
 function syncEnemyCommandsFromLayouts() {
@@ -402,29 +2465,70 @@ function syncEnemyCommandsFromLayouts() {
 }
 
 watch(
-  [() => activeScheme.value.id, () => props.selectedEnemyId],
+  [() => activeScheme.value.id, () => selectedEnemyEditorSlot.value?.slotId, () => selectedEnemyEditorSlot.value?.enemyId],
   () => {
-    enemyTimelineIconBroken.value = false;
     syncEnemyCommandsFromLayouts();
   },
   { immediate: true },
 );
 
 watch(
+  [() => props.enemySlots, () => props.targetedEnemySlotId],
+  () => {
+    if (!getLogicalEnemySlots().some((slot) => slot.slotId === selectedEnemyEditorSlotId.value)) {
+      selectedEnemyEditorSlotId.value = props.targetedEnemySlotId;
+    }
+  },
+  { immediate: true, deep: true },
+);
+
+watch(
   enemyCommands,
   (value) => {
-    const enemyId = props.selectedEnemyId;
-    if (!activeScheme.value.enemyCommandsByEnemy) {
-      activeScheme.value.enemyCommandsByEnemy = {};
+    const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
+    if (!activeScheme.value.enemyCommandsBySlot) {
+      activeScheme.value.enemyCommandsBySlot = {};
     }
-    activeScheme.value.enemyCommandsByEnemy[enemyId] = value.map((entry) => ({ ...entry }));
+    activeScheme.value.enemyCommandsBySlot[slotId] = value.map((entry) => ({ ...entry }));
   },
   { deep: true },
 );
 
-const enemyTimelineCommands = computed(() => {
-  const definitionById = new Map(enemyCommandDefinitions.value.map((entry) => [entry.id, entry]));
-  return enemyCommands.value
+const enemyTimelineCommands = computed(() =>
+  buildEnemyTimelineCommandsForSlot(selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId),
+);
+
+function getEnemyCommandsForSlot(slotId: string): EnemyCommandPlacement[] {
+  if (slotId === props.targetedEnemySlotId) {
+    return enemyCommands.value;
+  }
+  if (!activeScheme.value.enemyCommandsBySlot) {
+    activeScheme.value.enemyCommandsBySlot = {};
+  }
+  const existing = activeScheme.value.enemyCommandsBySlot[slotId];
+  if (Array.isArray(existing)) {
+    return existing;
+  }
+  const slot = getLogicalEnemySlotById(slotId);
+  const enemyId = slot?.enemyId ?? "";
+  if (!enemyId) {
+    activeScheme.value.enemyCommandsBySlot[slotId] = [];
+    return activeScheme.value.enemyCommandsBySlot[slotId]!;
+  }
+  const defaults = getDefaultEnemyCommandPlacements(enemyId).map((entry) => ({ ...entry }));
+  activeScheme.value.enemyCommandsBySlot[slotId] = defaults;
+  return activeScheme.value.enemyCommandsBySlot[slotId]!;
+}
+
+function buildEnemyTimelineCommandsForSlot(slotId: string) {
+  const slot = getLogicalEnemySlotById(slotId);
+  const enemyId = slot?.enemyId ?? "";
+  if (!enemyId) {
+    return [];
+  }
+  const definitions = getEnemyCommandDefinitions(enemyId);
+  const definitionById = new Map(definitions.map((entry) => [entry.id, entry]));
+  return getEnemyCommandsForSlot(slotId)
     .map((entry) => {
       const definition = definitionById.get(entry.commandId);
       if (!definition) {
@@ -433,7 +2537,9 @@ const enemyTimelineCommands = computed(() => {
       const startTime = roundToSnap(entry.startTime);
       return {
         ...entry,
+        slotId,
         label: getLocalizedEnemyCommandLabel(definition.label),
+        baseLabel: definition.label,
         startTime,
         endTime: startTime + definition.durationSeconds,
         interruptible: definition.interruptible !== false,
@@ -450,8 +2556,10 @@ const enemyTimelineCommands = computed(() => {
     })
     .filter((entry): entry is {
       id: string;
+      slotId: string;
       commandId: string;
       label: string;
+      baseLabel: string;
       startTime: number;
       endTime: number;
       interruptible: boolean;
@@ -460,7 +2568,15 @@ const enemyTimelineCommands = computed(() => {
       interruptedStagger: number;
     } => entry != null)
     .sort((left, right) => left.startTime - right.startTime);
-});
+}
+
+const selectedEnemyCommandSlotId = ref<string | null>(null);
+const enemySetupExpanded = ref(true);
+const enemyHpExpanded = ref(true);
+
+const enemyTimelineCommandsForAllSlots = computed(() =>
+  Object.fromEntries(visibleEnemySlots.value.map((slot) => [slot.slotId, buildEnemyTimelineCommandsForSlot(slot.slotId)])),
+);
 
 watch(
   rotation,
@@ -482,64 +2598,22 @@ watch(
     }
     if (!value.some((entry) => entry.id === selectedEnemyCommandId.value)) {
       selectedEnemyCommandId.value = null;
+      selectedEnemyCommandSlotId.value = null;
     }
   },
   { deep: true, immediate: true },
 );
 
 watch(
-  teamSpConfigByScheme,
-  (value) => {
-    const raw = window.localStorage.getItem(ROTATION_SP_STORAGE_KEY);
-    let parsed: { byBuild?: Record<string, { byScheme?: Record<string, TeamSpConfig> }> } = {};
-    if (raw) {
-      try {
-        parsed = JSON.parse(raw) as typeof parsed;
-      } catch {
-        parsed = {};
-      }
-    }
-    if (!parsed.byBuild) {
-      parsed.byBuild = {};
-    }
-    parsed.byBuild[getBuildStorageScopeId()] = { byScheme: value };
-    window.localStorage.setItem(ROTATION_SP_STORAGE_KEY, JSON.stringify(parsed));
-  },
-  { deep: true },
-);
-
-watch(
-  contractsByScheme,
-  (value) => {
-    const raw = window.localStorage.getItem(ROTATION_CONTRACTS_STORAGE_KEY);
-    let parsed: { byBuild?: Record<string, { byScheme?: Record<string, ActiveContingencyContract[]> }> } = {};
-    if (raw) {
-      try {
-        parsed = JSON.parse(raw) as typeof parsed;
-      } catch {
-        parsed = {};
-      }
-    }
-    if (!parsed.byBuild) {
-      parsed.byBuild = {};
-    }
-    parsed.byBuild[getBuildStorageScopeId()] = { byScheme: value };
-    window.localStorage.setItem(ROTATION_CONTRACTS_STORAGE_KEY, JSON.stringify(parsed));
-  },
-  { deep: true },
-);
-
-watch(
   [() => props.buildId, () => props.historyRevision],
   async () => {
-    teamSpConfigByScheme.value = loadTeamSpConfigByScheme();
-    contractsByScheme.value = loadContractsByScheme();
     syncEnemyCommandsFromLayouts();
     setSelectedStepIds(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);
     selectionAnchorId.value = rotation.value.steps[0]?.id ?? null;
     selectedEnemyCommandId.value = null;
-    cursorTime.value = 0;
+    selectedEnemyCommandSlotId.value = null;
     await nextTick();
+    cursorTime.value = getPreferredInitialCursorTime();
     resetTimelineViewport();
   },
 );
@@ -547,15 +2621,13 @@ watch(
 watch(
   () => activeScheme.value.id,
   async () => {
-    if (!contractsByScheme.value[activeScheme.value.id]) {
-      contractsByScheme.value[activeScheme.value.id] = [];
-    }
     syncEnemyCommandsFromLayouts();
     setSelectedStepIds(rotation.value.steps[0]?.id ? [rotation.value.steps[0].id] : []);
     selectionAnchorId.value = rotation.value.steps[0]?.id ?? null;
     selectedEnemyCommandId.value = null;
-    cursorTime.value = 0;
+    selectedEnemyCommandSlotId.value = null;
     await nextTick();
+    cursorTime.value = getPreferredInitialCursorTime();
     resetTimelineViewport();
   },
 );
@@ -590,21 +2662,223 @@ function getConsumableIconPath(consumableId: string | null | undefined): string 
 }
 
 function selectConsumableForActiveSlot(consumableId: string | null) {
+  if (isActiveSchemeRelayed.value) {
+    consumablePickerOpen.value = false;
+    return;
+  }
   teamSpConfig.value.consumableBySlot[selectedLibrarySlot.value] = consumableId;
   consumablePickerOpen.value = false;
 }
 
 function getEnemyIconPath(enemyId: string): string {
+  if (!enemyId) {
+    return EMPTY_SELECTION_ICON_PATH;
+  }
   return toAssetUrl(`/item-icons/enemies/${enemyId}.webp`);
+}
+
+function findEnemyById(enemyId: string): EnemyBase | null {
+  return props.enemies.find((enemy) => enemy.id === enemyId) ?? null;
 }
 
 function getEnemyLocalizedName(enemy: EnemyBase): string {
   return getEnemyDisplayName(enemy.id, enemy.name, locale.value as "en" | "zh-CN");
 }
 
+function getEnemyLifecycleMarkerCaption(type: EnemyLifecycleTimelineEntry["type"]): string {
+  if (locale.value === "zh-CN") {
+    if (type === "spawned") return "敌人出现";
+    if (type === "replaced") return "敌人替换";
+    if (type === "transformed") return "敌人转变";
+    return "敌人被击败";
+  }
+  if (type === "spawned") return "Enemy Spawned";
+  if (type === "replaced") return "Enemy Replaced";
+  if (type === "transformed") return "Enemy Transformed";
+  return "Enemy Defeated";
+}
+
+function makeEnemySlotId(): string {
+  return `enemy_slot_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getLogicalEnemySlots() {
+  const simulationSlots = simulatedEnemySlots.value ?? [];
+  return simulationSlots.length > 0 ? simulationSlots : props.enemySlots;
+}
+
+function getLogicalEnemySlotById(slotId: string) {
+  return getLogicalEnemySlots().find((slot) => slot.slotId === slotId) ?? null;
+}
+
+function isMaterializedEnemySlot(slotId: string) {
+  return props.enemySlots.some((slot) => slot.slotId === slotId);
+}
+
+function materializeEnemySlot(slotId: string, patch: Partial<EnemySlotState> = {}) {
+  const existing = props.enemySlots.find((slot) => slot.slotId === slotId);
+  if (existing) {
+    return existing;
+  }
+  const logical = getLogicalEnemySlotById(slotId);
+  const defaultEnemy = props.enemies.find((enemy) => enemy.id === "rhodagn") ?? props.enemies[0] ?? null;
+  const nextSlot: EnemySlotState = {
+    slotId,
+    enemyId: patch.enemyId ?? logical?.enemyId ?? defaultEnemy?.id ?? "",
+    level: patch.level ?? logical?.level ?? 90,
+    spawnTimeEnabled: patch.spawnTimeEnabled ?? logical?.spawnTimeEnabled ?? false,
+    spawnTime: patch.spawnTime ?? logical?.spawnTime ?? 0,
+    noDeath: patch.noDeath ?? logical?.noDeath ?? false,
+  };
+  emit("update:enemySlots", [...props.enemySlots, nextSlot]);
+  return nextSlot;
+}
+
+function selectTargetedEnemySlot(slotId: string) {
+  if (getLogicalEnemySlots().some((slot) => slot.slotId === slotId)) {
+    emit("update:targetedEnemySlotId", slotId);
+  }
+}
+
+function selectEnemyEditorSlot(slotId: string) {
+  const slot = getLogicalEnemySlotById(slotId);
+  if (!slot) {
+    return;
+  }
+  selectedEnemyEditorSlotId.value = slotId;
+}
+
+function addEnemySlot() {
+  if (getLogicalEnemySlots().length >= 10 && props.enemySlots.length >= 10) {
+    return;
+  }
+  const defaultEnemy = props.enemies.find((enemy) => enemy.id === "rhodagn") ?? props.enemies[0];
+  if (!defaultEnemy) {
+    return;
+  }
+  const nextUnmaterialized = getLogicalEnemySlots()[visibleEnemySlots.value.length];
+  const nextSlot = nextUnmaterialized ?? {
+    slotId: makeEnemySlotId(),
+    enemyId: "",
+    level: 90,
+    spawnTimeEnabled: false,
+    spawnTime: 0,
+    noDeath: false,
+  };
+  materializeEnemySlot(nextSlot.slotId, {
+    enemyId: defaultEnemy.id,
+    level: nextSlot.level,
+    spawnTimeEnabled: nextSlot.spawnTimeEnabled,
+    spawnTime: nextSlot.spawnTime,
+    noDeath: nextSlot.noDeath,
+  });
+  selectedEnemyEditorSlotId.value = nextSlot.slotId;
+  sidebarMode.value = "enemy";
+}
+
+function updateEnemySlot(slotId: string, patch: Partial<EnemySlotState>) {
+  if (!isMaterializedEnemySlot(slotId)) {
+    materializeEnemySlot(slotId, patch);
+    return;
+  }
+  emit("update:enemySlots", props.enemySlots.map((slot) => (
+    slot.slotId === slotId
+      ? { ...slot, ...patch }
+      : slot
+  )));
+}
+
+function removeEnemySlot(slotId: string) {
+  if (props.enemySlots.length <= 1) {
+    return;
+  }
+  const currentIndex = props.enemySlots.findIndex((slot) => slot.slotId === slotId);
+  if (currentIndex < 0) {
+    return;
+  }
+  const nextSlots = props.enemySlots.filter((slot) => slot.slotId !== slotId);
+  emit("update:enemySlots", nextSlots);
+  if (activeScheme.value.enemyCommandsBySlot?.[slotId]) {
+    delete activeScheme.value.enemyCommandsBySlot[slotId];
+  }
+  if (props.targetedEnemySlotId === slotId) {
+    const fallbackSlot = nextSlots[Math.max(0, currentIndex - 1)] ?? nextSlots[0];
+    if (fallbackSlot) {
+      emit("update:targetedEnemySlotId", fallbackSlot.slotId);
+    }
+  }
+}
+
 function selectEnemy(enemyId: string) {
-  emit("update:selectedEnemyId", enemyId);
+  const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
+  if (!activeScheme.value.enemyCommandsBySlot) {
+    activeScheme.value.enemyCommandsBySlot = {};
+  }
+  activeScheme.value.enemyCommandsBySlot[slotId] = getDefaultEnemyCommandPlacements(enemyId).map((entry) => ({ ...entry }));
+  if (!isMaterializedEnemySlot(slotId)) {
+    materializeEnemySlot(slotId, { enemyId });
+  } else {
+    emit("update:enemySlots", props.enemySlots.map((slot) =>
+      slot.slotId === slotId
+        ? { ...slot, enemyId }
+        : slot,
+    ));
+  }
+  if (slotId === props.targetedEnemySlotId) {
+    emit("update:selectedEnemyId", enemyId);
+  }
   enemyPickerOpen.value = false;
+}
+
+const selectedEnemyEditorLevel = computed(() =>
+  selectedEnemyEditorSlot.value?.level
+  ?? props.enemySlots.find((slot) => slot.slotId === props.targetedEnemySlotId)?.level
+  ?? props.enemyLevel,
+);
+
+const selectedEnemySpawnTimeEnabled = computed(() =>
+  selectedEnemyEditorSlot.value?.spawnTimeEnabled === true,
+);
+
+const selectedEnemySpawnTime = computed(() =>
+  selectedEnemyEditorSlot.value?.spawnTime ?? 0,
+);
+
+const selectedEnemyNoDeath = computed(() =>
+  selectedEnemyEditorSlot.value?.noDeath === true,
+);
+
+function updateSelectedEnemyLevel(value: number) {
+  const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
+  updateEnemySlot(slotId, {
+    level: Math.max(1, Math.min(100, Math.round(value))),
+  });
+  if (slotId === props.targetedEnemySlotId) {
+    emit("update:enemyLevel", Math.max(1, Math.min(100, Math.round(value))));
+  }
+}
+
+function updateSelectedEnemySpawnTimeEnabled(enabled: boolean) {
+  const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
+  updateEnemySlot(slotId, {
+    spawnTimeEnabled: enabled,
+    spawnTime: enabled ? Math.round((selectedEnemySpawnTime.value ?? 0) * 1000) / 1000 : 0,
+  });
+}
+
+function updateSelectedEnemySpawnTime(value: number) {
+  const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
+  updateEnemySlot(slotId, {
+    spawnTimeEnabled: true,
+    spawnTime: Math.round((Number.isFinite(value) ? value : 0) * 1000) / 1000,
+  });
+}
+
+function updateSelectedEnemyNoDeath(enabled: boolean) {
+  const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
+  updateEnemySlot(slotId, {
+    noDeath: enabled,
+  });
 }
 
 const libraryCharacter = computed(() => partyBySlot.value.get(selectedLibrarySlot.value) ?? null);
@@ -615,31 +2889,86 @@ const visibleLibraryCommands = computed(() =>
 );
 const selectedSidebarTitle = computed(() =>
   sidebarMode.value === "enemy"
-    ? (currentEnemyData.value ? getEnemyLocalizedName(currentEnemyData.value) : props.enemyName)
+    ? (currentEnemyData.value ? getEnemyLocalizedName(currentEnemyData.value) : t("enemy.noEnemy"))
     : getLocalizedCharacterName(libraryCharacter.value?.characterId, libraryCharacter.value?.characterName)
       || t("builder.slot", { index: selectedLibrarySlot.value + 1 }),
 );
-const currentEnemyState = computed(() => getEnemyStateAtTime(simulation.value, cursorTime.value));
-const currentEnemyData = computed(() =>
-  props.enemies.find((enemy) => enemy.id === currentEnemyState.value.enemyId)
-  ?? selectedEnemyData.value,
+function getEnemyStateForSlot(slotId: string) {
+  return getEnemyStateAtTime(simulation.value, cursorTime.value, slotId);
+}
+
+const currentEnemyState = computed(() =>
+  getEnemyStateForSlot(selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId),
 );
-const currentEnemyDisplayedMaxHp = computed(() =>
-  Math.max(1, currentEnemyState.value.maxHp),
-);
-const currentEnemyDisplayedHp = computed(() =>
-  Math.max(0, currentEnemyState.value.currentHp),
-);
-const enemyStaggerNodePercents = computed(() => {
-  const gauge = Math.max(1, currentEnemyState.value.staggerGauge);
-  return (currentEnemyState.value.staggerNodes ?? [])
+function getEnemyDataForSlot(slotId: string) {
+  const state = getEnemyStateForSlot(slotId);
+  return props.enemies.find((enemy) => enemy.id === state.enemyId)
+    ?? props.enemies.find((enemy) => enemy.id === (getLogicalEnemySlotById(slotId)?.enemyId ?? ""))
+    ?? null;
+}
+
+function getEnemyDisplayedMaxHpForSlot(slotId: string) {
+  return Math.max(1, getEnemyStateForSlot(slotId).maxHp);
+}
+
+function getEnemyDisplayedHpForSlot(slotId: string) {
+  return Math.max(0, getEnemyStateForSlot(slotId).currentHp);
+}
+
+function getEnemySpawnTimeForSlot(slotId: string) {
+  const slot = getLogicalEnemySlotById(slotId);
+  if (!slot || slot.spawnTimeEnabled !== true) {
+    return null;
+  }
+  return slot.spawnTime ?? 0;
+}
+
+function hasEnemySpawnTimeForSlot(slotId: string) {
+  return getEnemySpawnTimeForSlot(slotId) != null;
+}
+
+function isEnemyPresentForSlot(slotId: string) {
+  return getEnemyStateForSlot(slotId).isPresent !== false;
+}
+
+function isEnemyDeadForSlot(slotId: string) {
+  return getEnemyStateForSlot(slotId).isDead === true;
+}
+
+function isEnemyInactiveForSlot(slotId: string) {
+  return !isEnemyPresentForSlot(slotId);
+}
+
+function getEnemyDeadTimeForSlot(slotId: string) {
+  const deadAt = getEnemyStateForSlot(slotId).deadAt;
+  return typeof deadAt === "number" && Number.isFinite(deadAt) ? deadAt : null;
+}
+
+function getEnemyLifecycleLabel(slotId: string) {
+  const deadAt = getEnemyDeadTimeForSlot(slotId);
+  if (deadAt != null) {
+    return t("enemy.deadAt", { value: toDisplayedRealTime(deadAt).toFixed(1) });
+  }
+  const spawnTime = getEnemySpawnTimeForSlot(slotId);
+  if (spawnTime != null && !isEnemyPresentForSlot(slotId)) {
+    return t("enemy.spawnsAt", { value: spawnTime.toFixed(1) });
+  }
+  return "";
+}
+
+function getEnemyStaggerNodePercentsForSlot(slotId: string) {
+  const state = getEnemyStateForSlot(slotId);
+  const gauge = Math.max(1, state.staggerGauge);
+  return (state.staggerNodes ?? [])
     .map((node) => (node > 0 && node <= 1 ? node : node / gauge))
     .filter((node) => node > 0 && node < 1)
     .sort((a, b) => a - b);
-});
-const enemyStaggerSections = computed(() => {
-  const currentFraction = Math.max(0, Math.min(1, currentEnemyState.value.currentStagger / Math.max(1, currentEnemyState.value.staggerGauge)));
-  const bounds = [0, ...enemyStaggerNodePercents.value, 1];
+}
+
+function getEnemyStaggerSectionsForSlot(slotId: string) {
+  const state = getEnemyStateForSlot(slotId);
+  const currentFraction = Math.max(0, Math.min(1, state.currentStagger / Math.max(1, state.staggerGauge)));
+  const bounds = [0, ...getEnemyStaggerNodePercentsForSlot(slotId), 1];
   return bounds.slice(0, -1).map((start, index) => {
     const end = bounds[index + 1] ?? 1;
     const span = Math.max(0.0001, end - start);
@@ -650,6 +2979,27 @@ const enemyStaggerSections = computed(() => {
       fill,
     };
   });
+}
+
+function isTargetedEnemySlot(slotId: string) {
+  return props.targetedEnemySlotId === slotId;
+}
+
+const currentEnemyData = computed(() =>
+  getEnemyDataForSlot(selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId)
+  ?? selectedEnemyData.value,
+);
+const currentEnemyDisplayedMaxHp = computed(() =>
+  getEnemyDisplayedMaxHpForSlot(selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId),
+);
+const currentEnemyDisplayedHp = computed(() =>
+  getEnemyDisplayedHpForSlot(selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId),
+);
+const enemyStaggerNodePercents = computed(() => {
+  return getEnemyStaggerNodePercentsForSlot(selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId);
+});
+const enemyStaggerSections = computed(() => {
+  return getEnemyStaggerSectionsForSlot(selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId);
 });
 
 type GroupedStatusDisplayItem = {
@@ -696,6 +3046,12 @@ function modifierLabel(key: ModifierStatKey) {
   void locale.value;
   const localized = t(`modifiers.${key}` as const);
   return localized.startsWith("modifiers.") ? (modifierLabels[key] ?? key) : localized;
+}
+
+function getTriggerStatusBasicStatLabel(key: "ATK" | "HP") {
+  return key === "ATK"
+    ? (locale.value === "zh-CN" ? "攻击力" : "ATK")
+    : (locale.value === "zh-CN" ? "生命值" : "HP");
 }
 
 function groupStatusItems(items: RawStatusDisplayItem[]): GroupedStatusDisplayItem[] {
@@ -773,6 +3129,9 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
       });
     }
     for (const status of currentEnemyState.value.activeStatuses) {
+      if (status.hidden) {
+        continue;
+      }
       const remainingSeconds = Math.max(
         0,
         status.expiresAt - (status.timeScale === "real" ? cursorTime.value : cursorGameTime),
@@ -850,6 +3209,7 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
     );
     items.push({
       label: localizeStatusOrBuffLabel(status.label),
+      details: typeof status.stacks === "number" ? t("rotation.stacks", { count: status.stacks }) : undefined,
       remainingSeconds,
     });
   }
@@ -893,7 +3253,8 @@ function getCommandStateAtTime(slot: PartySlot, realTime: number): {
   canUseFinisherTransform: boolean;
 } {
   const actorState = getActorStateAtTime(simulation.value, slot, realTime);
-  const enemyState = getEnemyStateAtTime(simulation.value, realTime);
+  const targetedEnemySlotIdAtTime = getActiveTargetedEnemySlotAtRealTime(realTime);
+  const enemyState = getEnemyStateAtTime(simulation.value, realTime, targetedEnemySlotIdAtTime);
   const controlState = getControlStateAtRealTime(realTime);
   const activeBuffIds = Array.from(new Set(
     actorState.activeBuffs.flatMap((buff) => {
@@ -904,7 +3265,10 @@ function getCommandStateAtTime(slot: PartySlot, realTime: number): {
   return {
     activeBuffIds,
     meltingFlameStacks: actorState.meltingFlameStacks,
-    finisherAvailable: enemyState.activeStatuses.some((status) => status.id === ENEMY_FINISHER_AVAILABLE_STATUS_ID),
+    finisherAvailable: props.enemySlots.some((enemySlot) =>
+      getEnemyStateAtTime(simulation.value, realTime, enemySlot.slotId).activeStatuses.some(
+        (status) => status.id === ENEMY_FINISHER_AVAILABLE_STATUS_ID,
+      )),
     enemyStatusIds: Array.from(new Set(enemyState.activeStatuses.map((status) => status.id))),
     canUseFinisherTransform: controlState.controlledSlot === slot,
   };
@@ -936,6 +3300,7 @@ function setSelectedStepIds(stepIds: string[], anchorId: string | null = stepIds
   selectionAnchorId.value = anchorId;
   if (selectedStepIds.value.length > 0) {
     selectedEnemyCommandId.value = null;
+    selectedEnemyCommandSlotId.value = null;
   }
 }
 
@@ -952,7 +3317,10 @@ const selectedGroup = computed(() => {
   return groupIds.length === 1 ? getGroupById(groupIds[0]) : null;
 });
 const selectedEnemyCommand = computed(() =>
-  enemyTimelineCommands.value.find((entry) => entry.id === selectedEnemyCommandId.value) ?? null,
+  selectedEnemyCommandId.value
+    ? buildEnemyTimelineCommandsForSlot(selectedEnemyCommandSlotId.value ?? props.targetedEnemySlotId)
+      .find((entry) => entry.id === selectedEnemyCommandId.value) ?? null
+    : null,
 );
 const hasSelectedEnemyCommand = computed(() => selectedEnemyCommand.value != null);
 const hasAnySelectedCommand = computed(() => selectedSteps.value.length > 0 || hasSelectedEnemyCommand.value);
@@ -1106,26 +3474,272 @@ const enemyMods = computed<ModifierStats>(() =>
   }),
 );
 
-const simulation = computed(() =>
-  simulateRotation({
-    rotation: rotation.value,
-    party: partySnapshots.value,
-    partyVariantsBySlot: partyVariantsBySlot.value,
-    initialVariantIndex: activeVariantIndex.value,
-    enemyId: props.selectedEnemyId,
-    enemyLevel: props.enemyLevel,
-    enemyStats: props.enemyStats,
-    enemyMods: enemyMods.value,
-    enemyStaggerGauge: props.enemyStaggerGauge,
-    enemyStaggerNodes: props.enemyStaggerNodes,
-    enemyStaggerRecoverySeconds: props.enemyStaggerRecoverySeconds,
-    enemyFinisherMultiplier: props.enemyFinisherMultiplier,
-    enemyFinisherSpGain: props.enemyFinisherSpGain,
-    battleStartConsumableIdsBySlot: teamSpConfig.value.consumableBySlot,
-    enemyActionWindows: buildEnemyActionWindows(props.selectedEnemyId, enemyCommands.value),
-    contingencyContracts: activeContingencyContracts.value,
-  }),
+function getTeamSpConfigForSchemeId(schemeId: string): TeamSpConfig {
+  const scheme = rotationSchemes.value.schemes.find((entry) => entry.id === schemeId);
+  if (!scheme?.teamSpConfig) {
+    return makeDefaultTeamSpConfig();
+  }
+  return normalizeTeamSpConfig(scheme.teamSpConfig);
+}
+
+function getSchemeContingencyContracts(scheme: typeof activeScheme.value): ActiveContingencyContract[] {
+  if (scheme.simulationMode === "relay_from_previous") {
+    return [];
+  }
+  return normalizeActiveContingencyContracts(scheme.activeContracts ?? []);
+}
+
+function getSchemeCustomTriggers(scheme: typeof activeScheme.value): CustomCombatTrigger[] {
+  if (scheme.simulationMode === "relay_from_previous") {
+    return [];
+  }
+  return Array.isArray(scheme.triggers) ? scheme.triggers : [];
+}
+
+function getSchemeCustomTriggerVariables(scheme: typeof activeScheme.value): TriggerVariableDefinition[] {
+  if (scheme.simulationMode === "relay_from_previous") {
+    return [];
+  }
+  return normalizeCustomTriggerVariables(scheme.triggerVariables ?? []);
+}
+
+function getSchemeEnemyActionWindows(scheme: typeof activeScheme.value) {
+  return props.enemySlots.flatMap((slot) =>
+    buildEnemyActionWindows(
+      slot.enemyId,
+      scheme.enemyCommandsBySlot?.[slot.slotId]?.map((entry) => ({ ...entry }))
+        ?? getDefaultEnemyCommandPlacements(slot.enemyId).map((entry) => ({ ...entry })),
+    ).map((window) => ({
+      ...window,
+      enemySlotId: slot.slotId,
+    })),
+  );
+}
+
+const simulation = computed(() => {
+  const schemes = rotationSchemes.value.schemes;
+  const activeIndex = activeSchemeIndex.value;
+  const active = schemes[activeIndex];
+  if (!active) {
+    return rotationSimulationCache.simulate({
+      rotation: rebaseRotationForSimulation(rotation.value, 0),
+      party: partySnapshots.value,
+      partyVariantsBySlot: partyVariantsBySlot.value,
+      initialVariantIndex: activeVariantIndex.value,
+      enemySlots: props.enemySlots,
+      targetedEnemySlotId: props.targetedEnemySlotId,
+      enemyId: props.selectedEnemyId,
+      enemyLevel: props.enemyLevel,
+      enemyStats: props.enemyStats,
+      enemyMods: enemyMods.value,
+      enemyStaggerGauge: props.enemyStaggerGauge,
+      enemyStaggerNodes: props.enemyStaggerNodes,
+      enemyStaggerRecoverySeconds: props.enemyStaggerRecoverySeconds,
+      enemyFinisherMultiplier: props.enemyFinisherMultiplier,
+      enemyFinisherSpGain: props.enemyFinisherSpGain,
+      battleStartInitialSp: teamSpConfig.value.initialSp,
+      battleStartSpRegenRate: teamSpConfig.value.spRegenRate,
+      battleStartStartingEnergyPctBySlot: teamSpConfig.value.startingEnergyBySlot,
+      battleStartConsumableIdsBySlot: teamSpConfig.value.consumableBySlot,
+      enemyActionWindows: rebaseEnemyActionWindowsForSimulation(getSchemeEnemyActionWindows(activeScheme.value), 0),
+      contingencyContracts: activeContingencyContracts.value,
+      customTriggers: activeCustomTriggers.value,
+      customTriggerVariables: activeCustomTriggerVariables.value,
+    }).result;
+  }
+
+  if (active.simulationMode !== "relay_from_previous" || activeIndex <= 0) {
+    return rotationSimulationCache.simulate({
+      rotation: rebaseRotationForSimulation(rotation.value, 0),
+      party: partySnapshots.value,
+      partyVariantsBySlot: partyVariantsBySlot.value,
+      initialVariantIndex: activeVariantIndex.value,
+      enemySlots: props.enemySlots,
+      targetedEnemySlotId: props.targetedEnemySlotId,
+      enemyId: props.selectedEnemyId,
+      enemyLevel: props.enemyLevel,
+      enemyStats: props.enemyStats,
+      enemyMods: enemyMods.value,
+      enemyStaggerGauge: props.enemyStaggerGauge,
+      enemyStaggerNodes: props.enemyStaggerNodes,
+      enemyStaggerRecoverySeconds: props.enemyStaggerRecoverySeconds,
+      enemyFinisherMultiplier: props.enemyFinisherMultiplier,
+      enemyFinisherSpGain: props.enemyFinisherSpGain,
+      battleStartInitialSp: teamSpConfig.value.initialSp,
+      battleStartSpRegenRate: teamSpConfig.value.spRegenRate,
+      battleStartStartingEnergyPctBySlot: teamSpConfig.value.startingEnergyBySlot,
+      battleStartConsumableIdsBySlot: teamSpConfig.value.consumableBySlot,
+      enemyActionWindows: rebaseEnemyActionWindowsForSimulation(getSchemeEnemyActionWindows(activeScheme.value), 0),
+      contingencyContracts: activeContingencyContracts.value,
+      customTriggers: activeCustomTriggers.value,
+      customTriggerVariables: activeCustomTriggerVariables.value,
+    }).result;
+  }
+
+  let chainStartIndex = activeIndex;
+  while (
+    chainStartIndex > 0
+    && schemes[chainStartIndex]?.simulationMode === "relay_from_previous"
+  ) {
+    chainStartIndex -= 1;
+  }
+  let previousResult: RotationSimulationResult | null = null;
+  let effectiveContingencyContracts: ActiveContingencyContract[] = [];
+  let effectiveCustomTriggers: CustomCombatTrigger[] = [];
+  let effectiveCustomTriggerVariables: TriggerVariableDefinition[] = [];
+
+  for (let index = chainStartIndex; index <= activeIndex; index += 1) {
+    const scheme = schemes[index];
+    if (!scheme) {
+      continue;
+    }
+    const ownContingencyContracts = getSchemeContingencyContracts(scheme);
+    const ownCustomTriggers = getSchemeCustomTriggers(scheme);
+    const ownCustomTriggerVariables = getSchemeCustomTriggerVariables(scheme);
+    const inheritedContingencyContracts = effectiveContingencyContracts;
+    const inheritedCustomTriggers = effectiveCustomTriggers;
+    const inheritedCustomTriggerVariables = effectiveCustomTriggerVariables;
+    const schemeContingencyContracts =
+      index > chainStartIndex && scheme.simulationMode === "relay_from_previous"
+        ? inheritedContingencyContracts
+        : ownContingencyContracts;
+    const schemeCustomTriggers =
+      index > chainStartIndex && scheme.simulationMode === "relay_from_previous"
+        ? inheritedCustomTriggers
+        : ownCustomTriggers;
+    const schemeCustomTriggerVariables =
+      index > chainStartIndex && scheme.simulationMode === "relay_from_previous"
+        ? inheritedCustomTriggerVariables
+        : ownCustomTriggerVariables;
+    const baseArgs = {
+      rotation: scheme.rotation,
+      party: partySnapshots.value,
+      partyVariantsBySlot: partyVariantsBySlot.value,
+      initialVariantIndex: activeVariantIndex.value,
+      enemySlots: props.enemySlots,
+      targetedEnemySlotId: props.targetedEnemySlotId,
+      enemyId: props.selectedEnemyId,
+      enemyLevel: props.enemyLevel,
+      enemyStats: props.enemyStats,
+      enemyMods: enemyMods.value,
+      enemyStaggerGauge: props.enemyStaggerGauge,
+      enemyStaggerNodes: props.enemyStaggerNodes,
+      enemyStaggerRecoverySeconds: props.enemyStaggerRecoverySeconds,
+      enemyFinisherMultiplier: props.enemyFinisherMultiplier,
+      enemyFinisherSpGain: props.enemyFinisherSpGain,
+      battleStartInitialSp: getTeamSpConfigForSchemeId(scheme.id).initialSp,
+      battleStartSpRegenRate: getTeamSpConfigForSchemeId(scheme.id).spRegenRate,
+      battleStartStartingEnergyPctBySlot: getTeamSpConfigForSchemeId(scheme.id).startingEnergyBySlot,
+      battleStartConsumableIdsBySlot: getTeamSpConfigForSchemeId(scheme.id).consumableBySlot,
+      enemyActionWindows: getSchemeEnemyActionWindows(scheme),
+      contingencyContracts: schemeContingencyContracts,
+      customTriggers: schemeCustomTriggers,
+      customTriggerVariables: schemeCustomTriggerVariables,
+    };
+
+    const shouldRelay =
+      index > 0
+      && scheme.simulationMode === "relay_from_previous"
+      && previousResult
+      && (previousResult.simulationCheckpoints?.length ?? 0) > 0;
+
+    if (index === activeIndex && !shouldRelay) {
+      previousResult = rotationSimulationCache.simulate(baseArgs).result;
+      effectiveContingencyContracts = schemeContingencyContracts;
+      effectiveCustomTriggers = schemeCustomTriggers;
+      effectiveCustomTriggerVariables = schemeCustomTriggerVariables;
+      continue;
+    }
+
+    if (shouldRelay) {
+      const relayMarkers = [...(previousResult!.relayTimeline ?? [])]
+        .filter((entry) => entry.inherited !== true)
+        .sort((left, right) => left.time - right.time);
+      const relayMarker = relayMarkers[0];
+      const relayTime = relayMarker?.time ?? previousResult!.totalTime;
+      const relayGameTime = relayMarker?.gameTime ?? previousResult!.totalGameTime;
+      const relayDisplayTimeOffset = (previousResult!.displayTimeOffset ?? 0) + relayTime;
+      const relayDisplayGameTimeOffset = (previousResult!.displayGameTimeOffset ?? 0) + relayGameTime;
+      syncSchemeRelayDisplayOffset(scheme, relayDisplayTimeOffset, relayDisplayGameTimeOffset);
+      const relayCheckpoints = [...(previousResult!.simulationCheckpoints ?? [])]
+        .filter((entry) => relayTime == null || entry.time <= relayTime + 0.0001)
+        .sort((left, right) => left.time - right.time);
+      const relayCheckpoint = relayCheckpoints[relayCheckpoints.length - 1];
+      if (relayCheckpoint) {
+        previousResult = simulateRotation({
+          ...baseArgs,
+          rotation: rebaseRotationForSimulation(baseArgs.rotation, relayDisplayTimeOffset),
+          enemyActionWindows: rebaseEnemyActionWindowsForSimulation(baseArgs.enemyActionWindows, relayDisplayTimeOffset),
+          battleStartConsumableIdsBySlot: makeDefaultTeamSpConfig().consumableBySlot,
+          contingencyContracts: inheritedContingencyContracts,
+          customTriggers: inheritedCustomTriggers,
+          customTriggerVariables: inheritedCustomTriggerVariables,
+          initialState: buildInitialStateFromCheckpoint(
+            relayCheckpoint,
+            relayTime,
+            relayGameTime,
+            relayDisplayTimeOffset,
+            relayDisplayGameTimeOffset,
+          ),
+          relayStartTime: 0,
+          relayStartGameTime: 0,
+          emitRotationRelayedEvent: true,
+        });
+        effectiveContingencyContracts = inheritedContingencyContracts;
+        effectiveCustomTriggers = inheritedCustomTriggers;
+        effectiveCustomTriggerVariables = inheritedCustomTriggerVariables;
+        continue;
+      }
+    }
+
+    previousResult = simulateRotation(baseArgs);
+    effectiveContingencyContracts = schemeContingencyContracts;
+    effectiveCustomTriggers = schemeCustomTriggers;
+    effectiveCustomTriggerVariables = schemeCustomTriggerVariables;
+  }
+  return previousResult!;
+});
+
+watch(
+  () => simulation.value.enemySlots,
+  (value) => {
+    simulatedEnemySlots.value = value ?? null;
+  },
+  { immediate: true, deep: true },
 );
+
+const visibleEnemySlots = computed(() => {
+  const logicalSlots = getLogicalEnemySlots();
+  if (logicalSlots.length <= 0) {
+    return [];
+  }
+  const slotIndexById = new Map(logicalSlots.map((slot, index) => [slot.slotId, index]));
+  let highestVisibleIndex = Math.max(0, props.enemySlots.length - 1);
+
+  for (const entry of simulation.value.enemyLifecycleTimeline ?? []) {
+    const index = slotIndexById.get(entry.enemySlotId);
+    if (index != null) {
+      highestVisibleIndex = Math.max(highestVisibleIndex, index);
+    }
+  }
+
+  for (const entry of simulation.value.enemyStateTimeline ?? []) {
+    if (!entry.enemyId || !entry.enemySlotId) {
+      continue;
+    }
+    const index = slotIndexById.get(entry.enemySlotId);
+    if (index != null) {
+      highestVisibleIndex = Math.max(highestVisibleIndex, index);
+    }
+  }
+
+  const targetedIndex = slotIndexById.get(props.targetedEnemySlotId);
+  if (targetedIndex != null) {
+    highestVisibleIndex = Math.max(highestVisibleIndex, targetedIndex);
+  }
+
+  return logicalSlots.slice(0, Math.min(logicalSlots.length, highestVisibleIndex + 1));
+});
 
 const localTallyEnabled = ref(props.damageTallyTiming?.enabled === true);
 const localTallyStartTime = ref(props.damageTallyTiming?.startTime ?? 0);
@@ -1220,37 +3834,66 @@ function roundToPrecision(value: number, digits = 6): number {
   return Math.round(value * factor) / factor;
 }
 
+function coerceFiniteNumber(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function safeArrayLength(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min(10000, Math.floor(value)));
+}
+
 const timelineStart = computed(() => {
-  const preBattleStartRealTime = toRealTimeFromExtensions(-PRE_BATTLE_SECONDS, simulation.value.timeExtensions);
+  if (isActiveSchemeRelayed.value) {
+    return -5;
+  }
+  const preBattleStartRealTime = coerceFiniteNumber(
+    toRealTimeFromExtensions(-PRE_BATTLE_SECONDS, simulation.value.timeExtensions),
+    -PRE_BATTLE_SECONDS,
+  );
   return Math.min(-PRE_BATTLE_SECONDS, floorToSnap(roundToPrecision(preBattleStartRealTime)));
 });
-const timelineDuration = computed(() => Math.max(12, Math.ceil(simulation.value.totalTime + 2)));
+const timelineDuration = computed(() =>
+  Math.max(12, Math.ceil(coerceFiniteNumber(simulation.value.totalTime, 10) + 2)),
+);
 const timelineWidth = computed(() => (timelineDuration.value - timelineStart.value) * AXIS_SCALE);
 
 const realSeconds = computed(() =>
   Array.from(
     {
-      length: Math.max(0, Math.floor(timelineDuration.value) - Math.ceil(timelineStart.value) + 1),
+      length: safeArrayLength(
+        Math.floor(coerceFiniteNumber(timelineDuration.value, 12))
+          - Math.ceil(coerceFiniteNumber(timelineStart.value, -PRE_BATTLE_SECONDS))
+          + 1,
+      ),
     },
-    (_, index) => Math.ceil(timelineStart.value) + index,
+    (_, index) => Math.ceil(coerceFiniteNumber(timelineStart.value, -PRE_BATTLE_SECONDS)) + index,
   ),
 );
 
 const gameTimelineDuration = computed(() => {
-  const latestCursorGameTime = toGameTimeFromExtensions(cursorTime.value, simulation.value.timeExtensions);
-  return Math.ceil(Math.max(simulation.value.totalGameTime, latestCursorGameTime));
+  const latestCursorGameTime = coerceFiniteNumber(
+    toGameTimeFromExtensions(cursorTime.value, simulation.value.timeExtensions),
+    0,
+  );
+  return Math.ceil(Math.max(coerceFiniteNumber(simulation.value.totalGameTime, 0), latestCursorGameTime));
 });
 
 const gameSeconds = computed(() =>
   (() => {
-    const gameStart = Math.ceil(toGameTimeFromExtensions(timelineStart.value, simulation.value.timeExtensions));
-    const gameEnd = Math.floor(gameTimelineDuration.value);
+    const gameStart = Math.ceil(coerceFiniteNumber(
+      toGameTimeFromExtensions(timelineStart.value, simulation.value.timeExtensions),
+      0,
+    ));
+    const gameEnd = Math.floor(coerceFiniteNumber(gameTimelineDuration.value, 0));
     return Array.from(
-      { length: Math.max(0, gameEnd - gameStart + 1) },
+      { length: safeArrayLength(gameEnd - gameStart + 1) },
       (_, index) => gameStart + index,
     ).map((value) => ({
       value,
-      realTime: toRealTimeFromExtensions(value, simulation.value.timeExtensions),
+      realTime: coerceFiniteNumber(toRealTimeFromExtensions(value, simulation.value.timeExtensions), timelineStart.value),
     })).filter((entry) => entry.realTime >= timelineStart.value - 0.0001 && entry.realTime <= timelineDuration.value + 0.0001);
   })(),
 );
@@ -1258,9 +3901,19 @@ const preBattleBandStyle = computed(() => ({
   left: "0px",
   width: `${Math.max(0, timeToPx(0))}px`,
 }));
+const relayInheritedBandStyle = computed(() => {
+  if (!isActiveSchemeRelayed.value) {
+    return { left: "0px", width: "0px" };
+  }
+  return {
+    left: "0px",
+    width: `${Math.max(0, Math.min(timelineWidth.value, timeToPx(0)))}px`,
+  };
+});
 
-const enemyInvulnerabilityWindows = computed(() =>
-  simulation.value.enemyActionWindows
+function getEnemyInvulnerabilityWindowsForSlot(slotId: string) {
+  return simulation.value.enemyActionWindows
+    .filter((window) => window.enemySlotId === slotId)
     .filter((window) => window.invulnerable && window.endTime > timelineStart.value && window.startTime < timelineDuration.value)
     .map((window) => ({
       ...window,
@@ -1268,20 +3921,47 @@ const enemyInvulnerabilityWindows = computed(() =>
       end: Math.min(timelineDuration.value, window.endTime),
       color: window.tintColor ?? "rgba(215, 64, 64, 0.25)",
     }))
-    .filter((window) => window.end > window.start),
-);
+    .filter((window) => window.end > window.start);
+}
 
-const enemyPhaseTransitionWindows = computed(() =>
-  simulation.value.enemyActionWindows
+function getEnemyPhaseTransitionWindowsForSlot(slotId: string) {
+  const actionWindows = simulation.value.enemyActionWindows
+    .filter((window) => window.enemySlotId === slotId)
     .filter((window) => window.commandId === "phase_transition" && window.endTime > timelineStart.value && window.startTime < timelineDuration.value)
     .map((window) => ({
-      ...window,
+      id: window.id,
+      commandId: window.commandId,
+      label: window.label,
+      startTime: window.startTime,
+      endTime: window.endTime,
       start: Math.max(timelineStart.value, window.startTime),
       end: Math.min(timelineDuration.value, window.endTime),
       color: "rgba(140, 72, 194, 0.16)",
       borderColor: "rgba(116, 62, 162, 0.48)",
-    }))
-    .filter((window) => window.end > window.start),
+    }));
+  const listenerWindows = (simulation.value.enemyTransitionTimeline ?? [])
+    .filter((window) => window.enemySlotId === slotId)
+    .filter((window) => window.endTime > timelineStart.value && window.time < timelineDuration.value)
+    .map((window) => ({
+      id: `listener:${window.enemySlotId}:${window.time}:${window.endTime}`,
+      commandId: window.commandId,
+      label: window.label,
+      startTime: window.time,
+      endTime: window.endTime,
+      start: Math.max(timelineStart.value, window.time),
+      end: Math.min(timelineDuration.value, window.endTime),
+      color: "rgba(140, 72, 194, 0.16)",
+      borderColor: "rgba(116, 62, 162, 0.48)",
+    }));
+  return [...actionWindows, ...listenerWindows].filter((window) => window.end > window.start);
+}
+
+const enemyInvulnerabilityWindows = computed(() =>
+  getEnemyInvulnerabilityWindowsForSlot(props.targetedEnemySlotId),
+);
+
+const enemyPhaseTransitionWindows = computed(() =>
+  getEnemyPhaseTransitionWindowsForSlot(props.targetedEnemySlotId),
 );
 
 const allHits = computed(() =>
@@ -1649,6 +4329,8 @@ const selectedHitDetails = computed(() => {
   const artsIntensityMultiplier = ctx.attackType === "REACTION"
     ? 1 + artsIntensity / 100
     : 1;
+  const contractDamageMultiplier = Math.max(0, ctx.contractDamageMultiplier ?? 1);
+  const contractFlatModifier = ctx.contractFlatModifier ?? 0;
   const staggeredMultiplier = Math.max(0, ctx.staggeredMultiplier ?? 1);
   const finisherBonusMultiplier = Math.max(0, ctx.finisherBonusMultiplier ?? 1);
   const totalEnemyMultiplier = Math.max(0, ctx.totalEnemyMultiplier ?? (staggeredMultiplier * finisherBonusMultiplier));
@@ -1667,6 +4349,8 @@ const selectedHitDetails = computed(() => {
     levelMultiplier,
     artsIntensityMultiplier,
     artsIntensity,
+    contractDamageMultiplier,
+    contractFlatModifier,
     staggeredMultiplier,
     finisherBonusMultiplier,
     totalEnemyMultiplier,
@@ -1687,8 +4371,8 @@ function getEventDetailEntries(event: RotationCombatEvent): Array<{ key: string;
 
   entries.push({ key: "Type", value: event.type });
   entries.push({ key: "Label", value: event.label });
-  entries.push({ key: "Real Time", value: `${event.time.toFixed(3)}s` });
-  entries.push({ key: "Game Time", value: `${event.gameTime.toFixed(3)}s` });
+  entries.push({ key: "Real Time", value: `${formatDisplayedRealTime(event.time)}s` });
+  entries.push({ key: "Game Time", value: `${formatDisplayedGameTime(event.gameTime)}s` });
 
   if (event.stepId) {
     entries.push({ key: "Step ID", value: event.stepId });
@@ -1770,16 +4454,16 @@ function getComboDebugDetailEntries(
     { key: t("rotation.comboDebugComboCommand"), value: entry.comboCommandId ?? "-" },
     { key: t("rotation.comboDebugCooldownOwner"), value: entry.cooldownOwnerCommandId ?? "-" },
     { key: t("rotation.comboDebugComboTimeScale"), value: entry.comboTimeScale },
-    { key: t("rotation.comboDebugCurrentTime"), value: entry.currentTime.toFixed(3) },
-    { key: t("rotation.comboDebugCooldownUntil"), value: entry.cooldownUntil.toFixed(3) },
+    { key: t("rotation.comboDebugCurrentTime"), value: formatDisplayedRealTime(entry.currentTime) },
+    { key: t("rotation.comboDebugCooldownUntil"), value: formatDisplayedRealTime(entry.cooldownUntil) },
     { key: t("rotation.comboDebugHasActiveWindow"), value: entry.hasActiveComboWindow ? t("rotation.yes") : t("rotation.no") },
     { key: t("rotation.comboDebugHasPendingCooldown"), value: entry.hasPendingCooldown ? t("rotation.yes") : t("rotation.no") },
   ];
   if (entry.readyAt != null) {
-    rows.push({ key: t("rotation.comboDebugReadyAt"), value: entry.readyAt.toFixed(3) });
+    rows.push({ key: t("rotation.comboDebugReadyAt"), value: formatDisplayedRealTime(entry.readyAt) });
   }
   if (entry.expiresAt != null) {
-    rows.push({ key: t("rotation.comboDebugExpiresAt"), value: entry.expiresAt.toFixed(3) });
+    rows.push({ key: t("rotation.comboDebugExpiresAt"), value: formatDisplayedRealTime(entry.expiresAt) });
   }
   if (entry.blockReason) {
     rows.push({ key: t("rotation.comboDebugBlockReason"), value: formatComboDebugBlockReason(entry.blockReason) });
@@ -1813,8 +4497,8 @@ function getPassiveListenerDebugDetailEntries(
     { key: t("rotation.passiveDebugListenerPresent"), value: entry.listenerPresent ? t("rotation.yes") : t("rotation.no") },
     { key: t("rotation.passiveDebugSlot"), value: String(entry.slot + 1) },
     { key: t("rotation.passiveDebugCharacter"), value: `${entry.characterName} (${entry.characterId})` },
-    { key: t("rotation.passiveDebugRealTime"), value: `${entry.time.toFixed(3)}s` },
-    { key: t("rotation.passiveDebugGameTime"), value: `${entry.gameTime.toFixed(3)}s` },
+    { key: t("rotation.passiveDebugRealTime"), value: `${formatDisplayedRealTime(entry.time)}s` },
+    { key: t("rotation.passiveDebugGameTime"), value: `${formatDisplayedGameTime(entry.gameTime)}s` },
     { key: t("rotation.passiveDebugStepId"), value: entry.eventStepId ?? "-" },
     { key: t("rotation.passiveDebugCommandId"), value: entry.eventCommandId ?? "-" },
   ];
@@ -2122,7 +4806,7 @@ function executeSwitchToSlot(slot: PartySlot) {
       }
       const rawStep = rotation.value.steps.find((entry) => entry.id === createdStepId);
       if (rawStep?.startTime != null) {
-        cursorTime.value = clampCursorTime(rawStep.startTime);
+        cursorTime.value = clampCursorTime(getLocalTimelineTimeFromStored(rawStep.startTime));
       }
     });
   };
@@ -2262,6 +4946,115 @@ const controlTimeline = computed(() => {
   return { segments, markers };
 });
 
+const targetEnemyTimeline = computed(() => {
+  const setTargetCommands = props.enemySlots
+    .flatMap((enemySlot) =>
+      (enemyTimelineCommandsForAllSlots.value[enemySlot.slotId] ?? [])
+        .filter((command) => command.commandId === "set_target" && command.interrupted !== true)
+        .map((command) => ({
+          commandPlacementId: command.id,
+          slotId: enemySlot.slotId,
+          time: command.startTime,
+        })),
+    )
+    .sort((a, b) => a.time - b.time);
+
+  const segments: TargetEnemyTimelineSegment[] = [];
+  const markers: TargetEnemyMarker[] = [];
+  let activeSlotId = props.targetedEnemySlotId;
+  let segmentStart = timelineStart.value;
+
+  for (const command of setTargetCommands) {
+    if (command.slotId === activeSlotId) {
+      continue;
+    }
+    segments.push({
+      slotId: activeSlotId,
+      startTime: segmentStart,
+      endTime: command.time,
+    });
+    markers.push({
+      commandPlacementId: command.commandPlacementId,
+      slotId: command.slotId,
+      previousSlotId: activeSlotId,
+      time: command.time,
+    });
+    activeSlotId = command.slotId;
+    segmentStart = command.time;
+  }
+
+  segments.push({
+    slotId: activeSlotId,
+    startTime: segmentStart,
+    endTime: timelineDuration.value,
+  });
+
+  return { segments, markers };
+});
+
+type EnemyLifecycleMarkerDisplay = {
+  enemySlotId: string;
+  time: number;
+  enemyId: string;
+  type: EnemyLifecycleTimelineEntry["type"];
+};
+
+const countdownTimelineMarkers = computed<CountdownTimelineEntry[]>(() =>
+  [...(simulation.value.countdownTimeline ?? [])].sort((left, right) =>
+    left.time !== right.time ? left.time - right.time : left.value - right.value,
+  ),
+);
+
+const relayTimelineMarkers = computed(() => {
+  const nextScheme = rotationSchemes.value.schemes[activeSchemeIndex.value + 1] ?? null;
+  return [...(simulation.value.relayTimeline ?? [])]
+    .sort((left, right) => left.time - right.time)
+    .map((entry) => ({
+      ...entry,
+      nextRotationName: nextScheme ? getLocalizedRotationSchemeName(nextScheme) : "",
+    }));
+});
+
+const enemyLifecycleMarkersBySlot = computed<Record<string, EnemyLifecycleMarkerDisplay[]>>(() => {
+  const grouped = new Map<string, EnemyLifecycleTimelineEntry[]>();
+  for (const entry of simulation.value.enemyLifecycleTimeline ?? []) {
+    const key = `${entry.enemySlotId}:${entry.time.toFixed(4)}`;
+    const bucket = grouped.get(key) ?? [];
+    bucket.push(entry);
+    grouped.set(key, bucket);
+  }
+
+  const result: Record<string, EnemyLifecycleMarkerDisplay[]> = {};
+  for (const entries of grouped.values()) {
+    const first = entries[0];
+    if (!first) {
+      continue;
+    }
+    const spawned = entries.filter((entry) => entry.type === "spawned");
+    const replaced = entries.filter((entry) => entry.type === "replaced");
+    const transformed = entries.filter((entry) => entry.type === "transformed");
+    const defeated = entries.filter((entry) => entry.type === "defeated");
+    const chosen = spawned[spawned.length - 1]
+      ?? replaced[replaced.length - 1]
+      ?? transformed[transformed.length - 1]
+      ?? defeated[defeated.length - 1];
+    if (!chosen) {
+      continue;
+    }
+    (result[first.enemySlotId] ??= []).push({
+      enemySlotId: first.enemySlotId,
+      time: first.time,
+      enemyId: chosen.enemyId,
+      type: chosen.type,
+    });
+  }
+
+  for (const markers of Object.values(result)) {
+    markers.sort((left, right) => left.time - right.time);
+  }
+  return result;
+});
+
 type TeamSpState = {
   generated: number;
   returned: number;
@@ -2285,6 +5078,19 @@ type ControlSwitchMarker = {
   time: number;
 };
 
+type TargetEnemyTimelineSegment = {
+  slotId: string;
+  startTime: number;
+  endTime: number;
+};
+
+type TargetEnemyMarker = {
+  commandPlacementId: string;
+  slotId: string;
+  previousSlotId: string;
+  time: number;
+};
+
 function getRawCommandForAction(action: { slot: PartySlot; commandId: string }) {
   return partyBySlot.value.get(action.slot)?.commands.find((entry) => entry.id === action.commandId) ?? null;
 }
@@ -2298,6 +5104,28 @@ function getCommandForAction(action: RotationSimulationResult["actions"][number]
   return resolveCommandTransform(actor.commands, action.commandId, commandState)
     ?? getRawCommandForAction(action)
     ?? null;
+}
+
+function getActiveTargetedEnemySlotAtRealTime(targetTime: number): string {
+  const setTargetPlacements = props.enemySlots
+    .flatMap((slot) =>
+      (activeScheme.value.enemyCommandsBySlot?.[slot.slotId] ?? [])
+        .filter((entry) => entry.commandId === "set_target" && entry.interrupted !== true)
+        .map((entry) => ({
+          slotId: slot.slotId,
+          startTime: roundToSnap(entry.startTime),
+        })),
+    )
+    .sort((a, b) => a.startTime - b.startTime);
+
+  let activeTargetSlotId = props.targetedEnemySlotId;
+  for (const placement of setTargetPlacements) {
+    if (placement.startTime > targetTime + 0.0001) {
+      break;
+    }
+    activeTargetSlotId = placement.slotId;
+  }
+  return activeTargetSlotId;
 }
 
 function getControlStateAtRealTime(targetTime: number): ControlStateSnapshot {
@@ -2360,31 +5188,58 @@ function getSpRulesAtGameTime(time: number): { cap: number; regen: number } {
   if (time < 0) {
     return { cap: PRE_BATTLE_SP_MAX, regen: PRE_BATTLE_SP_REGEN_RATE };
   }
-  return { cap: TEAM_SP_MAX, regen: teamSpConfig.value.spRegenRate };
+  return { cap: TEAM_SP_MAX, regen: simulation.value.initialResources.spRegenRate };
 }
 
-function addPassiveSpRegenSegment(state: TeamSpState, fromTime: number, toTime: number) {
+function hasTeamEncumberedAtTime(time: number, simulationResult = simulation.value): boolean {
+  const actorState = getActorStateAtTime(simulationResult, 0, time);
+  const activeTeamStatusIds = new Set(actorState.activeTeamStatuses.map((status) => status.id));
+  return activeTeamStatusIds.has("team_encumbered") && !activeTeamStatusIds.has("team_encumbered_suppression");
+}
+
+function addPassiveSpRegenSegment(
+  state: TeamSpState,
+  fromTime: number,
+  toTime: number,
+  simulationResult = simulation.value,
+) {
   const start = Math.min(fromTime, toTime);
   const end = Math.max(fromTime, toTime);
   if (end <= start) {
     return;
   }
 
-  // Passive SP regen should follow game-time progression, so it pauses during time freeze.
-  const startGameTime = toGameTimeFromExtensions(start, simulation.value.timeExtensions);
-  const endGameTime = toGameTimeFromExtensions(end, simulation.value.timeExtensions);
-  if (endGameTime <= startGameTime) {
-    return;
-  }
+  const slotZeroStateTimes = simulationResult.actorStateTimeline
+    .filter((state) => state.slot === 0 && state.time > start + 0.0001 && state.time < end - 0.0001)
+    .map((state) => state.time);
+  const boundaries = [start, ...slotZeroStateTimes, end];
 
-  if (startGameTime < 0 && endGameTime > 0) {
-    addGeneratedSp(state, (0 - startGameTime) * PRE_BATTLE_SP_REGEN_RATE, PRE_BATTLE_SP_MAX);
-    addGeneratedSp(state, endGameTime * teamSpConfig.value.spRegenRate, TEAM_SP_MAX);
-    return;
-  }
+  for (let index = 0; index < boundaries.length - 1; index += 1) {
+    const segmentStart = boundaries[index]!;
+    const segmentEnd = boundaries[index + 1]!;
+    if (segmentEnd <= segmentStart + 0.0001) {
+      continue;
+    }
+    if (hasTeamEncumberedAtTime(segmentStart, simulationResult)) {
+      continue;
+    }
 
-  const rules = getSpRulesAtGameTime(startGameTime);
-  addGeneratedSp(state, (endGameTime - startGameTime) * rules.regen, rules.cap);
+    // Passive SP regen should follow game-time progression, so it pauses during time freeze.
+    const startGameTime = toGameTimeFromExtensions(segmentStart, simulationResult.timeExtensions);
+    const endGameTime = toGameTimeFromExtensions(segmentEnd, simulationResult.timeExtensions);
+    if (endGameTime <= startGameTime) {
+      continue;
+    }
+
+    if (startGameTime < 0 && endGameTime > 0) {
+      addGeneratedSp(state, (0 - startGameTime) * PRE_BATTLE_SP_REGEN_RATE, PRE_BATTLE_SP_MAX);
+      addGeneratedSp(state, endGameTime * simulationResult.initialResources.spRegenRate, TEAM_SP_MAX);
+      continue;
+    }
+
+    const rules = getSpRulesAtGameTime(startGameTime);
+    addGeneratedSp(state, (endGameTime - startGameTime) * rules.regen, rules.cap);
+  }
 }
 
 function consumeTeamSp(state: TeamSpState, amount: number): number {
@@ -2431,12 +5286,12 @@ function canGainEnergyFromSource(args: {
   return args.sourceCommandAttackType === "BATTLE_SKILL" || args.sourceCommandAttackType === "COMBO_SKILL";
 }
 
-function getUltEnergyGainMultiplierAtTime(slot: PartySlot, time: number): number {
+function getUltEnergyGainMultiplierAtTime(slot: PartySlot, time: number, simulationResult = simulation.value): number {
   const actor = partyBySlot.value.get(slot);
   if (!actor) {
     return 1;
   }
-  const actorState = getActorStateAtTime(simulation.value, slot, time);
+  const actorState = getActorStateAtTime(simulationResult, slot, time);
   let multiplier = actor.mods.ULT_GAIN_PCT ?? 1;
   for (const buff of actorState.activeBuffs) {
     multiplier += buff.effects?.ULT_GAIN_PCT ?? 0;
@@ -2455,11 +5310,13 @@ function applyUltimateEnergyGain(args: {
   sourceSlot?: PartySlot;
   sourceCommandAttackType?: CharacterCombatSnapshot["commands"][number]["attackType"];
   ignoreUltimateGainEfficiency?: boolean;
+  simulationResult?: RotationSimulationResult;
 }) {
   if (args.rawAmount <= 0) {
     return;
   }
-  const gameTime = toGameTimeFromExtensions(args.time, simulation.value.timeExtensions);
+  const simulationResult = args.simulationResult ?? simulation.value;
+  const gameTime = toGameTimeFromExtensions(args.time, simulationResult.timeExtensions);
   if (gameTime < 0) {
     return;
   }
@@ -2480,7 +5337,7 @@ function applyUltimateEnergyGain(args: {
   }
   const gainMultiplier = args.ignoreUltimateGainEfficiency
     ? 1
-    : getUltEnergyGainMultiplierAtTime(args.targetSlot, args.time);
+    : getUltEnergyGainMultiplierAtTime(args.targetSlot, args.time, simulationResult);
   const gained = args.rawAmount * gainMultiplier;
   if (gained <= 0) {
     return;
@@ -2490,59 +5347,32 @@ function applyUltimateEnergyGain(args: {
   args.energyBySlot.set(args.targetSlot, Math.min(energyMax, currentEnergy + gained));
 }
 
-function getComboCooldownStartTimes(args: {
-  slot: PartySlot;
-  command: CharacterCombatSnapshot["commands"][number];
-  action: RotationSimulationResult["actions"][number];
-}): { real: number; game: number } {
-  if (args.command.comboCooldownStartsAt !== "end") {
-    return {
-      real: args.action.realStartTime,
-      game: args.action.startTime,
-    };
-  }
-
-  let startReal = args.action.realEndTime;
-  const relatedWindows = simulation.value.comboWindows.filter(
-    (window) => window.slot === args.slot && window.sourceStepId === args.action.stepId,
-  );
-  for (const window of relatedWindows) {
-    const activeUntil = window.consumedAt != null
-      ? Math.min(window.expiresAt, window.consumedAt)
-      : window.expiresAt;
-    if (activeUntil > startReal) {
-      startReal = activeUntil;
-    }
-  }
-
-  return {
-    real: startReal,
-    game: toGameTimeFromExtensions(startReal, simulation.value.timeExtensions),
-  };
+function getBonusEnemyInterruptedSpEventsForSimulation(simulationResult: RotationSimulationResult) {
+  return simulationResult.events
+    .filter((event) => event.type === "ENEMY_COMMAND_INTERRUPTED" && (event.amount ?? 0) > 0)
+    .map((event) => ({ time: event.time, amount: event.amount ?? 0 }));
 }
 
-const cursorCombatState = computed(() => {
-  const targetTime = cursorTime.value;
-  const currentGameTime = toGameTimeFromExtensions(targetTime, simulation.value.timeExtensions);
+function getBonusSpReturnedEventsForSimulation(simulationResult: RotationSimulationResult) {
+  return simulationResult.events
+    .filter((event) => event.type === "SP_RETURNED" && (event.amount ?? 0) > 0)
+    .map((event) => ({ time: event.time, amount: event.amount ?? 0 }));
+}
 
-  const energyBySlot = new Map<PartySlot, number>();
-  const energyMaxBySlot = new Map<PartySlot, number>();
-  const comboBySlot = new Map<PartySlot, { readyRatio: number; label: string; mode?: "normal" | "triggered" | "perfect_window" | "executing" }>();
+function getBonusSpGeneratedEventsForSimulation(simulationResult: RotationSimulationResult) {
+  return simulationResult.events
+    .filter((event) => event.type === "SP_GENERATED" && (event.amount ?? 0) > 0)
+    .map((event) => ({ time: event.time, amount: event.amount ?? 0 }));
+}
+
+function buildSimulationResourceStateAtTime(simulationResult: RotationSimulationResult, targetTime: number) {
+  const initialResources = simulationResult.initialResources;
+  const energyBySlot = new Map(initialResources.energyBySlot);
+  const energyMaxBySlot = new Map(initialResources.energyMaxBySlot);
   const teamSp: TeamSpState = {
-    generated: Math.max(0, Math.min(PRE_BATTLE_SP_MAX, teamSpConfig.value.initialSp)),
-    returned: 0,
+    generated: initialResources.teamSpGenerated,
+    returned: initialResources.teamSpReturned,
   };
-
-  for (const display of partyDisplay.value) {
-    const startingEnergy =
-      display.ultimateMaxEnergy > 0
-        ? display.ultimateMaxEnergy * ((teamSpConfig.value.startingEnergyBySlot[display.slot] ?? 0) / 100)
-        : 0;
-
-    energyBySlot.set(display.slot, startingEnergy);
-    energyMaxBySlot.set(display.slot, display.ultimateMaxEnergy);
-    comboBySlot.set(display.slot, { readyRatio: 1, label: t("rotation.ready"), mode: "normal" });
-  }
 
   const spEvents: Array<
     | {
@@ -2578,13 +5408,12 @@ const cursorCombatState = computed(() => {
     | { time: number; type: "skill-return"; amount: number }
   > = [];
 
-  for (const action of simulation.value.actions) {
-    const command = getCommandForAction(action);
+  for (const action of simulationResult.actions) {
+    const command = getRawCommandForAction(action);
     if (!command) {
       continue;
     }
-
-    if (action.realStartTime <= targetTime) {
+    if (!action.nullified && action.realStartTime <= targetTime) {
       spEvents.push({
         time: action.realStartTime,
         type: "action-start",
@@ -2594,8 +5423,7 @@ const cursorCombatState = computed(() => {
         commandAttackType: command.attackType,
       });
     }
-
-    if (!action.interrupted && action.realEndTime <= targetTime) {
+    if (!action.nullified && !action.interrupted && action.realEndTime <= targetTime) {
       spEvents.push({
         time: action.realEndTime,
         type: "action-end",
@@ -2608,11 +5436,10 @@ const cursorCombatState = computed(() => {
     }
   }
 
-  for (const hit of simulation.value.timeline) {
+  for (const hit of simulationResult.timeline) {
     if (hit.time > targetTime) {
       break;
     }
-
     spEvents.push({
       time: hit.time,
       type: "hit",
@@ -2625,31 +5452,19 @@ const cursorCombatState = computed(() => {
       sourceCommandAttackType: hit.calculationContext?.attackType,
     });
   }
-  for (const event of bonusEnemyInterruptedSpEvents.value) {
+  for (const event of getBonusEnemyInterruptedSpEventsForSimulation(simulationResult)) {
     if (event.time <= targetTime) {
-      spEvents.push({
-        time: event.time,
-        type: "bonus-return",
-        amount: event.amount,
-      });
+      spEvents.push({ time: event.time, type: "bonus-return", amount: event.amount });
     }
   }
-  for (const event of bonusSpReturnedEvents.value) {
+  for (const event of getBonusSpReturnedEventsForSimulation(simulationResult)) {
     if (event.time <= targetTime) {
-      spEvents.push({
-        time: event.time,
-        type: "skill-return",
-        amount: event.amount,
-      });
+      spEvents.push({ time: event.time, type: "skill-return", amount: event.amount });
     }
   }
-  for (const event of bonusSpGeneratedEvents.value) {
+  for (const event of getBonusSpGeneratedEventsForSimulation(simulationResult)) {
     if (event.time <= targetTime) {
-      spEvents.push({
-        time: event.time,
-        type: "bonus-generated",
-        amount: event.amount,
-      });
+      spEvents.push({ time: event.time, type: "bonus-generated", amount: event.amount });
     }
   }
 
@@ -2660,10 +5475,11 @@ const cursorCombatState = computed(() => {
     const order = { "action-start": 0, "bonus-return": 1, "bonus-generated": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
     return order[a.type] - order[b.type];
   });
-  let lastSpTime = timelineStart.value;
+
+  let lastSpTime = Math.min(targetTime, 0);
   for (const event of spEvents) {
     const clampedTime = Math.min(event.time, targetTime);
-    addPassiveSpRegenSegment(teamSp, lastSpTime, clampedTime);
+    addPassiveSpRegenSegment(teamSp, lastSpTime, clampedTime, simulationResult);
 
     if (event.type === "action-start") {
       if (event.energyCost > 0) {
@@ -2673,17 +5489,18 @@ const cursorCombatState = computed(() => {
 
       const generatedConsumed = consumeTeamSp(teamSp, event.spCost);
       if (generatedConsumed > 0) {
-        for (const display of partyDisplay.value) {
+        for (const slot of energyMaxBySlot.keys()) {
           applyUltimateEnergyGain({
             energyBySlot,
             energyMaxBySlot,
-            actorStates: simulation.value.actorStateTimeline,
-            targetSlot: display.slot,
+            actorStates: simulationResult.actorStateTimeline,
+            targetSlot: slot,
             time: event.time,
             rawAmount: generatedConsumed * GENERATED_SP_TEAM_ENERGY_RATE,
             sourceType: "command",
             sourceSlot: event.slot,
             sourceCommandAttackType: event.commandAttackType,
+            simulationResult,
           });
         }
       }
@@ -2693,13 +5510,14 @@ const cursorCombatState = computed(() => {
       applyUltimateEnergyGain({
         energyBySlot,
         energyMaxBySlot,
-        actorStates: simulation.value.actorStateTimeline,
+        actorStates: simulationResult.actorStateTimeline,
         targetSlot: event.slot,
         time: event.time,
         rawAmount: event.energyGain,
         sourceType: "command",
         sourceSlot: event.slot,
         sourceCommandAttackType: event.commandAttackType,
+        simulationResult,
       });
       addGeneratedSp(teamSp, event.spGeneratedOnEnd);
       addReturnedSp(teamSp, event.spReturnedOnEnd);
@@ -2708,7 +5526,6 @@ const cursorCombatState = computed(() => {
     if (event.type === "bonus-return") {
       addReturnedSp(teamSp, event.amount);
     }
-
     if (event.type === "skill-return") {
       addReturnedSp(teamSp, event.amount);
     }
@@ -2721,11 +5538,10 @@ const cursorCombatState = computed(() => {
         addGeneratedSp(teamSp, event.spGenerated);
       }
       addReturnedSp(teamSp, event.spReturned);
-
       applyUltimateEnergyGain({
         energyBySlot,
         energyMaxBySlot,
-        actorStates: simulation.value.actorStateTimeline,
+        actorStates: simulationResult.actorStateTimeline,
         targetSlot: event.slot,
         time: event.time,
         rawAmount: event.energyReturn,
@@ -2733,13 +5549,118 @@ const cursorCombatState = computed(() => {
         sourceSlot: event.slot,
         sourceCommandAttackType: event.sourceCommandAttackType,
         ignoreUltimateGainEfficiency: event.ignoreUltimateGainEfficiency,
+        simulationResult,
       });
     }
 
     lastSpTime = clampedTime;
   }
+
   if (targetTime > lastSpTime) {
-    addPassiveSpRegenSegment(teamSp, lastSpTime, targetTime);
+    addPassiveSpRegenSegment(teamSp, lastSpTime, targetTime, simulationResult);
+  }
+
+  return {
+    teamSpGenerated: teamSp.generated,
+    teamSpReturned: teamSp.returned,
+    spRegenRate: simulationResult.initialResources.spRegenRate,
+    energyBySlot,
+    energyMaxBySlot,
+  };
+}
+
+function getComboCooldownStartTimes(args: {
+  slot: PartySlot;
+  command: CharacterCombatSnapshot["commands"][number];
+  action: RotationSimulationResult["actions"][number];
+}): { real: number; game: number } {
+  if (args.command.comboCooldownStartsAt !== "end") {
+    return {
+      real: args.action.realStartTime,
+      game: args.action.startTime,
+    };
+  }
+
+  let startReal = args.action.realEndTime;
+  const relatedWindows = simulation.value.comboWindows.filter(
+    (window) => window.slot === args.slot && window.sourceStepId === args.action.stepId,
+  );
+  for (const window of relatedWindows) {
+    const activeUntil = window.consumedAt != null
+      ? Math.min(window.expiresAt, window.consumedAt)
+      : window.expiresAt;
+    if (activeUntil > startReal) {
+      startReal = activeUntil;
+    }
+  }
+
+  return {
+    real: startReal,
+    game: toGameTimeFromExtensions(startReal, simulation.value.timeExtensions),
+  };
+}
+
+function getInitialComboRuntimeState() {
+  return simulation.value.simulationCheckpoints?.[0]?.runtime ?? null;
+}
+
+function getInheritedActiveComboWindowAtTime(slot: PartySlot, targetTime: number) {
+  const runtime = getInitialComboRuntimeState();
+  const window = runtime?.activeComboWindowBySlot?.get(slot);
+  if (!window) {
+    return null;
+  }
+  const activeUntil = window.consumedAt != null
+    ? Math.min(window.expiresAt, window.consumedAt)
+    : window.expiresAt;
+  if (window.readyAt > targetTime || targetTime >= activeUntil) {
+    return null;
+  }
+  return window;
+}
+
+function getInheritedComboCooldownStateAtTime(args: {
+  slot: PartySlot;
+  comboCommand: CharacterCombatSnapshot["commands"][number] | null | undefined;
+  targetTime: number;
+  currentGameTime: number;
+}) {
+  const runtime = getInitialComboRuntimeState();
+  if (!runtime || !args.comboCommand) {
+    return null;
+  }
+  const cooldownOwnerId = args.comboCommand.comboCooldownOwnerCommandId ?? args.comboCommand.id;
+  if (args.comboCommand.id !== cooldownOwnerId) {
+    return null;
+  }
+  const pendingCooldown = runtime.pendingComboCooldownBySlot?.get(args.slot);
+  const cooldownUntilEntry = runtime.comboCooldownUntilBySlot?.get(args.slot);
+  if (pendingCooldown == null && cooldownUntilEntry == null) {
+    return null;
+  }
+  const currentTime = args.comboCommand.comboCooldownTimeScale === "real"
+    ? args.targetTime
+    : args.currentGameTime;
+  const cooldownUntil = cooldownUntilEntry ?? 0;
+  if (pendingCooldown == null && currentTime >= cooldownUntil - 0.0001) {
+    return null;
+  }
+  return {
+    pendingCooldown,
+    cooldownUntil,
+    currentTime,
+  };
+}
+
+const cursorCombatState = computed(() => {
+  const targetTime = cursorTime.value;
+  const currentGameTime = toGameTimeFromExtensions(targetTime, simulation.value.timeExtensions);
+  const resourceState = buildSimulationResourceStateAtTime(simulation.value, targetTime);
+  const energyBySlot = resourceState.energyBySlot;
+  const energyMaxBySlot = resourceState.energyMaxBySlot;
+  const comboBySlot = new Map<PartySlot, { readyRatio: number; label: string; mode?: "normal" | "triggered" | "perfect_window" | "executing" }>();
+  for (const display of partyDisplay.value) {
+    comboBySlot.set(display.slot, { readyRatio: 1, label: t("rotation.ready"), mode: "normal" });
   }
 
   const totalDamage = simulation.value.timeline
@@ -2752,6 +5673,9 @@ const cursorCombatState = computed(() => {
       continue;
     }
     const comboLineageIds = getComboTriggerLineageIds(display.actor, display.comboCommandId);
+    const comboCommand = display.actor?.commands.find((command) =>
+      command.id === display.comboCommandId || (comboLineageIds.has(command.id) && (command.comboCooldownOwnerCommandId ?? command.id) === command.id),
+    );
 
     const activeWindow = [...simulation.value.comboWindows]
       .filter((window) => {
@@ -2766,11 +5690,15 @@ const cursorCombatState = computed(() => {
       })
       .sort((a, b) => b.readyAt - a.readyAt)[0];
 
-    if (activeWindow) {
-      const isPerfectWindow = activeWindow.perfectTimingStartAt != null
-        && activeWindow.perfectTimingEndAt != null
-        && targetTime >= activeWindow.perfectTimingStartAt
-        && targetTime <= activeWindow.perfectTimingEndAt;
+    const inheritedWindow = activeWindow ? null : getInheritedActiveComboWindowAtTime(display.slot, targetTime);
+    const resolvedWindow = activeWindow ?? inheritedWindow;
+
+    if (resolvedWindow) {
+      const window = resolvedWindow;
+      const isPerfectWindow = window.perfectTimingStartAt != null
+        && window.perfectTimingEndAt != null
+        && targetTime >= window.perfectTimingStartAt
+        && targetTime <= window.perfectTimingEndAt;
       comboBySlot.set(
         display.slot,
         isPerfectWindow
@@ -2790,13 +5718,33 @@ const cursorCombatState = computed(() => {
       .sort((a, b) => b.realStartTime - a.realStartTime)[0];
 
     if (!comboAction) {
+      const inheritedCooldownState = getInheritedComboCooldownStateAtTime({
+        slot: display.slot,
+        comboCommand,
+        targetTime,
+        currentGameTime,
+      });
+      if (inheritedCooldownState) {
+        const remaining = inheritedCooldownState.pendingCooldown != null
+          ? Math.max(0, inheritedCooldownState.pendingCooldown.durationSeconds)
+          : Math.max(0, inheritedCooldownState.cooldownUntil - inheritedCooldownState.currentTime);
+        const totalDuration = inheritedCooldownState.pendingCooldown?.durationSeconds
+          ?? comboCommand?.comboCooldownSeconds
+          ?? 0;
+        const progress = totalDuration > 0
+          ? Math.min(1, Math.max(0, 1 - remaining / totalDuration))
+          : 0;
+        comboBySlot.set(display.slot, {
+          readyRatio: progress,
+          label: t("timeline.readyWithCountdown", { value: remaining.toFixed(1) }),
+          mode: "normal",
+        });
+        continue;
+      }
       comboBySlot.set(display.slot, { readyRatio: 1, label: t("rotation.notTriggered"), mode: "normal" });
       continue;
     }
 
-    const comboCommand = display.actor?.commands.find((command) =>
-      command.id === display.comboCommandId || (comboLineageIds.has(command.id) && (command.comboCooldownOwnerCommandId ?? command.id) === command.id),
-    );
     if (
       comboCommand?.comboCooldownStartsAt === "end"
       && comboAction.realStartTime <= targetTime
@@ -2836,9 +5784,9 @@ const cursorCombatState = computed(() => {
   return {
     cursorTime: targetTime,
     cursorGameTime: currentGameTime,
-    teamSpTotal: teamSp.generated + teamSp.returned,
-    teamSpGenerated: teamSp.generated,
-    teamSpReturned: teamSp.returned,
+    teamSpTotal: resourceState.teamSpGenerated + resourceState.teamSpReturned,
+    teamSpGenerated: resourceState.teamSpGenerated,
+    teamSpReturned: resourceState.teamSpReturned,
     totalDamage,
     stagger: currentEnemyState.value.currentStagger,
     energyBySlot,
@@ -2848,24 +5796,15 @@ const cursorCombatState = computed(() => {
 
 const actionValidationByStep = computed(() => {
   const validations = new Map<string, string>();
-  const energyBySlot = new Map<PartySlot, number>();
-  const energyMaxBySlot = new Map<PartySlot, number>();
+  const initialResources = simulation.value.initialResources;
+  const energyBySlot = new Map(initialResources.energyBySlot);
+  const energyMaxBySlot = new Map(initialResources.energyMaxBySlot);
   let controlledSlot: PartySlot = 0;
   const switchBackLockedUntilBySlot = new Map<PartySlot, number>();
   const teamSp: TeamSpState = {
-    generated: Math.max(0, Math.min(PRE_BATTLE_SP_MAX, teamSpConfig.value.initialSp)),
-    returned: 0,
+    generated: initialResources.teamSpGenerated,
+    returned: initialResources.teamSpReturned,
   };
-
-  for (const display of partyDisplay.value) {
-    const startingEnergy =
-      display.ultimateMaxEnergy > 0
-        ? display.ultimateMaxEnergy * ((teamSpConfig.value.startingEnergyBySlot[display.slot] ?? 0) / 100)
-        : 0;
-
-    energyBySlot.set(display.slot, startingEnergy);
-    energyMaxBySlot.set(display.slot, display.ultimateMaxEnergy);
-  }
 
   const validationEvents: Array<
     | { time: number; type: "action-start"; action: RotationSimulationResult["actions"][number] }
@@ -2877,8 +5816,10 @@ const actionValidationByStep = computed(() => {
   > = [];
 
   for (const action of simulation.value.actions) {
-    validationEvents.push({ time: action.realStartTime, type: "action-start", action });
-    if (!action.interrupted) {
+    if (!action.nullified) {
+      validationEvents.push({ time: action.realStartTime, type: "action-start", action });
+    }
+    if (!action.nullified && !action.interrupted) {
       validationEvents.push({ time: action.realEndTime, type: "action-end", action });
     }
   }
@@ -2905,10 +5846,10 @@ const actionValidationByStep = computed(() => {
     return order[a.type] - order[b.type];
   });
 
-  let lastSpTime = timelineStart.value;
+  let lastSpTime = Math.min(0, timelineStart.value);
 
   for (const event of validationEvents) {
-    addPassiveSpRegenSegment(teamSp, lastSpTime, event.time);
+    addPassiveSpRegenSegment(teamSp, lastSpTime, event.time, simulation.value);
     lastSpTime = event.time;
 
     if (event.type === "bonus-return") {
@@ -2942,6 +5883,7 @@ const actionValidationByStep = computed(() => {
         sourceSlot: hit.slot,
         sourceCommandAttackType: hit.calculationContext?.attackType,
         ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency,
+        simulationResult: simulation.value,
       });
       continue;
     }
@@ -2963,6 +5905,7 @@ const actionValidationByStep = computed(() => {
         sourceType: "command",
         sourceSlot: action.slot,
         sourceCommandAttackType: command.attackType,
+        simulationResult: simulation.value,
       });
       addGeneratedSp(teamSp, command.spGeneratedOnEnd);
       addReturnedSp(teamSp, command.spReturnedOnEnd);
@@ -3010,8 +5953,11 @@ const actionValidationByStep = computed(() => {
           action.realStartTime <= activeUntil + 0.001
         );
       });
+      const inheritedWindow = !matchingWindow
+        ? getInheritedActiveComboWindowAtTime(action.slot, action.realStartTime)
+        : null;
 
-      if (!matchingWindow) {
+      if (!matchingWindow && !inheritedWindow) {
         const previousComboAction = [...simulation.value.actions]
           .filter(
             (entry) =>
@@ -3034,8 +5980,17 @@ const actionValidationByStep = computed(() => {
           ? (cooldownTimeScale === "real" ? cooldownStartTimes.real : cooldownStartTimes.game)
           : null;
         const cooldownNow = cooldownTimeScale === "real" ? action.realStartTime : action.startTime;
+        const inheritedCooldownState = getInheritedComboCooldownStateAtTime({
+          slot: action.slot,
+          comboCommand: command,
+          targetTime: action.realStartTime,
+          currentGameTime: action.startTime,
+        });
 
-        if (cooldownStart != null && cooldownNow < cooldownStart + cooldown - 0.001) {
+        if (
+          inheritedCooldownState != null
+          || (cooldownStart != null && cooldownNow < cooldownStart + cooldown - 0.001)
+        ) {
           reasons.push(t("rotation.comboSkillCooldown"));
         } else {
           reasons.push(t("rotation.comboSkillNotTriggered"));
@@ -3064,6 +6019,7 @@ const actionValidationByStep = computed(() => {
           sourceType: "command",
           sourceSlot: action.slot,
           sourceCommandAttackType: command.attackType,
+          simulationResult: simulation.value,
         });
       }
     }
@@ -3081,19 +6037,31 @@ const actionValidationByStep = computed(() => {
 const enemyCommandValidationById = computed(() => {
   const validations = new Map<string, string>();
 
-  for (const command of enemyTimelineCommands.value) {
-    if (props.selectedEnemyId === "rhodagn" && command.commandId === "phase_transition") {
-      const stateBefore = getEnemyStateAtTime(simulation.value, Math.max(0, command.startTime - 0.0001));
-      const currentHp = Math.max(0, stateBefore.currentHp);
-      const maxHp = Math.max(1, stateBefore.maxHp);
-      if (currentHp >= maxHp * 0.7 - 0.001) {
-        validations.set(command.id, t("rotation.conditionNotFulfilled"));
+  for (const enemySlot of props.enemySlots) {
+    const slotEnemyId = enemySlot.enemyId;
+    for (const command of enemyTimelineCommandsForAllSlots.value[enemySlot.slotId] ?? []) {
+      const key = `${enemySlot.slotId}:${command.id}`;
+      if (slotEnemyId === "rhodagn" && command.commandId === "phase_transition") {
+        const stateBefore = getEnemyStateAtTime(
+          simulation.value,
+          Math.max(0, command.startTime - 0.0001),
+          enemySlot.slotId,
+        );
+        const currentHp = Math.max(0, stateBefore.currentHp);
+        const maxHp = Math.max(1, stateBefore.maxHp);
+        if (currentHp >= maxHp * 0.7 - 0.001) {
+          validations.set(key, t("rotation.conditionNotFulfilled"));
+        }
       }
-    }
-    if (props.selectedEnemyId === "nefarith_bonekrusher" && command.commandId === "phase_transition") {
-      const stateBefore = getEnemyStateAtTime(simulation.value, Math.max(0, command.startTime - 0.0001));
-      if (stateBefore.currentHp > 0.001) {
-        validations.set(command.id, t("rotation.conditionNotFulfilled"));
+      if (slotEnemyId === "nefarith_bonekrusher" && command.commandId === "phase_transition") {
+        const stateBefore = getEnemyStateAtTime(
+          simulation.value,
+          Math.max(0, command.startTime - 0.0001),
+          enemySlot.slotId,
+        );
+        if (stateBefore.currentHp > 0.001) {
+          validations.set(key, t("rotation.conditionNotFulfilled"));
+        }
       }
     }
   }
@@ -3105,8 +6073,8 @@ function addStep(slot: PartySlot, commandId: string) {
   return addStepAtTime(slot, commandId, cursorTime.value);
 }
 
-function getEnemyCommandValidation(commandPlacementId: string): string | null {
-  return enemyCommandValidationById.value.get(commandPlacementId) ?? null;
+function getEnemyCommandValidation(commandPlacementId: string, slotId = props.targetedEnemySlotId): string | null {
+  return enemyCommandValidationById.value.get(`${slotId}:${commandPlacementId}`) ?? null;
 }
 
 function addStepAtTime(slot: PartySlot, commandId: string, startTime: number): string | null {
@@ -3215,13 +6183,15 @@ function addExpandedSteps(
       id: makeStepId(),
       slot,
       commandId: resolved.id,
-      startTime: clampCursorTime(clampStartTimeForFreezeWindow(snappedStart, resolved)),
+      startTime: getStoredRotationTimeFromLocal(
+        clampCursorTime(clampStartTimeForFreezeWindow(snappedStart, resolved)),
+      ),
       buildSwapMap: resolved.id === "__switch_build" ? [1, 2, 3, 0] : undefined,
     };
     rotation.value.steps.push(nextStep);
     firstCreatedStepId ??= nextStep.id;
     expandedCount += 1;
-    return roundToSnap((nextStep.startTime ?? 0) + resolved.durationFrames / 60);
+    return roundToSnap(getLocalTimelineTimeFromStored(nextStep.startTime ?? 0) + resolved.durationFrames / 60);
   };
 
   currentStart = appendResolvedCommand(command.id, currentStart, 0);
@@ -3316,16 +6286,29 @@ function createRotationScheme() {
 }
 
 function renameCurrentRotationScheme() {
-  if (typeof window === "undefined") {
+  rotationNameDraft.value = getLocalizedRotationSchemeName(activeScheme.value);
+  rotationDescriptionDraft.value = getLocalizedRotationSchemeDescription(activeScheme.value);
+  rotationMetadataEditorOpen.value = true;
+}
+
+function closeRotationMetadataEditor() {
+  rotationMetadataEditorOpen.value = false;
+  rotationNameDraft.value = "";
+  rotationDescriptionDraft.value = "";
+}
+
+function submitRotationMetadataEdit() {
+  const trimmedName = rotationNameDraft.value.trim();
+  if (!trimmedName) {
+    closeRotationMetadataEditor();
     return;
   }
-
-  const nextName = window.prompt(t("rotation.renameRotation"), activeScheme.value.name);
-  if (nextName == null) {
-    return;
-  }
-
-  renameActiveScheme(nextName);
+  updateActiveSchemeLocalizedMetadata({
+    locale: currentRotationLocale.value,
+    name: trimmedName,
+    description: rotationDescriptionDraft.value.trim(),
+  });
+  closeRotationMetadataEditor();
 }
 
 function removeCurrentRotationScheme() {
@@ -3409,6 +6392,13 @@ function roundToSnap(value: number): number {
   return Math.round(value / AXIS_SNAP_SECONDS) * AXIS_SNAP_SECONDS;
 }
 
+function getPreferredInitialCursorTime(): number {
+  if (isActiveSchemeRelayed.value) {
+    return 0;
+  }
+  return 0;
+}
+
 function clampCursorTime(value: number): number {
   return Math.max(timelineStart.value, Math.min(timelineDuration.value, roundToSnap(value)));
 }
@@ -3457,7 +6447,7 @@ function beginStepDrag(stepId: string, originClientX: number) {
     originStartTimes: Object.fromEntries(
       rotation.value.steps
         .filter((entry) => dragStepIds.includes(entry.id))
-        .map((entry) => [entry.id, entry.startTime ?? 0]),
+        .map((entry) => [entry.id, getLocalTimelineTimeFromStored(entry.startTime ?? 0)]),
     ),
   };
 }
@@ -3500,7 +6490,7 @@ function handleClientPointerMove(clientX: number, clientY: number) {
     const deltaSeconds = (clientX - activeEnemyDrag.originClientX) / AXIS_SCALE;
     for (const command of movingCommands) {
       const origin = activeEnemyDrag.originStartTimes[command.id] ?? 0;
-      command.startTime = Math.max(timelineStart.value, roundToSnap(origin + deltaSeconds));
+      command.startTime = getStoredRotationTimeFromLocal(Math.max(timelineStart.value, roundToSnap(origin + deltaSeconds)));
     }
     return;
   }
@@ -3522,7 +6512,7 @@ function handleClientPointerMove(clientX: number, clientY: number) {
     const actor = partyBySlot.value.get(step.slot);
     const command = actor?.commands.find((entry) => entry.id === step.commandId) ?? null;
     const nextStart = clampStartTimeForFreezeWindow(roundToSnap(origin + deltaSeconds), command);
-    step.startTime = Math.max(timelineStart.value, nextStart);
+    step.startTime = getStoredRotationTimeFromLocal(Math.max(timelineStart.value, nextStart));
   }
 }
 
@@ -3583,7 +6573,7 @@ function addEnemyCommandAtTime(commandId: string, startTime: number) {
   enemyCommands.value.push({
     id: makeEnemyCommandPlacementId(),
     commandId,
-    startTime: Math.max(timelineStart.value, roundToSnap(startTime)),
+    startTime: getStoredRotationTimeFromLocal(Math.max(timelineStart.value, roundToSnap(startTime))),
     interrupted: false,
     interruptedSpGain: 0,
     interruptedStagger: 0,
@@ -3594,45 +6584,66 @@ function addEnemyCommand(commandId: string) {
   addEnemyCommandAtTime(commandId, cursorTime.value);
 }
 
-function removeEnemyCommand(commandPlacementId: string) {
-  const index = enemyCommands.value.findIndex((entry) => entry.id === commandPlacementId);
+function addEnemyCommandAtTimeForSlot(slotId: string, commandId: string, startTime: number) {
+  const targetCommands = getEnemyCommandsForSlot(slotId);
+  targetCommands.push({
+    id: makeEnemyCommandPlacementId(),
+    commandId,
+    startTime: getStoredRotationTimeFromLocal(Math.max(timelineStart.value, roundToSnap(startTime))),
+    interrupted: false,
+    interruptedSpGain: 0,
+    interruptedStagger: 0,
+  });
+}
+
+function removeEnemyCommand(commandPlacementId: string, slotId = selectedEnemyCommandSlotId.value ?? props.targetedEnemySlotId) {
+  const targetCommands = getEnemyCommandsForSlot(slotId);
+  const index = targetCommands.findIndex((entry) => entry.id === commandPlacementId);
   if (index >= 0) {
-    enemyCommands.value.splice(index, 1);
+    targetCommands.splice(index, 1);
   }
-  if (selectedEnemyCommandId.value === commandPlacementId) {
+  if (selectedEnemyCommandId.value === commandPlacementId && selectedEnemyCommandSlotId.value === slotId) {
     selectedEnemyCommandId.value = null;
+    selectedEnemyCommandSlotId.value = null;
   }
 }
 
 function clearEnemyCommands() {
   enemyCommands.value.splice(0, enemyCommands.value.length);
   selectedEnemyCommandId.value = null;
+  selectedEnemyCommandSlotId.value = null;
 }
 
 function resetEnemyCommandsToDefault() {
-  const defaults = getDefaultEnemyCommandPlacements(props.selectedEnemyId);
+  const defaults = getDefaultEnemyCommandPlacements(targetedEnemyId.value);
   enemyCommands.value.splice(0, enemyCommands.value.length, ...defaults.map((entry) => ({ ...entry })));
   if (selectedEnemyCommandId.value) {
     const existsAfterReset = enemyCommands.value.some((entry) => entry.id === selectedEnemyCommandId.value);
     if (!existsAfterReset) {
       selectedEnemyCommandId.value = null;
+      selectedEnemyCommandSlotId.value = null;
     }
   }
 }
 
-function handleEnemyLaneDrop(event: DragEvent) {
+function handleEnemyLaneDrop(event: DragEvent, slotId = props.targetedEnemySlotId) {
   const target = event.currentTarget as HTMLElement | null;
   if (!target || !libraryDragState.value || libraryDragState.value.kind !== "enemy") {
     clearLibraryCommandDrag();
     return;
   }
   const dropTime = clampCursorTime((event.clientX - target.getBoundingClientRect().left) / AXIS_SCALE + timelineStart.value);
-  addEnemyCommandAtTime(libraryDragState.value.commandId, dropTime);
+  selectTargetedEnemySlot(slotId);
+  addEnemyCommandAtTimeForSlot(slotId, libraryDragState.value.commandId, dropTime);
   clearLibraryCommandDrag();
 }
 
-function startEnemyCommandBlockDrag(event: MouseEvent, commandPlacementId: string) {
+function startEnemyCommandBlockDrag(event: MouseEvent, commandPlacementId: string, slotId = props.targetedEnemySlotId) {
   if (event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey) {
+    return;
+  }
+  if (slotId !== props.targetedEnemySlotId) {
+    selectTargetedEnemySlot(slotId);
     return;
   }
   beginEnemyCommandDrag(commandPlacementId, event.clientX);
@@ -3641,6 +6652,7 @@ function startEnemyCommandBlockDrag(event: MouseEvent, commandPlacementId: strin
 function beginEnemyCommandDrag(commandPlacementId: string, originClientX: number) {
   emit("historyTransientStart");
   selectedEnemyCommandId.value = commandPlacementId;
+  selectedEnemyCommandSlotId.value = props.targetedEnemySlotId;
   selectedStepIds.value = [];
   selectionAnchorId.value = null;
   const dragIds = [commandPlacementId];
@@ -3650,7 +6662,7 @@ function beginEnemyCommandDrag(commandPlacementId: string, originClientX: number
     originStartTimes: Object.fromEntries(
       enemyCommands.value
         .filter((entry) => dragIds.includes(entry.id))
-        .map((entry) => [entry.id, entry.startTime ?? 0]),
+        .map((entry) => [entry.id, getLocalTimelineTimeFromStored(entry.startTime ?? 0)]),
     ),
   };
 }
@@ -3695,9 +6707,13 @@ function startStepTouchPress(event: TouchEvent, stepId: string) {
   };
 }
 
-function startEnemyTouchPress(event: TouchEvent, commandPlacementId: string) {
+function startEnemyTouchPress(event: TouchEvent, commandPlacementId: string, slotId = props.targetedEnemySlotId) {
   if (event.touches.length !== 1) {
     clearPendingLongPressDrag();
+    return;
+  }
+  if (slotId !== props.targetedEnemySlotId) {
+    selectTargetedEnemySlot(slotId);
     return;
   }
   const touch = event.touches[0];
@@ -3817,12 +6833,26 @@ function selectEnemyCommand(commandPlacementId: string) {
     return;
   }
   selectedEnemyCommandId.value = commandPlacementId;
+  selectedEnemyCommandSlotId.value = props.targetedEnemySlotId;
   selectedStepIds.value = [];
   selectionAnchorId.value = null;
 }
 
-function isEnemyCommandSelected(commandPlacementId: string): boolean {
-  return selectedEnemyCommandId.value === commandPlacementId;
+function selectEnemyCommandForSlot(commandPlacementId: string, slotId: string) {
+  if (slotId !== props.targetedEnemySlotId) {
+    selectTargetedEnemySlot(slotId);
+  }
+  if (Date.now() < suppressTapUntilMs.value) {
+    return;
+  }
+  selectedEnemyCommandId.value = commandPlacementId;
+  selectedEnemyCommandSlotId.value = slotId;
+  selectedStepIds.value = [];
+  selectionAnchorId.value = null;
+}
+
+function isEnemyCommandSelected(commandPlacementId: string, slotId = props.targetedEnemySlotId): boolean {
+  return selectedEnemyCommandId.value === commandPlacementId && selectedEnemyCommandSlotId.value === slotId;
 }
 
 function parseDebugFlag(value: unknown): boolean {
@@ -3916,6 +6946,14 @@ function formatTime(value: number): string {
   return value.toFixed(2);
 }
 
+function formatDisplayedRealTime(value: number): string {
+  return toDisplayedRealTime(value).toFixed(2);
+}
+
+function formatDisplayedGameTime(value: number): string {
+  return toDisplayedGameTime(value).toFixed(2);
+}
+
 function timeToPx(time: number): number {
   return (time - timelineStart.value) * AXIS_SCALE;
 }
@@ -3925,7 +6963,8 @@ function resetTimelineViewport() {
   if (!viewport) {
     return;
   }
-  viewport.scrollLeft = Math.max(0, timeToPx(-1));
+  const anchorTime = Math.max(timelineStart.value, getPreferredInitialCursorTime() - 1);
+  viewport.scrollLeft = Math.max(0, timeToPx(anchorTime));
 }
 
 function formatAttackTypeLabel(value: string): string {
@@ -4151,7 +7190,7 @@ function isActionAutoNullified(action: RotationSimulationResult["actions"][numbe
 }
 
 function isActionDisplayMissed(action: RotationSimulationResult["actions"][number]): boolean {
-  return getStepById(action.stepId)?.missed === true || isActionAutoNullified(action);
+  return getStepById(action.stepId)?.missed === true || action.nullified === true || isActionAutoNullified(action);
 }
 
 function isActionTransient(action: { slot: PartySlot; commandId: string }): boolean {
@@ -4314,6 +7353,16 @@ function laneControlSegments(slot: PartySlot) {
 
 function laneSwitchMarkers(slot: PartySlot) {
   return controlTimeline.value.markers.filter((marker) => marker.slot === slot);
+}
+
+function laneTargetEnemySegments(slotId: string) {
+  return targetEnemyTimeline.value.segments.filter(
+    (segment) => segment.slotId === slotId && segment.endTime > segment.startTime,
+  );
+}
+
+function laneTargetEnemyMarkers(slotId: string) {
+  return targetEnemyTimeline.value.markers.filter((marker) => marker.slotId === slotId);
 }
 
 function getSwitchConnectorStyle(marker: ControlSwitchMarker): Record<string, string> {
@@ -4496,6 +7545,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             max="100"
             step="5"
             class="w-full accent-[#c8d13c]"
+            :disabled="isActiveSchemeRelayed"
             @input="teamSpConfig.startingEnergyBySlot[selectedLibrarySlot] = Number(($event.target as HTMLInputElement).value)"
           >
         </label>
@@ -4507,7 +7557,8 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             <button
               type="button"
               class="h-11 min-w-0 flex-1 rounded-xl border border-[#d4d4d4] bg-white px-3 text-left text-sm outline-none transition hover:border-[#c8d13c]"
-              @click="consumablePickerOpen = true"
+              :disabled="isActiveSchemeRelayed"
+              @click="!isActiveSchemeRelayed && (consumablePickerOpen = true)"
             >
               <span class="block truncate">{{ selectedConsumableLabel }}</span>
             </button>
@@ -4580,8 +7631,89 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
 
         <div v-else class="space-y-4">
           <section v-if="sidebarMode === 'enemy'" class="space-y-4">
-            <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
-              <div class="mb-3 text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.enemySetup") }}</div>
+            <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb]">
+              <button
+                type="button"
+                class="flex w-full items-center justify-between px-4 py-3 text-left"
+                @click="enemySetupExpanded = !enemySetupExpanded"
+              >
+                <span class="text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.enemySetup") }}</span>
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#666]">
+                  <svg class="h-4 w-4 transition" :class="enemySetupExpanded ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+              </button>
+              <div v-if="enemySetupExpanded" class="space-y-4 border-t border-[#ececec] px-4 py-4">
+              <div class="mb-4">
+                <div class="mb-2 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">
+                  <span>{{ t("enemy.title") }}</span>
+                  <span>{{ visibleEnemySlots.length }}/10</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <div
+                    v-for="(slot, index) in visibleEnemySlots"
+                    :key="slot.slotId"
+                    class="flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition"
+                    :class="slot.slotId === selectedEnemyEditorSlot?.slotId
+                      ? 'border-[#c8d13c] bg-[#fffde2] text-[#1b1b1b]'
+                      : 'border-[#d4d4d4] bg-white text-[#444]'"
+                    :style="isEnemyInactiveForSlot(slot.slotId) ? 'filter: grayscale(1); opacity: 0.6;' : ''"
+                  >
+                    <button
+                      type="button"
+                      class="flex min-w-0 items-center gap-2 text-left"
+                      @click="selectEnemyEditorSlot(slot.slotId)"
+                    >
+                      <img
+                        :src="getEnemyIconPath(slot.enemyId)"
+                        :alt="findEnemyById(slot.enemyId)?.name ?? `Enemy ${index + 1}`"
+                        class="h-8 w-8 rounded-md border border-[#dcdcdc] bg-white object-contain p-0.5"
+                        @error="(($event.target as HTMLImageElement).src = EMPTY_SELECTION_ICON_PATH)"
+                      >
+                      <div class="min-w-0">
+                        <div class="truncate text-xs font-medium">
+                          {{ locale === "zh-CN" ? `敌人 ${index + 1}` : `Enemy ${index + 1}` }}
+                        </div>
+                        <div class="truncate text-[11px] text-[#666]">
+                          {{ findEnemyById(slot.enemyId) ? getEnemyLocalizedName(findEnemyById(slot.enemyId)!) : t("enemy.noEnemy") }}
+                        </div>
+                        <div
+                          v-if="getEnemyLifecycleLabel(slot.slotId)"
+                          class="truncate text-[11px] text-[#c23f3f]"
+                        >
+                          {{ getEnemyLifecycleLabel(slot.slotId) }}
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      v-if="isMaterializedEnemySlot(slot.slotId) && props.enemySlots.length > 1"
+                      type="button"
+                      class="ml-1 h-6 w-6 shrink-0 rounded-full border border-[#d8d8d8] text-xs text-[#666] transition hover:border-[#d16b6b] hover:text-[#9a3131]"
+                      @click.stop="removeEnemySlot(slot.slotId)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="flex h-[52px] min-w-[52px] items-center justify-center rounded-xl border border-dashed border-[#cfcfcf] bg-white text-xl text-[#666] transition hover:border-[#c8d13c] hover:text-[#1b1b1b] disabled:cursor-not-allowed disabled:opacity-45"
+                    :disabled="visibleEnemySlots.length >= 10"
+                    @click="addEnemySlot"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <div class="mb-4">
+                <button
+                  type="button"
+                  class="w-full rounded-xl border border-[#d4d4d4] bg-white px-3 py-2 text-sm text-[#333] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
+                  @click="addEnemyCommandAtTimeForSlot(selectedEnemyEditorSlot?.slotId ?? props.targetedEnemySlotId, 'set_target', cursorTime)"
+                >
+                  {{ getLocalizedEnemyCommandLabel("Set To Target") }}
+                </button>
+              </div>
               <label class="block">
                 <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("enemy.title") }}</div>
                 <div class="flex items-center gap-2">
@@ -4590,11 +7722,11 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     class="h-11 min-w-0 flex-1 rounded-xl border border-[#d4d4d4] bg-white px-3 text-left text-sm outline-none transition hover:border-[#c8d13c]"
                     @click="enemyPickerOpen = true"
                   >
-                    <span class="block truncate">{{ selectedEnemyData ? getEnemyLocalizedName(selectedEnemyData) : props.enemyName }}</span>
+                    <span class="block truncate">{{ selectedEnemyData ? getEnemyLocalizedName(selectedEnemyData) : t("enemy.noEnemy") }}</span>
                   </button>
                   <img
                     :src="selectedEnemyIconPath"
-                    :alt="selectedEnemyData ? getEnemyLocalizedName(selectedEnemyData) : props.enemyName"
+                    :alt="selectedEnemyData ? getEnemyLocalizedName(selectedEnemyData) : t('enemy.noEnemy')"
                     class="h-11 w-11 shrink-0 rounded-lg border border-[#d4d4d4] bg-white object-contain p-1"
                     @error="(($event.target as HTMLImageElement).src = EMPTY_SELECTION_ICON_PATH)"
                   >
@@ -4604,18 +7736,65 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               <label class="mt-4 block">
                 <div class="mb-1 flex items-center justify-between gap-3 text-xs text-[#666]">
                   <span>{{ t("enemy.level") }}</span>
-                  <span>{{ props.enemyLevel }}</span>
+                  <span>{{ selectedEnemyEditorLevel }}</span>
                 </div>
                 <input
-                  :value="props.enemyLevel"
+                  :value="selectedEnemyEditorLevel"
                   type="range"
                   min="1"
                   max="100"
                   step="1"
                   class="w-full accent-[#c8d13c]"
-                  @input="emit('update:enemyLevel', Number(($event.target as HTMLInputElement).value))"
+                  @input="updateSelectedEnemyLevel(Number(($event.target as HTMLInputElement).value))"
                 >
               </label>
+
+              <div class="mt-4 rounded-xl border border-[#e4e4e4] bg-white p-3">
+                <label class="flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-medium text-[#1b1b1b]">{{ t("enemy.spawnTime") }}</div>
+                    <div class="text-xs text-[#6b6b6b]">
+                      {{ selectedEnemySpawnTimeEnabled ? t("enemy.spawnTimeEnabled") : t("enemy.spawnTimeDisabled") }}
+                    </div>
+                  </div>
+                  <input
+                    :checked="selectedEnemySpawnTimeEnabled"
+                    type="checkbox"
+                    class="h-4 w-4 accent-[#c8d13c]"
+                    @change="updateSelectedEnemySpawnTimeEnabled(($event.target as HTMLInputElement).checked)"
+                  >
+                </label>
+                <label class="mt-3 block" :class="selectedEnemySpawnTimeEnabled ? '' : 'opacity-50'">
+                  <div class="mb-1 flex items-center justify-between gap-3 text-xs text-[#666]">
+                    <span>{{ t("rotation.realTime") }}</span>
+                    <span>{{ selectedEnemySpawnTime.toFixed(1) }}{{ t("enemy.seconds") }}</span>
+                  </div>
+                  <input
+                    :value="selectedEnemySpawnTime"
+                    type="number"
+                    step="0.1"
+                    class="w-full rounded-lg border border-[#d4d4d4] bg-white px-3 py-2 text-sm text-[#1b1b1b] outline-none transition focus:border-[#c8d13c]"
+                    :disabled="!selectedEnemySpawnTimeEnabled"
+                    @input="updateSelectedEnemySpawnTime(Number(($event.target as HTMLInputElement).value))"
+                  >
+                </label>
+              </div>
+
+              <div class="rounded-xl border border-[#e4e4e4] bg-white p-3">
+                <label class="flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-medium text-[#1b1b1b]">{{ t("enemy.noDeath") }}</div>
+                    <div class="text-xs text-[#6b6b6b]">{{ t("enemy.noDeathHint") }}</div>
+                  </div>
+                  <input
+                    :checked="selectedEnemyNoDeath"
+                    type="checkbox"
+                    class="h-4 w-4 accent-[#c8d13c]"
+                    @change="updateSelectedEnemyNoDeath(($event.target as HTMLInputElement).checked)"
+                  >
+                </label>
+              </div>
+              </div>
             </section>
 
             <div
@@ -4657,8 +7836,20 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </div>
             </div>
 
-            <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
-              <div class="grid grid-cols-1 gap-3 text-sm">
+            <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb]">
+              <button
+                type="button"
+                class="flex w-full items-center justify-between px-4 py-3 text-left"
+                @click="enemyHpExpanded = !enemyHpExpanded"
+              >
+                <span class="text-sm font-semibold text-[#1b1b1b]">{{ t("enemy.hp") }}</span>
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#d9d9d9] bg-white text-[#666]">
+                  <svg class="h-4 w-4 transition" :class="enemyHpExpanded ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+              </button>
+              <div v-if="enemyHpExpanded" class="grid grid-cols-1 gap-3 border-t border-[#ececec] px-4 py-4 text-sm">
                 <div class="rounded-lg border border-[#ececec] bg-white px-3 py-2">
                   {{ t("enemy.hp") }} {{ currentEnemyDisplayedHp.toFixed(0) }} / {{ currentEnemyDisplayedMaxHp.toFixed(0) }}
                 </div>
@@ -4693,7 +7884,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </div>
               <div class="space-y-2 border-t border-[#ececec] px-4 py-3">
                 <button
-                  v-for="command in enemyCommandDefinitions"
+                  v-for="command in enemyCommandDefinitions.filter((entry) => entry.id !== 'set_target')"
                   :key="command.id"
                   type="button"
                   draggable="true"
@@ -5074,8 +8265,29 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 : 'border-[#d8d8d8] bg-white text-[#555] hover:bg-[#f6f6f6]'"
               @click="setActiveScheme(scheme.id)"
             >
-              {{ scheme.name }}
+              {{ getLocalizedRotationSchemeName(scheme) }}
             </button>
+            <div
+              v-if="activeSchemeCanRelay"
+              class="inline-flex items-center overflow-hidden rounded-full border border-[#d8d8d8] bg-white"
+            >
+              <button
+                type="button"
+                class="px-3 py-1.5 text-sm transition"
+                :class="!isActiveSchemeRelayed ? 'bg-[#fff8bf] text-[#1b1b1b]' : 'text-[#666] hover:bg-[#f6f6f6]'"
+                @click="setCurrentRotationSimulationMode('independent')"
+              >
+                {{ locale === 'zh-CN' ? '独立' : 'Independent' }}
+              </button>
+              <button
+                type="button"
+                class="border-l border-[#d8d8d8] px-3 py-1.5 text-sm transition"
+                :class="isActiveSchemeRelayed ? 'bg-[#fff8bf] text-[#1b1b1b]' : 'text-[#666] hover:bg-[#f6f6f6]'"
+                @click="setCurrentRotationSimulationMode('relay_from_previous')"
+              >
+                {{ locale === 'zh-CN' ? '接力' : 'Relay' }}
+              </button>
+            </div>
             <button
               v-if="canCreateRotationScheme"
               type="button"
@@ -5109,34 +8321,12 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </svg>
             </button>
           </div>
+          <div v-if="isActiveSchemeRelayed" class="mt-2 text-xs text-[#7a7a7a]">
+            {{ relayModeSummary }}
+          </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            class="rounded-lg border border-[#5a1f1f] bg-[#2f0f0f] px-3 py-2 text-sm font-semibold text-[#f5d5d5] transition hover:bg-[#451414]"
-            @click="contractsPopupOpen = true"
-          >
-            {{ locale === "zh-CN" ? `危机合约词条(未完成)Lv${contingencyTotalLevel}` : `Contingency Contracts(WIP) Lv${contingencyTotalLevel}` }}
-          </button>
-          <button
-            type="button"
-            class="rounded-lg border border-[#d4d4d4] bg-[#f7f7f7] px-3 py-2 text-sm text-[#333] transition"
-            :class="props.canUndo ? 'hover:bg-[#efefef]' : 'cursor-not-allowed text-[#b5b5b5]'"
-            :disabled="!props.canUndo"
-            @click="emit('undo')"
-          >
-            {{ t("ui.undo") }}
-          </button>
-          <button
-            type="button"
-            class="rounded-lg border border-[#d4d4d4] bg-[#f7f7f7] px-3 py-2 text-sm text-[#333] transition"
-            :class="props.canRedo ? 'hover:bg-[#efefef]' : 'cursor-not-allowed text-[#b5b5b5]'"
-            :disabled="!props.canRedo"
-            @click="emit('redo')"
-          >
-            {{ t("ui.redo") }}
-          </button>
           <button
             type="button"
             class="rounded-lg border border-[#d4d4d4] bg-[#f7f7f7] px-3 py-2 text-sm text-[#333] transition hover:bg-[#efefef]"
@@ -5153,86 +8343,22 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
           </button>
         </div>
       </div>
+      <RotationContingencyContractsPopup
+        :open="contractsPopupOpen"
+        :vm="contractsPopupVm"
+        @close="contractsPopupOpen = false"
+        @toggle="toggleContractVariant"
+        @highlight="highlightContractVariant"
+      />
 
-      <div
-        v-if="contractsPopupOpen"
-        class="fixed inset-0 z-[140] flex items-center justify-center bg-black/35 px-4 py-8"
-        @click.self="contractsPopupOpen = false"
-      >
-        <div class="w-full max-w-6xl rounded-2xl border border-[#d6d6d6] bg-white p-4 text-[#1b1b1b] shadow-2xl">
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <div class="text-sm uppercase tracking-[0.2em] text-[#777]">{{ locale === "zh-CN" ? "词条" : "Contingency Contracts" }}</div>
-            <button
-              type="button"
-              class="rounded-md border border-[#d7d7d7] bg-[#f7f7f7] px-3 py-1.5 text-sm text-[#444] transition hover:bg-[#efefef]"
-              @click="contractsPopupOpen = false"
-            >
-              {{ t("ui.close") }}
-            </button>
-          </div>
+      <RotationTriggersPopup
+        :open="triggersPopupOpen"
+        :vm="triggersPopupVm"
+        :enemies="props.enemies"
+        @close="triggersPopupOpen = false"
+      />
 
-          <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
-            <div class="contracts-scrollbar overflow-x-auto rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-3">
-              <div class="inline-flex min-w-full items-start gap-3">
-                <div
-                  v-for="contract in CONTINGENCY_CONTRACTS"
-                  :key="contract.id"
-                  class="min-w-[154px] rounded-lg border border-[#e3e3e3] bg-white p-2"
-                  @mouseenter="highlightedContractId = contract.id"
-                >
-                  <button
-                    v-for="variant in contract.variants"
-                    :key="variant.id"
-                    type="button"
-                    class="mb-2 block w-full rounded-md border px-2 py-2 text-left text-xs transition last:mb-0"
-                    :class="activeContingencyContracts.some((entry) => entry.id === contract.id && entry.variantId === variant.id)
-                      ? 'border-[#ea4f4f] bg-[#ffdede] text-[#6f0e0e]'
-                      : 'border-[#d6d6d6] bg-[#f8f8f8] text-[#444] hover:bg-[#fffde2]'"
-                    @click="toggleContractVariant(contract.id, variant.id)"
-                  >
-                    <div class="font-semibold leading-tight">
-                      {{ getLocalizedContingencyContractVariantName(variant, locale === "zh-CN" ? "zh-CN" : "en") }}
-                    </div>
-                    <div class="mt-1 text-[11px] leading-tight text-[#666]">
-                      {{ getLocalizedContingencyContractVariantDescription(variant, locale === "zh-CN" ? "zh-CN" : "en") }}
-                    </div>
-                    <div class="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a8a8a]">
-                      {{ `Lv ${variant.level}` }}
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-[#e4e4e4] bg-[#fafafa] p-3">
-              <div class="text-sm font-semibold text-[#1b1b1b]">
-                {{ locale === "zh-CN" ? `总等级：${contingencyTotalLevel}` : `Total Level: ${contingencyTotalLevel}` }}
-              </div>
-              <div class="mt-3 text-xs uppercase tracking-[0.16em] text-[#777]">{{ locale === "zh-CN" ? "已选词条" : "Selected Effects" }}</div>
-              <div class="contracts-scrollbar mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
-                <div
-                  v-for="entry in activeContractSummary"
-                  :key="entry.id"
-                  class="rounded-md border border-[#d8d8d8] bg-white p-2 text-xs"
-                >
-                  <div class="font-semibold text-[#1f1f1f]">{{ entry.name }}</div>
-                  <div class="mt-1 text-[#555]">{{ entry.description }}</div>
-                </div>
-                <div v-if="activeContractSummary.length === 0" class="rounded-md border border-dashed border-[#d2d2d2] p-2 text-xs text-[#777]">
-                  {{ locale === "zh-CN" ? "尚未选择词条。" : "No contracts selected." }}
-                </div>
-              </div>
-
-              <div v-if="highlightedContract" class="mt-4 rounded-md border border-[#d8d8d8] bg-white p-2 text-xs">
-                <div class="font-semibold text-[#1b1b1b]">{{ highlightedContract.name }}</div>
-                <div class="mt-1 text-[#555]">{{ highlightedContract.description }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div ref="timelineViewportEl" class="overflow-x-auto py-5">
+      <div ref="timelineViewportEl" class="max-h-[calc(72vh+200px)] overflow-auto py-5">
         <div class="min-w-full" :style="{ width: `${TRACK_LABEL_WIDTH + timelineWidth}px` }">
           <div class="grid grid-cols-[160px_minmax(0,1fr)]">
             <div class="sticky left-0 z-[30] border-b border-r border-[#ececec] bg-[#fafafa] px-4 py-3 text-sm font-medium text-[#5d5d5d]">
@@ -5251,13 +8377,14 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 }"
               >
                 <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
                 <div
                   v-for="second in realSeconds"
                   :key="`real-${second}`"
                   class="absolute top-1/2 text-[11px] text-[#7d7d7d]"
                   :style="getTickLabelStyle(timeToPx(second))"
                 >
-                  {{ second }}
+                  {{ formatDisplayedRealTime(second) }}
                 </div>
               </div>
             </div>
@@ -5278,6 +8405,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 }"
               >
                 <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
                 <div
                   v-for="second in gameSeconds"
                   :key="`game-line-${second.value}`"
@@ -5290,7 +8418,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   class="absolute top-1/2 text-[11px] text-[#7d7d7d]"
                   :style="getTickLabelStyle(timeToPx(second.realTime))"
                 >
-                  {{ second.value }}
+                  {{ formatDisplayedGameTime(second.value) }}
                 </div>
               </div>
 
@@ -5300,10 +8428,10 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 @mousedown.stop="startCursorDrag"
               >
                 <div class="absolute left-2 top-2 rounded bg-[#1b1b1b] px-2 py-1 text-[10px] font-medium text-white whitespace-nowrap">
-                  {{ t("rotation.cursorRealTime", { value: cursorTime.toFixed(2) }) }}
+                  {{ t("rotation.cursorRealTime", { value: formatDisplayedRealTime(cursorTime) }) }}
                 </div>
                 <div class="absolute left-2 top-8 rounded bg-[#3d3d3d] px-2 py-1 text-[10px] font-medium text-white whitespace-nowrap">
-                  {{ t("rotation.cursorGameTime", { value: cursorCombatState.cursorGameTime.toFixed(2) }) }}
+                  {{ t("rotation.cursorGameTime", { value: formatDisplayedGameTime(cursorCombatState.cursorGameTime) }) }}
                 </div>
               </div>
             </div>
@@ -5408,6 +8536,31 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 @drop="handleLaneDrop($event, (slotIndex - 1) as PartySlot)"
               >
                 <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
+                <div
+                  v-for="marker in countdownTimelineMarkers"
+                  :key="`party-countdown-${slotIndex}-${marker.triggerId}-${marker.instanceId}-${marker.time}-${marker.value}`"
+                  class="pointer-events-none absolute top-1 z-[6] flex -translate-x-1/2 flex-col items-center"
+                  :style="{ left: `${timeToPx(marker.time)}px` }"
+                >
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#fff7b8] text-[11px] font-bold text-[#4f4712] shadow-sm">
+                    {{ marker.value }}
+                  </div>
+                </div>
+                <div
+                  v-for="marker in relayTimelineMarkers"
+                  :key="`party-relay-${slotIndex}-${marker.triggerId}-${marker.instanceId}-${marker.time}`"
+                  class="pointer-events-none absolute inset-y-0 z-[7]"
+                  :style="{ left: `${timeToPx(marker.time)}px` }"
+                >
+                  <div class="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 rounded-full bg-[#4d8ac7]/70" />
+                  <div
+                    v-if="marker.nextRotationName"
+                    class="absolute left-1/2 top-1 -translate-x-1/2 whitespace-nowrap rounded-full border border-white bg-[#4d8ac7] px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                  >
+                    {{ locale === 'zh-CN' ? `前往${marker.nextRotationName}` : `To ${marker.nextRotationName}` }}
+                  </div>
+                </div>
                 <div class="absolute inset-x-0 top-0 h-7 border-b border-[#f1f1f1] bg-white/85">
                   <div
                     v-for="segment in laneControlSegments((slotIndex - 1) as PartySlot)"
@@ -5574,7 +8727,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     "
                   >
                     <div class="min-w-0 truncate">
-                      {{ t("rotation.startTiming", { game: action.startTime.toFixed(1), real: action.realStartTime.toFixed(1) }) }}
+                      {{ t("rotation.startTiming", { game: formatDisplayedGameTime(action.startTime), real: formatDisplayedRealTime(action.realStartTime) }) }}
                     </div>
                     <div class="min-w-0 truncate text-right">
                       {{
@@ -5602,7 +8755,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
 
                 <div
                   v-for="entry in simulation.timeline.filter((entry) => entry.slot === ((slotIndex - 1) as PartySlot))"
-                  :key="`${entry.stepId}-${entry.hitIndex}-${entry.time}-${entry.damage}`"
+                  :key="`${entry.slot}-${entry.stepId}-${entry.commandId}-${entry.hitIndex}-${entry.hitName ?? ''}-${entry.registerTime}-${entry.time}-${entry.targetEnemySlotId ?? 'none'}-${entry.damage}`"
                   class="absolute top-2 z-[12] h-24 w-0.5 bg-[#1b1b1b]/25"
                   :style="{ left: `${timeToPx(entry.time)}px` }"
                 >
@@ -5650,167 +8803,277 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
               </div>
             </template>
 
-            <button
-              type="button"
-              class="sticky left-0 z-[30] border-b border-r border-[#efefef] px-3 py-3 text-left transition hover:bg-[#fffef2]"
-              :class="sidebarMode === 'enemy' ? 'bg-[#fff8bf]' : 'bg-white'"
-              @click="sidebarMode = 'enemy'"
-            >
-              <div class="grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-2">
-                <div class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#1b1b1b] text-xs font-semibold text-white">
-                  <img
-                    v-if="!enemyTimelineIconBroken"
-                    :src="getEnemyIconPath(currentEnemyData?.id ?? props.selectedEnemyId)"
-                    :alt="currentEnemyData ? getEnemyLocalizedName(currentEnemyData) : props.enemyName"
-                    class="h-full w-full object-cover"
-                    @error="enemyTimelineIconBroken = true"
-                  >
-                  <span v-else class="absolute inset-0 flex items-center justify-center">
-                    {{ getAvatarInitials(currentEnemyData ? getEnemyLocalizedName(currentEnemyData) : props.enemyName) }}
-                  </span>
-                </div>
-                <div class="min-w-0 self-center">
-                  <div class="truncate text-sm font-medium text-[#1b1b1b]">
-                    {{ currentEnemyData ? getEnemyLocalizedName(currentEnemyData) : props.enemyName }}
+            <template v-for="enemySlot in visibleEnemySlots" :key="enemySlot.slotId">
+              <button
+                type="button"
+                class="sticky left-0 z-[30] border-b border-r border-[#efefef] px-3 py-3 text-left transition hover:bg-[#fffef2]"
+                :class="[
+                  sidebarMode === 'enemy' && selectedEnemyEditorSlot?.slotId === enemySlot.slotId ? 'bg-[#fff8bf]' : 'bg-white',
+                  selectedEnemyEditorSlot?.slotId === enemySlot.slotId ? 'ring-1 ring-inset ring-[#c8d13c]' : '',
+                ]"
+                :style="isEnemyInactiveForSlot(enemySlot.slotId) ? 'filter: grayscale(1); opacity: 0.6;' : ''"
+                @click="
+                  sidebarMode = 'enemy';
+                  selectEnemyEditorSlot(enemySlot.slotId);
+                "
+              >
+                <div class="grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-2">
+                  <div class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#1b1b1b] text-xs font-semibold text-white">
+                    <img
+                      v-if="!enemyTimelineIconBrokenBySlot[enemySlot.slotId]"
+                      :src="getEnemyIconPath(getEnemyDataForSlot(enemySlot.slotId)?.id ?? enemySlot.enemyId)"
+                      :alt="getEnemyDataForSlot(enemySlot.slotId) ? getEnemyLocalizedName(getEnemyDataForSlot(enemySlot.slotId)!) : t('enemy.noEnemy')"
+                      class="h-full w-full object-cover"
+                      @error="enemyTimelineIconBrokenBySlot[enemySlot.slotId] = true"
+                    >
+                    <span v-else class="absolute inset-0 flex items-center justify-center">
+                      {{ getAvatarInitials(getEnemyDataForSlot(enemySlot.slotId) ? getEnemyLocalizedName(getEnemyDataForSlot(enemySlot.slotId)!) : t("enemy.noEnemy")) }}
+                    </span>
                   </div>
-                </div>
-
-                <div class="col-span-2 min-w-0">
-                  <div class="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.1em] text-[#7a7a7a]">
-                    <span>{{ t("enemy.hp") }}</span>
-                    <span>{{ currentEnemyDisplayedHp.toFixed(0) }} / {{ currentEnemyDisplayedMaxHp.toFixed(0) }}</span>
-                  </div>
-                  <div class="h-2 overflow-hidden rounded-full bg-[#ececec]">
+                  <div class="min-w-0 self-center">
+                    <div class="truncate text-sm font-medium text-[#1b1b1b]">
+                      {{ getEnemyDataForSlot(enemySlot.slotId) ? getEnemyLocalizedName(getEnemyDataForSlot(enemySlot.slotId)!) : t("enemy.noEnemy") }}
+                    </div>
                     <div
-                      class="h-full bg-[#d86c6c]"
-                      :style="{ width: `${Math.max(0, currentEnemyDisplayedHp / Math.max(1, currentEnemyDisplayedMaxHp)) * 100}%` }"
-                    />
+                      v-if="getEnemyLifecycleLabel(enemySlot.slotId)"
+                      class="truncate text-[11px] text-[#c23f3f]"
+                    >
+                      {{ getEnemyLifecycleLabel(enemySlot.slotId) }}
+                    </div>
                   </div>
-                </div>
 
-                <div class="col-span-2 min-w-0">
-                  <div class="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.1em] text-[#7a7a7a]">
-                    <span>{{ t("enemy.staggerGauge") }}</span>
-                    <span>{{ currentEnemyState.currentStagger.toFixed(1) }} / {{ currentEnemyState.staggerGauge.toFixed(1) }}</span>
-                  </div>
-                  <div class="h-2 overflow-hidden rounded-full bg-[#ececec]">
-                    <div class="relative h-full w-full">
+                  <div class="col-span-2 min-w-0">
+                    <div class="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.1em] text-[#7a7a7a]">
+                      <span>{{ t("enemy.hp") }}</span>
+                      <span>{{ getEnemyDisplayedHpForSlot(enemySlot.slotId).toFixed(0) }} / {{ getEnemyDisplayedMaxHpForSlot(enemySlot.slotId).toFixed(0) }}</span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded-full bg-[#ececec]">
                       <div
-                        v-for="(section, sectionIndex) in enemyStaggerSections"
-                        :key="`enemy-stagger-section-${sectionIndex}`"
-                        class="absolute inset-y-0"
-                        :style="{
-                          left: `${section.start * 100}%`,
-                          width: `${(section.end - section.start) * 100}%`,
-                        }"
-                      >
-                        <div
-                          class="h-full"
-                          :class="currentEnemyState.isStaggered ? 'bg-[#ece81a]' : 'bg-[#c8d13c]'"
-                          :style="{ width: `${section.fill * 100}%` }"
-                        />
-                      </div>
-                      <div
-                        v-for="(nodePercent, nodeIndex) in enemyStaggerNodePercents"
-                        :key="`enemy-stagger-node-${nodeIndex}`"
-                        class="absolute inset-y-0 w-px bg-[#1b1b1b]/25"
-                        :style="{ left: `${nodePercent * 100}%` }"
+                        class="h-full bg-[#d86c6c]"
+                        :style="{ width: `${Math.max(0, getEnemyDisplayedHpForSlot(enemySlot.slotId) / Math.max(1, getEnemyDisplayedMaxHpForSlot(enemySlot.slotId))) * 100}%` }"
                       />
                     </div>
                   </div>
-                </div>
-              </div>
-            </button>
 
-            <div
-              class="relative h-28 overflow-hidden border-b border-[#efefef]"
-              :style="{
-                width: `${timelineWidth}px`,
-                backgroundImage: 'repeating-linear-gradient(to right, rgba(27,27,27,0.05) 0, rgba(27,27,27,0.05) 1px, transparent 1px, transparent 116px)',
-              }"
-              @click="setCursorFromLane"
-              @dragover.prevent
-              @drop="handleEnemyLaneDrop"
-            >
-              <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
-              <div
-                v-for="window in enemyInvulnerabilityWindows"
-                :key="`enemy-${window.id}-${window.start}-${window.end}`"
-                class="pointer-events-none absolute inset-y-0 border-x border-[#c74d4d]/50"
-                :style="{
-                  left: `${timeToPx(window.start)}px`,
-                  width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
-                  backgroundColor: window.color,
-                }"
-              />
-              <div
-                v-for="window in enemyPhaseTransitionWindows"
-                :key="`enemy-phase-${window.id}-${window.start}-${window.end}`"
-                class="pointer-events-none absolute inset-y-0 z-[2] border-x"
-                :style="{
-                  left: `${timeToPx(window.start)}px`,
-                  width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
-                  backgroundColor: window.color,
-                  borderColor: window.borderColor,
-                }"
-              />
-              <button
-                v-for="command in enemyTimelineCommands"
-                :key="`enemy-cmd-${command.id}`"
-                type="button"
-                class="absolute z-[6] select-none overflow-hidden rounded-2xl border px-3 py-2 text-left shadow-sm transition active:cursor-grabbing"
-                :class="[
-                  command.commandId === 'phase_transition' ? 'top-0 z-[9] h-full' : 'top-8 h-[4.5rem]',
-                  isEnemyCommandSelected(command.id)
-                    ? 'border-[#c8d13c] bg-[#eef38d]'
-                    : getEnemyCommandValidation(command.id)
-                    ? 'border-[#e5b2b2] bg-[#fff1f1] hover:border-[#d98d8d]'
-                    : command.interrupted
-                      ? 'border-[#dfc3a5] bg-[#fff3e8] hover:border-[#d6a67a]'
-                      : 'border-[#d1d1d1] bg-white hover:border-[#c8d13c]',
-                ]"
-                :style="{
-                  left: `${timeToPx(command.startTime)}px`,
-                  width: `${Math.max(44, (command.endTime - command.startTime) * AXIS_SCALE)}px`,
-                }"
-                @mousedown.stop="startEnemyCommandBlockDrag($event, command.id)"
-                @touchstart.stop="startEnemyTouchPress($event, command.id)"
-                @click.stop="
-                  selectEnemyCommand(command.id);
-                  cursorTime = clampCursorTime(command.startTime);
-                "
-                @dragstart.prevent
-              >
-                <div
-                  class="truncate text-[12px] font-semibold uppercase tracking-[0.06em]"
-                  :class="
-                    getEnemyCommandValidation(command.id)
-                      ? 'text-[#8b2d2d]'
-                      : command.interrupted
-                        ? 'text-[#7f4b1f]'
-                        : 'text-[#3d3d3d]'
-                  "
-                >
-                  {{ command.label }}
-                </div>
-                <div class="mt-1 text-[11px]" :class="getEnemyCommandValidation(command.id) ? 'text-[#7a5858]' : 'text-[#666]'">
-                  {{ command.startTime.toFixed(1) }}s
-                </div>
-                <div
-                  v-if="command.interrupted"
-                  class="mt-1 inline-flex rounded bg-[#f2bf87] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#6a3d0f]"
-                >
-                  Interrupted
-                </div>
-                <div v-if="getEnemyCommandValidation(command.id)" class="truncate text-[10px] text-[#b14545]">
-                  {{ getEnemyCommandValidation(command.id) }}
+                  <div class="col-span-2 min-w-0">
+                    <div class="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.1em] text-[#7a7a7a]">
+                      <span>{{ t("enemy.staggerGauge") }}</span>
+                      <span>{{ getEnemyStateForSlot(enemySlot.slotId).currentStagger.toFixed(1) }} / {{ getEnemyStateForSlot(enemySlot.slotId).staggerGauge.toFixed(1) }}</span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded-full bg-[#ececec]">
+                      <div class="relative h-full w-full">
+                        <div
+                          v-for="(section, sectionIndex) in getEnemyStaggerSectionsForSlot(enemySlot.slotId)"
+                          :key="`${enemySlot.slotId}-enemy-stagger-section-${sectionIndex}`"
+                          class="absolute inset-y-0"
+                          :style="{
+                            left: `${section.start * 100}%`,
+                            width: `${(section.end - section.start) * 100}%`,
+                          }"
+                        >
+                          <div
+                            class="h-full"
+                            :class="getEnemyStateForSlot(enemySlot.slotId).isStaggered ? 'bg-[#ece81a]' : 'bg-[#c8d13c]'"
+                            :style="{ width: `${section.fill * 100}%` }"
+                          />
+                        </div>
+                        <div
+                          v-for="(nodePercent, nodeIndex) in getEnemyStaggerNodePercentsForSlot(enemySlot.slotId)"
+                          :key="`${enemySlot.slotId}-enemy-stagger-node-${nodeIndex}`"
+                          class="absolute inset-y-0 w-px bg-[#1b1b1b]/25"
+                          :style="{ left: `${nodePercent * 100}%` }"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </button>
+
               <div
-                class="absolute top-0 z-[8] h-full w-0.5 bg-[#1b1b1b]"
-                :style="{ left: `${timeToPx(cursorTime)}px` }"
-                @mousedown.stop="startCursorDrag"
-              />
+                class="relative h-28 overflow-hidden border-b border-[#efefef]"
+                :class="isTargetedEnemySlot(enemySlot.slotId) ? 'bg-[#fffef6]' : ''"
+                :style="{
+                  width: `${timelineWidth}px`,
+                  backgroundImage: 'repeating-linear-gradient(to right, rgba(27,27,27,0.05) 0, rgba(27,27,27,0.05) 1px, transparent 1px, transparent 116px)',
+                }"
+                @click="
+                  setCursorFromLane($event);
+                "
+                @dragover.prevent
+                @drop="handleEnemyLaneDrop($event, enemySlot.slotId)"
+              >
+                <div
+                  v-if="hasEnemySpawnTimeForSlot(enemySlot.slotId)"
+                  class="pointer-events-none absolute inset-y-0 left-0 z-[2] border-r border-[#6d7a8f]/25 bg-[#aab5c7]/18"
+                  :style="{
+                    width: `${Math.max(0, Math.min(timelineWidth, timeToPx(getEnemySpawnTimeForSlot(enemySlot.slotId) ?? 0)))}px`,
+                  }"
+                />
+                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
+                <div
+                  v-for="marker in countdownTimelineMarkers"
+                  :key="`${enemySlot.slotId}-countdown-${marker.triggerId}-${marker.instanceId}-${marker.time}-${marker.value}`"
+                  class="pointer-events-none absolute top-1 z-[6] flex -translate-x-1/2 flex-col items-center"
+                  :style="{ left: `${timeToPx(marker.time)}px` }"
+                >
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#fff7b8] text-[11px] font-bold text-[#4f4712] shadow-sm">
+                    {{ marker.value }}
+                  </div>
+                </div>
+                <div
+                  v-for="marker in relayTimelineMarkers"
+                  :key="`${enemySlot.slotId}-relay-${marker.triggerId}-${marker.instanceId}-${marker.time}`"
+                  class="pointer-events-none absolute inset-y-0 z-[7]"
+                  :style="{ left: `${timeToPx(marker.time)}px` }"
+                >
+                  <div class="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 rounded-full bg-[#4d8ac7]/70" />
+                  <div
+                    v-if="marker.nextRotationName"
+                    class="absolute left-1/2 top-1 -translate-x-1/2 whitespace-nowrap rounded-full border border-white bg-[#4d8ac7] px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                  >
+                    {{ locale === 'zh-CN' ? `前往${marker.nextRotationName}` : `To ${marker.nextRotationName}` }}
+                  </div>
+                </div>
+                <div
+                  v-for="segment in laneTargetEnemySegments(enemySlot.slotId)"
+                  :key="`${enemySlot.slotId}-target-segment-${segment.startTime}-${segment.endTime}`"
+                  class="pointer-events-none absolute top-4 z-[4] h-1 rounded-full bg-[#dd8f2c]"
+                  :style="{
+                    left: `${timeToPx(segment.startTime)}px`,
+                    width: `${Math.max(6, (segment.endTime - segment.startTime) * AXIS_SCALE)}px`,
+                  }"
+                />
+                <div
+                  v-for="marker in laneTargetEnemyMarkers(enemySlot.slotId)"
+                  :key="`${enemySlot.slotId}-target-marker-${marker.commandPlacementId}`"
+                  class="pointer-events-none absolute top-1 z-[5]"
+                  :style="{ left: `${timeToPx(marker.time)}px` }"
+                >
+                  <div
+                    class="absolute left-1/2 top-4 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-white bg-[#dd8f2c] shadow-sm"
+                  />
+                </div>
+                <div
+                  v-for="marker in enemyLifecycleMarkersBySlot[enemySlot.slotId] ?? []"
+                  :key="`${enemySlot.slotId}-enemy-lifecycle-${marker.time}-${marker.type}-${marker.enemyId}`"
+                  class="pointer-events-none absolute top-1 z-[5] flex -translate-x-1/2 flex-col items-center gap-1"
+                  :style="{ left: `${timeToPx(marker.time)}px` }"
+                >
+                  <div class="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-white bg-[#1b1b1b] shadow-sm">
+                    <img
+                      :src="getEnemyIconPath(marker.enemyId)"
+                      :alt="findEnemyById(marker.enemyId) ? getEnemyLocalizedName(findEnemyById(marker.enemyId)!) : marker.enemyId"
+                      class="h-full w-full object-cover"
+                    >
+                  </div>
+                  <div class="whitespace-nowrap rounded bg-white/95 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-[#7a2e2e] shadow-sm">
+                    {{ getEnemyLifecycleMarkerCaption(marker.type) }}
+                  </div>
+                </div>
+                <div
+                  v-for="window in getEnemyInvulnerabilityWindowsForSlot(enemySlot.slotId)"
+                  :key="`${enemySlot.slotId}-enemy-${window.id}-${window.start}-${window.end}`"
+                  class="pointer-events-none absolute inset-y-0 border-x border-[#c74d4d]/50"
+                  :style="{
+                    left: `${timeToPx(window.start)}px`,
+                    width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
+                    backgroundColor: window.color,
+                  }"
+                />
+                <div
+                  v-for="window in getEnemyPhaseTransitionWindowsForSlot(enemySlot.slotId)"
+                  :key="`${enemySlot.slotId}-enemy-phase-${window.id}-${window.start}-${window.end}`"
+                  class="pointer-events-none absolute inset-y-0 z-[2] border-x"
+                  :style="{
+                    left: `${timeToPx(window.start)}px`,
+                    width: `${Math.max(1, (window.end - window.start) * AXIS_SCALE)}px`,
+                    backgroundColor: window.color,
+                    borderColor: window.borderColor,
+                  }"
+                />
+                <button
+                  v-for="command in enemyTimelineCommandsForAllSlots[enemySlot.slotId] ?? []"
+                  :key="`${enemySlot.slotId}-enemy-cmd-${command.id}`"
+                  type="button"
+                  class="absolute z-[6] select-none overflow-hidden rounded-2xl border px-3 py-2 text-left shadow-sm transition active:cursor-grabbing"
+                  :class="[
+                    command.commandId === 'phase_transition' ? 'top-0 z-[9] h-full' : 'top-8 h-[4.5rem]',
+                    isEnemyCommandSelected(command.id, enemySlot.slotId)
+                      ? 'border-[#c8d13c] bg-[#eef38d]'
+                      : getEnemyCommandValidation(command.id, enemySlot.slotId)
+                      ? 'border-[#e5b2b2] bg-[#fff1f1] hover:border-[#d98d8d]'
+                      : command.interrupted
+                        ? 'border-[#dfc3a5] bg-[#fff3e8] hover:border-[#d6a67a]'
+                        : 'border-[#d1d1d1] bg-white hover:border-[#c8d13c]',
+                  ]"
+                  :style="{
+                    left: `${timeToPx(command.startTime)}px`,
+                    width: `${Math.max(44, (command.endTime - command.startTime) * AXIS_SCALE)}px`,
+                  }"
+                  @mousedown.stop="startEnemyCommandBlockDrag($event, command.id, enemySlot.slotId)"
+                  @touchstart.stop="startEnemyTouchPress($event, command.id, enemySlot.slotId)"
+                  @click.stop="
+                    selectEnemyCommandForSlot(command.id, enemySlot.slotId);
+                    cursorTime = clampCursorTime(command.startTime);
+                  "
+                  @dragstart.prevent
+                >
+                  <div
+                    class="truncate text-[12px] font-semibold uppercase tracking-[0.06em]"
+                    :class="
+                      getEnemyCommandValidation(command.id, enemySlot.slotId)
+                        ? 'text-[#8b2d2d]'
+                        : command.interrupted
+                          ? 'text-[#7f4b1f]'
+                          : 'text-[#3d3d3d]'
+                    "
+                  >
+                    {{ command.label }}
+                  </div>
+                  <div class="mt-1 text-[11px]" :class="getEnemyCommandValidation(command.id, enemySlot.slotId) ? 'text-[#7a5858]' : 'text-[#666]'">
+                    {{ formatDisplayedRealTime(command.startTime) }}s
+                  </div>
+                  <div
+                    v-if="command.interrupted"
+                    class="mt-1 inline-flex rounded bg-[#f2bf87] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#6a3d0f]"
+                  >
+                    Interrupted
+                  </div>
+                  <div v-if="getEnemyCommandValidation(command.id, enemySlot.slotId)" class="truncate text-[10px] text-[#b14545]">
+                    {{ getEnemyCommandValidation(command.id, enemySlot.slotId) }}
+                  </div>
+                </button>
+                <div
+                  class="absolute top-0 z-[8] h-full w-0.5 bg-[#1b1b1b]"
+                  :style="{ left: `${timeToPx(cursorTime)}px` }"
+                  @mousedown.stop="startCursorDrag"
+                />
+              </div>
+            </template>
+
+            <button
+              v-if="visibleEnemySlots.length < 10"
+              type="button"
+              class="sticky left-0 z-[30] flex items-center justify-center border-b border-r border-[#efefef] bg-white px-3 py-3 text-[#777] transition hover:bg-[#fffef2] hover:text-[#333]"
+              @click="addEnemySlot"
+            >
+              <div class="flex h-full min-h-[5rem] w-full items-center justify-center rounded-xl border-2 border-dashed border-[#d8d8d8] bg-[#fafafa]">
+                <span class="text-3xl leading-none">+</span>
+              </div>
+            </button>
+            <div
+              v-if="visibleEnemySlots.length < 10"
+              class="relative flex h-28 items-center justify-center overflow-hidden border-b border-[#efefef] bg-[#fbfbfb]"
+              :style="{ width: `${timelineWidth}px` }"
+            >
+              <button
+                type="button"
+                class="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-[#d2d2d2] bg-white text-3xl text-[#777] transition hover:border-[#c8d13c] hover:bg-[#fffef2] hover:text-[#333]"
+                @click="addEnemySlot"
+              >
+                +
+              </button>
             </div>
           </div>
         </div>
@@ -5818,8 +9081,14 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
 
       <div class="border-t border-[#ececec] px-5 py-4">
         <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_260px_260px]">
-          <section class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4">
+          <section
+            class="rounded-xl border border-[#e4e4e4] bg-[#fbfbfb] p-4"
+            :class="isActiveSchemeRelayed ? 'opacity-60' : ''"
+          >
             <div class="mb-3 text-sm font-semibold text-[#1b1b1b]">{{ t("rotation.battleStart") }}</div>
+            <div v-if="isActiveSchemeRelayed" class="mb-3 text-xs text-[#7a7a7a]">
+              {{ locale === 'zh-CN' ? '接力模式下保留此设置，但当前轮次不会使用。' : 'Relay mode preserves this setup, but the current rotation does not use it.' }}
+            </div>
             <div class="grid max-w-[560px] grid-cols-1 gap-4 md:grid-cols-2">
               <label class="block">
                 <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.startingSp") }}</div>
@@ -5829,6 +9098,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   min="0"
                   step="10"
                   class="w-full rounded-lg border border-[#d7d7d7] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#c8d13c]"
+                  :disabled="isActiveSchemeRelayed"
                   @input="teamSpConfig.initialSp = Number(($event.target as HTMLInputElement).value)"
                 >
               </label>
@@ -5841,6 +9111,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   min="0"
                   step="0.5"
                   class="w-full rounded-lg border border-[#d7d7d7] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#c8d13c]"
+                  :disabled="isActiveSchemeRelayed"
                   @input="teamSpConfig.spRegenRate = Number(($event.target as HTMLInputElement).value)"
                 >
               </label>
@@ -5862,7 +9133,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             <div class="flex items-center justify-between gap-3">
               <div class="text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.teamSp") }}</div>
               <div class="text-xs text-[#777]">
-                {{ t("rotation.realTime") }} {{ formatTime(cursorCombatState.cursorTime) }}s · {{ t("rotation.gameTime") }} {{ formatTime(cursorCombatState.cursorGameTime) }}s
+                {{ t("rotation.realTime") }} {{ formatDisplayedRealTime(cursorCombatState.cursorTime) }}s · {{ t("rotation.gameTime") }} {{ formatDisplayedGameTime(cursorCombatState.cursorGameTime) }}s
               </div>
             </div>
             <div class="mt-2 text-2xl font-semibold text-[#1b1b1b]">
@@ -5963,7 +9234,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   }}
                 </div>
               </div>
-              <div class="text-xs font-medium text-[#666]">{{ entry.time.toFixed(2) }}s</div>
+              <div class="text-xs font-medium text-[#666]">{{ formatDisplayedRealTime(entry.time) }}s</div>
               <div class="grid grid-cols-3 items-center gap-2 text-right">
                 <div
                   class="font-medium"
@@ -6023,7 +9294,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     {{ formatEventType(event.type) }} · {{ event.label }}
                   </div>
                   <div class="text-right text-xs font-medium text-[#666]">
-                    {{ event.time.toFixed(2) }}s
+                    {{ formatDisplayedRealTime(event.time) }}s
                   </div>
                 </div>
               </summary>
@@ -6077,7 +9348,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     {{ entry.triggered ? t("rotation.triggeredShort") : t("rotation.blockedShort") }} · {{ entry.characterName ?? entry.characterId ?? `Slot ${entry.slot + 1}` }} · {{ entry.sourceEventType }}
                   </div>
                   <div class="text-right text-xs font-medium text-[#666]">
-                    {{ entry.time.toFixed(2) }}s
+                    {{ formatDisplayedRealTime(entry.time) }}s
                   </div>
                 </div>
               </summary>
@@ -6131,7 +9402,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     {{ formatPassiveListenerKind(entry.listenerKind) }} · {{ entry.characterName }} · {{ formatEventType(entry.eventType) }} · {{ entry.listenerPresent ? t("rotation.presentShort") : t("rotation.missingShort") }}
                   </div>
                   <div class="text-right text-xs font-medium text-[#666]">
-                    {{ entry.time.toFixed(2) }}s
+                    {{ formatDisplayedRealTime(entry.time) }}s
                   </div>
                 </div>
               </summary>
@@ -6181,7 +9452,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             </div>
           </div>
           <div class="col-span-2 text-xs text-[#777]">
-            {{ enemyName }} {{ t("enemy.level") }} {{ enemyLevel }} · {{ t("rotation.realTime") }} {{ formatTime(simulation.totalTime) }}s · {{ t("rotation.gameTime") }} {{ formatTime(simulation.totalGameTime) }}s
+            {{ enemyName }} {{ t("enemy.level") }} {{ enemyLevel }} · {{ t("rotation.realTime") }} {{ formatDisplayedRealTime(simulation.totalTime) }}s · {{ t("rotation.gameTime") }} {{ formatDisplayedGameTime(simulation.totalGameTime) }}s
           </div>
           <div
             v-if="simulation.warnings && simulation.warnings.length > 0"
@@ -6328,6 +9599,51 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             No numeric buff entries.
           </div>
         </div>
+      </div>
+    </div>
+
+    <div
+      v-if="rotationMetadataEditorOpen"
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+    >
+      <div class="w-full max-w-2xl rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-lg">
+        <div class="text-base font-semibold text-[#1b1b1b]">{{ t("rotation.editRotationTitle") }}</div>
+        <form class="mt-4 space-y-4" @submit.prevent="submitRotationMetadataEdit">
+          <label class="block">
+            <div class="mb-1 text-sm font-medium text-[#444]">{{ t("buildList.nameLabel") }}</div>
+            <input
+              v-model="rotationNameDraft"
+              type="text"
+              maxlength="48"
+              class="w-full rounded-md border border-[#cccccc] bg-white px-3 py-2 text-sm text-[#1b1b1b] outline-none focus:border-[#b1b1b1]"
+              autofocus
+            />
+          </label>
+          <label class="block">
+            <div class="mb-1 text-sm font-medium text-[#444]">{{ t("buildList.descriptionLabel") }}</div>
+            <textarea
+              v-model="rotationDescriptionDraft"
+              rows="5"
+              maxlength="1000"
+              class="w-full rounded-md border border-[#cccccc] bg-white px-3 py-2 text-sm text-[#1b1b1b] outline-none focus:border-[#b1b1b1]"
+            />
+          </label>
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              class="rounded border border-[#d1d1d1] bg-white px-3 py-1.5 text-sm text-[#444] hover:bg-[#f3f3f3]"
+              @click="closeRotationMetadataEditor"
+            >
+              {{ t("ui.cancel") }}
+            </button>
+            <button
+              type="submit"
+              class="rounded border border-[#cecece] bg-[#f7f7f7] px-3 py-1.5 text-sm text-[#444] hover:bg-[#efefef]"
+            >
+              {{ t("ui.save") }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 

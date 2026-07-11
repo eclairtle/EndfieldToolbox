@@ -94,6 +94,8 @@ function localizeDamageType(label: string) {
           <div class="mt-1 space-y-1">
             <div>{{ t("hitDetails.finalAtk") }}: {{ selectedHitDetails.ctx.finalAtk.toFixed(2) }}</div>
             <div>{{ t("hitDetails.dmgBonus") }}: +{{ (selectedHitDetails.totalDamageBonus * 100).toFixed(1) }}%</div>
+            <div>{{ t("hitDetails.contractModifier") }}: ×{{ selectedHitDetails.contractDamageMultiplier.toFixed(4) }}</div>
+            <div v-if="Math.abs(selectedHitDetails.contractFlatModifier) > 1e-9">{{ t("hitDetails.contractFlatModifier") }}: {{ formatDamage(selectedHitDetails.contractFlatModifier) }}</div>
             <div>{{ t("hitDetails.dmgAmp") }}: ×{{ selectedHitDetails.dmgAmpMultiplier.toFixed(4) }}</div>
             <div>{{ t("hitDetails.dmgTaken") }}: ×{{ selectedHitDetails.damageTakenMultiplier.toFixed(4) }}</div>
             <div>{{ t("hitDetails.resistance") }}: {{ (selectedHitDetails.effectiveResistance * 100).toFixed(1) }}% (×{{ selectedHitDetails.resistanceMultiplier.toFixed(4) }})</div>

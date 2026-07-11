@@ -2,17 +2,17 @@ import type { CharacterBase } from "@/data/characters";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
 const CATCHER_COMMANDS: CommandDefinition[] = [
-  { id: "catcher_basic_sequence", name: "Basic Attack Sequence", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "cycling", durationFrames: flat12(237), spCost: flat12(0), hits: [
+  { id: "catcher_basic_sequence", name: "Basic Attack Sequence", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", durationFrames: flat12(237), spCost: flat12(0), hits: [
       { name: "Hit 1", multiplier: pct([35, 39, 42, 46, 49, 53, 56, 60, 63, 67, 73, 79]), offsetFrames: flat12(24) },
       { name: "Hit 2", multiplier: pct([39, 42, 46, 50, 54, 58, 62, 65, 69, 74, 80, 87]), offsetFrames: flat12(64) },
       { name: "Hit 3", multiplier: pct([54, 59, 65, 70, 76, 81, 86, 92, 97, 104, 112, 122]), offsetFrames: flat12(119) },
       { name: "Hit 4", multiplier: pct([71, 78, 85, 92, 99, 107, 114, 121, 128, 137, 147, 160]), offsetFrames: flat12(192) },
   ] },
-  { id: "catcher_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
-  { id: "catcher_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
-  { id: "catcher_battle_skill", name: "Battle Skill", skill: "battleSkill", attackType: "BATTLE_SKILL", damageType: "Physical", mode: "single", durationFrames: flat12(190), spCost: flat12(100), energyGain: flat12(0), hits: [{ multiplier: pct([178, 196, 213, 231, 249, 267, 285, 302, 320, 342, 369, 400]), stagger: flat12(10), offsetFrames: flat12(166) }] },
-  { id: "catcher_combo_skill", name: "Combo Skill", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Physical", mode: "single", durationFrames: flat12(48), spCost: flat12(0), hits: [{ multiplier: pct([100, 110, 120, 130, 140, 150, 160, 170, 180, 193, 208, 225]), stagger: flat12(10), offsetFrames: flat12(34) }] },
-  { id: "catcher_ultimate", name: "Ultimate", skill: "ultimate", attackType: "ULTIMATE", damageType: "Physical", mode: "single", durationFrames: flat12(206), spCost: flat12(0), energyCost: flat12(72), hits: [
+  { id: "catcher_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
+  { id: "catcher_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Physical", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
+  { id: "catcher_battle_skill", name: "Battle Skill", skill: "battleSkill", attackType: "BATTLE_SKILL", damageType: "Physical", durationFrames: flat12(190), spCost: flat12(100), energyGain: flat12(0), hits: [{ multiplier: pct([178, 196, 213, 231, 249, 267, 285, 302, 320, 342, 369, 400]), stagger: flat12(10), offsetFrames: flat12(166) }] },
+  { id: "catcher_combo_skill", name: "Combo Skill", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Physical", durationFrames: flat12(48), spCost: flat12(0), hits: [{ multiplier: pct([100, 110, 120, 130, 140, 150, 160, 170, 180, 193, 208, 225]), stagger: flat12(10), energyReturn: flat12(10), offsetFrames: flat12(34) }] },
+  { id: "catcher_ultimate", name: "Ultimate", skill: "ultimate", attackType: "ULTIMATE", damageType: "Physical", durationFrames: flat12(206), spCost: flat12(0), energyCost: flat12(72), hits: [
       { name: "Seq 1", multiplier: pct([89, 98, 107, 116, 125, 134, 143, 151, 160, 172, 185, 200]), offsetFrames: flat12(92) },
       { name: "Seq 2", multiplier: pct([120, 132, 144, 156, 168, 180, 192, 204, 216, 231, 249, 270]), offsetFrames: flat12(128) },
       { name: "Seq 3", multiplier: pct([178, 196, 213, 231, 249, 267, 284, 302, 320, 342, 369, 400]), offsetFrames: flat12(170) },

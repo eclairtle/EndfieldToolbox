@@ -1,4 +1,5 @@
 import { type EnemyBase } from "@/data/enemies";
+import { inferEnemyRank } from "@/data/enemies/ranks";
 import { DEFAULT_ENEMY_ATK_SCALING, DEFAULT_ENEMY_HP_SCALING } from "@/lib/enemy/enemyScaling";
 
 type AggeloiEnemyInput = {
@@ -14,12 +15,14 @@ type AggeloiEnemyInput = {
   finisherMultiplier: number;
   finisherSpGain: number;
   resistances?: Partial<EnemyBase["resistances"]>;
+  listeners?: EnemyBase["listeners"];
 };
 
 function makeAggeloiEnemy(input: AggeloiEnemyInput): EnemyBase {
   return {
     id: input.id,
     name: input.name,
+    rank: inferEnemyRank(input.id),
     baseHpLv1: input.baseHpLv1,
     baseAtkLv1: input.baseAtkLv1,
     hpScalingModel: DEFAULT_ENEMY_HP_SCALING,
@@ -40,6 +43,7 @@ function makeAggeloiEnemy(input: AggeloiEnemyInput): EnemyBase {
     staggerRecoverySeconds: input.staggerRecoverySeconds,
     finisherMultiplier: input.finisherMultiplier,
     finisherSpGain: input.finisherSpGain,
+    listeners: input.listeners,
   };
 }
 
@@ -191,6 +195,25 @@ export const NEFARITH_BONEKRUSHER = makeAggeloiEnemy({
   staggerRecoverySeconds: 11,
   finisherMultiplier: 1.75,
   finisherSpGain: 100,
+  listeners: [
+    {
+      eventType: "ENEMY_DEFEATED",
+      actionWindow: {
+        commandId: "phase_transition",
+        label: "Phase Transition",
+        durationSeconds: 0.5,
+        startEffects: [
+          { type: "RESET_STAGGER" },
+          { type: "INTERRUPT_ONGOING_COMMANDS" },
+          { type: "REINITIALIZE_COMBAT" },
+        ],
+        endEffects: [
+          { type: "CLEAR_FIELD_EFFECTS" },
+          { type: "TRANSFORM_ENEMY", enemyId: "nefarith_conqueror", resetHp: true },
+        ],
+      },
+    },
+  ],
 });
 
 export const NEFARITH_CONQUEROR = makeAggeloiEnemy({

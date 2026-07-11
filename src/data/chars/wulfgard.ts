@@ -7,8 +7,14 @@ const WULFGARD_SCORCHING_FANGS_BUFF_ID = "wulfgard_scorching_fangs";
 const WULFGARD_COMBAT_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
     if (ctx.event.type === "ARTS_INFLICTION_APPLIED") {
-      const artsInfliction = ctx.state.getEnemyArtsInfliction();
-      if (artsInfliction?.element === "Heat") {
+      const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+      const enemySlotIds = affectedEnemySlotIds.length > 0
+        ? affectedEnemySlotIds
+        : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+      if (enemySlotIds.some((enemySlotId) => {
+        const element = ctx.state.getEnemyArtsInfliction(enemySlotId)?.element;
+        return element === "Heat" || element === "Nature";
+      })) {
         ctx.state.triggerSelfCombo({
           label: "Wulfgard Combo Triggered",
           sourceEventType: "ARTS_INFLICTION_APPLIED",
@@ -242,8 +248,7 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
-    basicAttackVariant: "finisher",
-    mode: "single",
+    basicAttackVariant: "finisher", targets: "finisher",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
@@ -260,7 +265,6 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     attackType: "BASIC_ATTACK",
     damageType: "Heat",
     basicAttackVariant: "dive_attack",
-    mode: "single",
     durationFrames: flat12(60),
     spCost: flat12(0),
     hits: [
@@ -276,7 +280,6 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Heat",
-    mode: "single",
     durationFrames: flat12(64.2),
     spCost: flat12(100),
     transforms: [
@@ -314,7 +317,6 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     damageType: "Heat",
     variant: "enhanced_battle_skill",
     hiddenInLibrary: true,
-    mode: "single",
     durationFrames: flat12(124.2),
     spCost: flat12(100),
     hits: [
@@ -350,7 +352,6 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Heat",
-    mode: "single",
     durationFrames: flat12(60),
     timeFreezeSeconds: flat12(51 / 60),
     comboCooldownSeconds: [...flat12(20).slice(0, 11), 19],
@@ -362,6 +363,7 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
         stagger: flat12(10),
         effects: [{ type: "APPLY_ARTS_INFLICTION", element: "Heat", stacks: 1 }],
         offsetFrames: flat12(54),
+        energyReturn: flat12(10),
         },
     ],
     },
@@ -371,13 +373,21 @@ const WULFGARD_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "ULTIMATE",
     damageType: "Heat",
-    mode: "single",
     durationFrames: flat12(150),
     timeFreezeSeconds: flat12(65 / 60),
     cutscene: true,
     spCost: flat12(0),
     energyCost: flat12(90),
     hits: [
+        {
+          name: "Combustion",
+          multiplier: flat12(0),
+          stagger: flat12(0),
+          offsetFrames: flat12(68),
+          effects:[
+            { type: "APPLY_REACTION", reaction: "Combustion", level: 1 },
+          ]
+        },
         {
         name: "Rapid Barrage x5",
         multiplier: pct([32, 35, 38, 42, 45, 48, 51, 54, 58, 62, 66, 72]),

@@ -73,6 +73,16 @@ function localizedUniqueSkillDescriptionZhCN(weaponId: string, level: number): s
         `装备者施加法术脆弱时，使目标敌人受到的法术伤害+${percent(4.8 + 1.2 * y)}，持续20秒。`,
         "两种效果独立生效，且均无法叠加。",
       ].join("\n");
+    case "rational_farewell": {
+      const skillIndex = Math.max(0, Math.min(8, level - 1));
+      const dmgPctValues = [10, 12, 14, 16, 18, 20, 22, 24, 28] as const;
+      const atkPctValues = [16, 19.2, 22.4, 25.6, 28.8, 32, 35.2, 38.4, 44.8] as const;
+      return [
+        `战技伤害+${percent(dmgPctValues[skillIndex] ?? 0)}。`,
+        `装备者的连携技施加法术爆发或燃烧时，攻击力+${percent(atkPctValues[skillIndex] ?? 0)}，持续15秒。`,
+        "同名效果无法叠加。",
+      ].join("\n");
+    }
     case "jet":
       return [
         `法术伤害+${percent(9.6 + 2.4 * y)}。`,
@@ -80,6 +90,16 @@ function localizedUniqueSkillDescriptionZhCN(weaponId: string, level: number): s
         `装备者施放连携技时，获得法术伤害+${percent(9.6 + 2.4 * y)}，持续15秒。`,
         "两种效果独立生效，且均无法叠加。",
       ].join("\n");
+    case "chimeric_justice": {
+      const skillIndex = Math.max(0, Math.min(8, level - 1));
+      const critPctValues = [3, 3.6, 4.2, 4.8, 5.4, 6, 6.6, 7.2, 8.4] as const;
+      const atkPctValues = [15, 18, 21, 24, 27, 30, 33, 36, 42] as const;
+      return [
+        `暴击率+${percent(critPctValues[skillIndex] ?? 0)}。`,
+        `装备者对没有脆弱层数的敌人施加脆弱时，攻击力+${percent(atkPctValues[skillIndex] ?? 0)}，持续15秒。`,
+        "同名效果无法叠加。",
+      ].join("\n");
+    }
     case "delivery_guaranteed":
       return [
         `自然伤害+${percent(scaledPercentFromRank1(16, y))}。`,
@@ -161,6 +181,7 @@ function getLabels(locale: SupportedLocale) {
       artsDmg: "法术伤害",
       physicalDmg: "物理伤害",
       cryoDmg: "寒冷伤害",
+      heatDmg: "灼热伤害",
       artsIntensity: "源石技艺强度",
       healing: "治疗效率",
       ultGain: "终结技充能效率",
@@ -182,6 +203,7 @@ function getLabels(locale: SupportedLocale) {
     artsDmg: "Arts DMG",
     physicalDmg: "Physical DMG",
     cryoDmg: "Cryo DMG",
+    heatDmg: "Heat DMG",
     artsIntensity: "Arts Intensity",
     healing: "Treatment Efficiency",
     ultGain: "Ultimate Gain Efficiency",
@@ -261,6 +283,8 @@ export function getWeaponSkillLiveBonus(
       return `+${(Math.floor((20 + 80 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.maxHp}`;
     case "CRYO_DMG_UP":
       return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.cryoDmg}`;
+    case "HEAT_DMG_UP":
+      return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.heatDmg}`;
     default:
       return labels.notApplied;
   }

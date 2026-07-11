@@ -37,6 +37,7 @@ export type ExecuteHitCritRigOption = {
 
 export type TimeScale = "game" | "real";
 export type ComboCooldownStartTiming = "start" | "end";
+export type EnemyTargeting = "all_enemies" | "targeted_enemy" | "finisher";
 
 export type CombatCondition =
   | {
@@ -66,6 +67,12 @@ export type CombatCondition =
     }
   | {
       type: "require_vulnerability_stacks";
+      min?: number;
+      max?: number;
+    }
+  | {
+      type: "require_enemy_modifier";
+      stat: ModifierStatKey;
       min?: number;
       max?: number;
     };
@@ -134,9 +141,15 @@ type CommandHitEffectCore =
       reactionDamage?: boolean;
       forceApply?: boolean;
       baseMultiplier?: number;
+      useSourceHitMultiplier?: boolean;
+      consumeSourceHitDamage?: boolean;
+      useSourceCommandAsReactionHit?: boolean;
+      reactionHitName?: string;
+      stagger?: number;
       debuffScaleMultiplier?: number;
       customBaseDebuffAmount?: number;
       customBaseTickMultiplier?: number;
+      singleEventPerStep?: boolean;
     }
   | {
       type: "APPLY_CUSTOM_REACTION";
@@ -188,6 +201,7 @@ type CommandHitEffectCore =
       statusId: string;
       label?: string;
       effects?: Partial<ModifierStats>;
+      blocksOperatorArtsInflictionElements?: Array<"Heat" | "Cryo" | "Electric" | "Nature">;
       durationSeconds: number;
       timeScale?: TimeScale;
       hidden?: boolean;
@@ -211,6 +225,10 @@ type CommandHitEffectCore =
       amount?: number;
       commandAttackType?: AttackType;
       damageType?: ElementType;
+    }
+  | {
+      type: "FORCE_CONTROL_SWITCH";
+      label?: string;
     }
   | {
       type: "APPLY_TEAM_STATUS";
@@ -281,6 +299,7 @@ type CommandHitEffectCore =
       stackGroup?: string;
       maxStacks?: number;
       refreshExistingStacks?: boolean;
+      singleEventPerStep?: boolean;
       requiresEnemyStatusId?: string;
       requiresSelfBuffId?: string;
       requiresSelfBuffStacksAtLeast?: number;
@@ -323,6 +342,7 @@ export type CommandHitDefinition = {
   ignoreUltimateGainEfficiency?: boolean;
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
+  targets?: EnemyTargeting; // default to same as command
   ignoreEnemyInvulnerability?: boolean;
   noCrit?: boolean;
   accumulator?: HitAccumulatorDefinition;
@@ -355,7 +375,7 @@ export type CommandDefinition = {
 
   attackType: AttackType; 
   damageType: ElementType; 
-  mode?: "single" | "cycling";
+  targets?: EnemyTargeting;
   durationFrames: ScalingTable;
   spCost: ScalingTable; // can also scale now
   energyCost?: ScalingTable; // for future use, if needed
@@ -418,6 +438,7 @@ export type ResolvedCommandHit = {
   ignoreUltimateGainEfficiency: boolean;
   attackType: AttackType;
   damageType: ElementType;
+  targets: EnemyTargeting;
   noCrit: boolean;
   accumulator?: ResolvedHitAccumulatorDefinition;
   effects: CommandHitEffectDefinition[];
@@ -439,7 +460,7 @@ export type ResolvedCommandDefinition = {
   skill: CharacterSkillKey;
   attackType: AttackType;
   damageType: ElementType;
-  mode?: "single" | "cycling";
+  targets: EnemyTargeting;
   durationFrames: ScalingTable;
   spCost: ScalingTable;
   energyCost: ScalingTable;
@@ -486,13 +507,14 @@ export function resolveCommandDefinition(
   command: CommandDefinition,
 ): ResolvedCommandDefinition {
   const splitMultiplier = command.splitMultiplier ?? command.splitHitMultiplierEvenly ?? false;
+  const resolvedTargets = command.targets ?? (command.basicAttackVariant === "finisher" ? "finisher" : "all_enemies");
   return {
     id: command.id,
     name: command.name,
     skill: command.skill,
     attackType: command.attackType,
     damageType: command.damageType,
-    mode: command.mode,
+    targets: resolvedTargets,
     durationFrames: command.durationFrames,
     spCost: command.spCost,
     energyCost: command.energyCost ?? flat12(0),
@@ -550,6 +572,7 @@ export function resolveCommandDefinition(
       ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency ?? false,
       attackType: hit.attackType ?? command.attackType,
       damageType: hit.damageType ?? command.damageType,
+      targets: hit.targets ?? resolvedTargets,
       noCrit: hit.noCrit ?? false,
       accumulator: hit.accumulator
         ? {
@@ -597,6 +620,7 @@ export type ResolvedCommandHitAtLevel = {
   ignoreUltimateGainEfficiency: boolean;
   attackType: AttackType;
   damageType: ElementType;
+  targets: EnemyTargeting;
   ignoreEnemyInvulnerability: boolean;
   noCrit: boolean;
   accumulator?: ResolvedHitAccumulatorAtLevel;
@@ -619,7 +643,7 @@ export type ResolvedCommandAtLevel = {
   skill: CharacterSkillKey;
   attackType: AttackType;
   damageType: ElementType;
-  mode?: "single" | "cycling";
+  targets: EnemyTargeting;
   durationFrames: number;
   spCost: number;
   energyCost: number;
@@ -849,6 +873,7 @@ export function resolveCommandAtLevel(
   const splitHitCount = splitMultiplier
     ? Math.max(1, activeHits.reduce((sum, hit) => sum + (hit.times ?? 1), 0))
     : 1;
+  const resolvedTargets = command.targets ?? (command.basicAttackVariant === "finisher" ? "finisher" : "all_enemies");
 
   return {
     id: command.id,
@@ -856,7 +881,7 @@ export function resolveCommandAtLevel(
     skill: command.skill,
     attackType: command.attackType,
     damageType: command.damageType,
-    mode: command.mode,
+    targets: resolvedTargets,
     durationFrames: resolveTable(command.durationFrames, level),
     spCost: command.spCost ? resolveTable(command.spCost, level) : 0,
     energyCost: command.energyCost ? resolveTable(command.energyCost, level) : 0,
@@ -931,6 +956,7 @@ export function resolveCommandAtLevel(
       ignoreUltimateGainEfficiency: hit.ignoreUltimateGainEfficiency ?? false,
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,
+      targets: hit.targets ?? resolvedTargets,
       ignoreEnemyInvulnerability: hit.ignoreEnemyInvulnerability ?? false,
       noCrit: hit.noCrit ?? false,
       accumulator: hit.accumulator
@@ -991,6 +1017,7 @@ export function resolveExecuteHitsAtLevel(
         ignoreUltimateGainEfficiency: executeHit.ignoreUltimateGainEfficiency ?? false,
         attackType: executeHit.attackType,
         damageType: executeHit.damageType,
+        targets: executeHit.targets ?? "all_enemies",
         ignoreEnemyInvulnerability: executeHit.ignoreEnemyInvulnerability ?? false,
         noCrit: executeHit.noCrit ?? false,
         accumulator: executeHit.accumulator

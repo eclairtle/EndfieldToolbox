@@ -16,7 +16,6 @@ const LASTRITE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
-    mode: "cycling",
     basicAttackVariant: "sequence",
     durationFrames: flat12(270),
     spCost: flat12(0),
@@ -92,15 +91,14 @@ const LASTRITE_COMMANDS: CommandDefinition[] = [
       { name: "Hit 1", multiplier: pct([90,99,108,117,126,135,144,153,162,173,187,203]), offsetFrames: flat12(68) },
     ],
   },
-  { id: "lastrite_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Cryo", mode: "single", basicAttackVariant: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
-  { id: "lastrite_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Cryo", mode: "single", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
+  { id: "lastrite_basic_finisher", name: "Finisher", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Cryo", basicAttackVariant: "finisher", targets: "finisher", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([400,440,480,520,560,600,640,680,720,770,830,900]), offsetFrames: flat12(30) }] },
+  { id: "lastrite_basic_dive", name: "Dive Attack", skill: "basic", attackType: "BASIC_ATTACK", damageType: "Cryo", basicAttackVariant: "dive_attack", durationFrames: flat12(60), spCost: flat12(0), hits: [{ multiplier: pct([80,88,96,104,112,120,128,136,144,154,166,180]), offsetFrames: flat12(30) }] },
   {
     id: "lastrite_battle_skill",
     name: "Esoteric Legacy of Seš'qa",
     skill: "battleSkill",
     attackType: "BATTLE_SKILL",
     damageType: "Cryo",
-    mode: "single",
     overlapMode: "transient",
     durationFrames: flat12(48),
     spCost: flat12(100),
@@ -120,7 +118,6 @@ const LASTRITE_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Cryo",
-    mode: "single",
     durationFrames: flat12(130),
     spCost: flat12(0),
     timeFreezeSeconds: flat12(1.2),
@@ -149,7 +146,7 @@ const LASTRITE_COMMANDS: CommandDefinition[] = [
     ],
   },
   { id: "lastrite_ultimate", name: "Vigil Services", skill: "ultimate", 
-    attackType: "ULTIMATE", damageType: "Cryo", mode: "single", 
+    attackType: "ULTIMATE", damageType: "Cryo", 
     durationFrames: flat12(280), 
     spCost: flat12(0), 
     energyCost: flat12(240), 
@@ -184,8 +181,14 @@ const LASTRITE_EXECUTE_HITS: ExecuteHitDefinition[] = [
 const LASTRITE_HOOKS: CharacterCombatHooks = {
   onEvent: (ctx) => {
     if (ctx.event.type === "ARTS_INFLICTION_APPLIED") {
-      const artsInfliction = ctx.state.getEnemyArtsInfliction();
-      if (artsInfliction?.element === "Cryo" && artsInfliction.stacks >= 3) {
+      const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();
+      const enemySlotIds = affectedEnemySlotIds.length > 0
+        ? affectedEnemySlotIds
+        : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
+      if (enemySlotIds.some((enemySlotId) => {
+        const artsInfliction = ctx.state.getEnemyArtsInfliction(enemySlotId);
+        return artsInfliction?.element === "Cryo" && artsInfliction.stacks >= 3;
+      })) {
         ctx.state.triggerSelfCombo({
           label: "Last Rite Combo Triggered",
           sourceEventType: "ARTS_INFLICTION_APPLIED",

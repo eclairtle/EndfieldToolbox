@@ -58,6 +58,9 @@ export function applyGears(args: {
         case "HP":
           addMod(mods, "FLAT_HP", scaled);
           break;
+        case "HP_PCT":
+          addMod(mods, "HP_PCT", scaled);
+          break;
 
         case "MAIN_ATTR_PCT":
           addMod(mods, "MAIN_ATTR_PCT", scaled);

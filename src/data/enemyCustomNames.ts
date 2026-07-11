@@ -66,6 +66,37 @@ export const ENEMY_CUSTOM_NAMES_ZH: Record<string, string> = {
   aggeloi_heavy_ram_alpha: "刚角天使α",
   aggeloi_heavy_sting_alpha: "重刺天使α",
   falsewings_alpha: "仿生翅天使α",
+  tidewalker: "潮行天使",
+  tidewalker_delta: "潮行天使δ",
+  mudflow: "浊流天使",
+  mudflow_delta: "浊流天使δ",
+  marble_appendage: "白垩附肢",
+  prism: "棱镜天使",
+  aethillu: "表象",
+  armored_manglerbeast: "披甲裂兽",
+  ereignis: "埃尔埃格尼斯",
+  tidalklast: "破潮之像",
+  hedron: "晶锥天使",
+  hedron_delta: "晶锥天使δ",
+  rockhowler: "山犼兽",
+  craghowler: "巨山犼兽",
+};
+
+export const ENEMY_CUSTOM_DESCRIPTIONS_ZH: Record<string, string> = {
+  tidewalker: "“杰那克吕丹”（归档编号：AGM321），其头部和腿部带有类人特征，从这种形成模式的发现开始，是否类人成为了判断天使强度的一条不成文标准。",
+  tidewalker_delta: "“杰那克吕丹·狄涅同”（归档编号：AGM321δ），AGM321的激流种。内部构成物质流转激烈，在夜间出现时，其外形会显得尤为可怖。",
+  mudflow: "“托雷格兰”（归档编号：ACM311），是人类发现的第一种使用液体的形成模式，光环的外观不稳定，内部温度通常比构成物质本身低。",
+  mudflow_delta: "“托雷格兰·狄涅同”（归档编号：ACM311δ），ACM311的激流种。对能量的运用形式特殊，内部温度显著低于构成物质的冰点。",
+  marble_appendage: "未归档。因形成特征，推定为天使。外观上自本体延伸而出，实则由形成位置延伸至本体，推定此为扰敌策略。",
+  prism: "“普里玛塔格兰”（归档编号：ASM316），ARM315的非模式种，能够为周围的天使提供保护，混杂在ARM315中时会很难击中它。",
+  aethillu: "应阿达希尔召唤而来的幻影，昔日毁灭的表象，旧日凋亡的沉积。",
+  armored_manglerbeast: "在塔卫二演化出的特殊裂兽，身上披着极厚的鳞甲，与山犼兽存在互利共生关系……侦察兵与攻坚手，配合无间的好伙伴。",
+  ereignis: "何为进取？何为意义？何为生命？",
+  tidalklast: "“阿纳伐克吕丹”（归档编号：AGM32L），AGM321的非模式种，个体大小并不统一。大型个体破浪而出的姿态留在了许多人的噩梦中。",
+  hedron: "“戴法斯塔格兰”（归档编号：ARM315），投掷能量的液体形成模式，拥有复杂对称的几何外形，它的攻击会从接触面夺走热量。",
+  hedron_delta: "“戴法斯塔格兰·狄涅同”（归档编号：ARM315δ），ARM315的激流种。在日照下会发出璀璨的紫光，在塔罗斯的反光照射下则是另一副模样。",
+  rockhowler: "自然环境中的山犼兽。这些聪慧且调皮的动物甚至会布置“险境”，它们喜欢看到人类气急败坏的样子，请务必平心静气应对。",
+  craghowler: "山犼兽们的首领。在无数次的厮杀后，最强壮的山犼兽会成为族群首领，此时，它已掌握了远超普通兽类的战斗技巧。",
 };
 
 export const ENEMY_WIKI_SLUG_BY_ID: Record<string, string> = {
@@ -130,6 +161,20 @@ export const ENEMY_WIKI_SLUG_BY_ID: Record<string, string> = {
   glaring_rakerbeast: "eny_0102_hstiger2",
   quillbeast: "eny_0093_hshog",
   imbued_quillbeast: "eny_0109_hshog2",
+  tidewalker: "eny_0091_wgshoal",
+  tidewalker_delta: "eny_0107_wgshoal2",
+  mudflow: "eny_0087_wgslime",
+  mudflow_delta: "eny_0105_wgslime2",
+  marble_appendage: "eny_0062_paletent",
+  prism: "eny_0089_wgreflec",
+  aethillu: "eny_0095_ethillu",
+  armored_manglerbeast: "eny_0113_jzogre",
+  ereignis: "eny_0080_reaper",
+  tidalklast: "eny_0090_wgabyss",
+  hedron: "eny_0088_wgthorns",
+  hedron_delta: "eny_0106_wgthorns2",
+  rockhowler: "eny_0112_jzmonk",
+  craghowler: "eny_0114_jzmking",
 };
 
 export function getEnemyDisplayName(
@@ -139,4 +184,14 @@ export function getEnemyDisplayName(
 ): string {
   const overrides = locale === "zh-CN" ? ENEMY_CUSTOM_NAMES_ZH : ENEMY_CUSTOM_NAMES_EN;
   return overrides[enemyId] ?? fallbackName;
+}
+
+export function getEnemyDescription(
+  enemyId: string,
+  locale: "en" | "zh-CN",
+): string | null {
+  if (locale === "zh-CN") {
+    return ENEMY_CUSTOM_DESCRIPTIONS_ZH[enemyId] ?? null;
+  }
+  return null;
 }

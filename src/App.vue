@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useBuildStore, type BuildStoreStateSnapshot, type CharacterBuildSlot } from "@/stores/buildStore";
-import { useBuildListStore, type DamageTallyTiming } from "@/stores/buildListStore";
+import { useBuildListStore, type DamageTallyTiming, type SavedBuild } from "@/stores/buildListStore";
 
 import CharacterCard from "@/components/cards/characterCard.vue";
 import WeaponCard from "@/components/cards/weaponCard.vue";
@@ -17,7 +17,9 @@ import { GEARS, type GearBase } from "@/data/gears";
 import RotationWorkspace from "@/components/workspaces/RotationWorkspace.vue";
 import { useRotationSchemes, type RotationSchemesState } from "@/lib/combat/rotationSchemes";
 import { buildPartySnapshots, buildPartySnapshotsByVariant } from "@/lib/combat/buildSnapshots";
-import { makeEnemyModifierSnapshot, simulateRotation } from "@/lib/combat/simulateRotation";
+import { makeEnemyModifierSnapshot } from "@/lib/combat/simulateRotation";
+import { createRotationSimulationCache } from "@/lib/combat/simulationCache";
+import type { RotationSimulationResult } from "@/lib/combat/rotation";
 import type { CharacterCombatSnapshot } from "@/lib/combat/rotation";
 import {
   buildEnemyActionWindows,
@@ -38,7 +40,12 @@ import { useLocale } from "@/i18n/useLocale";
 import { getCharacterDisplayNameByCharacter, getWeaponDisplayNameByWeapon } from "@/i18n/domain/displayNames";
 import { getCharacterImagePath, getWeaponImagePath, getGearImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
 import { getEnemyDisplayName } from "@/data/enemyCustomNames";
-import { normalizeActiveContingencyContracts, type ActiveContingencyContract } from "@/lib/combat/contracts";
+import {
+  getContingencyContractVariant,
+  normalizeActiveContingencyContracts,
+  type ActiveContingencyContract,
+} from "@/lib/combat/contracts";
+import { normalizeCustomCombatTriggers, normalizeCustomTriggerVariables } from "@/lib/combat/triggers";
 
 const HISTORY_LIMIT = 5;
 
@@ -65,6 +72,9 @@ const setToSourceVariantIndex = ref(0);
 const debugModeEnabled = ref(false);
 const mobileSummaryOpen = ref(false);
 const confirmResetGuestOpen = ref(false);
+const templateExitPromptOpen = ref(false);
+const contractsPopupOpen = ref(false);
+const triggersPopupOpen = ref(false);
 
 const buildStore = useBuildStore();
 const buildListStore = useBuildListStore();
@@ -84,13 +94,11 @@ const {
   out,
   activeVariantIndex,
 } = storeToRefs(buildStore);
-const { builds, activeBuildId } = storeToRefs(buildListStore);
+const { userBuilds, templateBuilds, activeBuild, activeBuildId, activeBuildSource } = storeToRefs(buildListStore);
 const { t, locale, setLocale } = useLocale();
 const route = useRoute();
 const router = useRouter();
-const activeDamageTallyTiming = computed<DamageTallyTiming>(() =>
-  buildListStore.activeBuild?.damageTallyTiming ?? { enabled: false, startTime: 0, endTime: 60 },
-);
+const activeDamageTallyTiming = ref<DamageTallyTiming>({ enabled: false, startTime: 0, endTime: 60 });
 const undoHistory = ref<BuildRuntimeSnapshot[]>([]);
 const redoHistory = ref<BuildRuntimeSnapshot[]>([]);
 const currentHistorySnapshot = ref<BuildRuntimeSnapshot | null>(null);
@@ -98,6 +106,8 @@ const currentHistorySignature = ref("");
 const isApplyingRuntimeSnapshot = ref(false);
 const historyRevision = ref(0);
 const activeTransientHistory = ref<{ baseline: BuildRuntimeSnapshot; baselineSignature: string } | null>(null);
+const templateBaselineSnapshot = ref<BuildRuntimeSnapshot | null>(null);
+const rotationSimulationCache = createRotationSimulationCache();
 
 const routeBuildId = computed(() =>
   typeof route.params.buildId === "string" ? route.params.buildId : "",
@@ -131,6 +141,8 @@ const workspace = computed<"builder" | "rotation">({
 
 const {
   ENEMIES,
+  enemySlots,
+  targetedEnemySlotId,
   selectedEnemyId,
   selectedEnemy,
   enemyLevel,
@@ -148,6 +160,19 @@ const {
   hydrateRotationSchemes,
   exportRotationSchemes,
 } = useRotationSchemes(activeBuildId);
+const activeContingencyContracts = computed<ActiveContingencyContract[]>(() =>
+  normalizeActiveContingencyContracts(activeScheme.value.activeContracts ?? []),
+);
+const contingencyTotalLevel = computed(() =>
+  activeContingencyContracts.value.reduce((sum, entry) => {
+    const variant = getContingencyContractVariant(entry.id, entry.variantId);
+    return sum + (variant?.level ?? 0);
+  }, 0),
+);
+const activeTriggerCount = computed(() =>
+  normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []).length,
+);
+const isActiveRotationRelayed = computed(() => activeScheme.value.simulationMode === "relay_from_previous");
 
 const BUILD_STORAGE_SCOPE_DEFAULT = "__default__";
 
@@ -156,6 +181,9 @@ function getBuildStorageScopeId(): string {
 }
 
 function getBattleStartConsumableIdsForActiveScheme(): (string | null)[] {
+  if (activeScheme.value.teamSpConfig?.consumableBySlot) {
+    return [...activeScheme.value.teamSpConfig.consumableBySlot];
+  }
   if (typeof window === "undefined") {
     return [null, null, null, null];
   }
@@ -239,10 +267,10 @@ function writeScopedStorageState(storageKey: string, scopedValue: unknown) {
 }
 
 function getEnemyCommandPlacementsForActiveScheme(): EnemyCommandPlacement[] {
-  const source = activeScheme.value.enemyCommandsByEnemy?.[selectedEnemyId.value];
-  if (!Array.isArray(source)) {
-    return getDefaultEnemyCommandPlacements(selectedEnemyId.value);
-  }
+  return getEnemyCommandPlacementsForSlot(targetedEnemySlotId.value);
+}
+
+function normalizeEnemyCommandPlacements(source: EnemyCommandPlacement[]): EnemyCommandPlacement[] {
   return source.map((entry) => ({
     id: entry.id,
     commandId: entry.commandId,
@@ -253,39 +281,115 @@ function getEnemyCommandPlacementsForActiveScheme(): EnemyCommandPlacement[] {
   }));
 }
 
-watch(
-  () => rotationSchemes.value.selectedEnemyId,
-  (value) => {
-    const normalized = typeof value === "string" && value.length > 0 ? value : "rhodagn";
-    if (selectedEnemyId.value !== normalized) {
-      selectedEnemyId.value = normalized;
-    }
-  },
-  { immediate: true },
-);
-
-watch(selectedEnemyId, (value) => {
-  const normalized = typeof value === "string" && value.length > 0 ? value : "rhodagn";
-  if (rotationSchemes.value.selectedEnemyId !== normalized) {
-    rotationSchemes.value.selectedEnemyId = normalized;
+function getEnemyCommandPlacementsForSlot(slotId: string): EnemyCommandPlacement[] {
+  const slot = enemySlots.value.find((entry) => entry.slotId === slotId) ?? enemySlots.value[0];
+  const enemyId = slot?.enemyId ?? selectedEnemyId.value;
+  const sourceBySlot = activeScheme.value.enemyCommandsBySlot?.[slotId];
+  if (Array.isArray(sourceBySlot)) {
+    return normalizeEnemyCommandPlacements(sourceBySlot);
   }
-});
+  const source = activeScheme.value.enemyCommandsByEnemy?.[enemyId];
+  if (!Array.isArray(source)) {
+    return getDefaultEnemyCommandPlacements(enemyId);
+  }
+  return normalizeEnemyCommandPlacements(source);
+}
+
+function buildEnemyActionWindowsForActiveScheme() {
+  return enemySlots.value.flatMap((slot) =>
+    buildEnemyActionWindows(slot.enemyId, getEnemyCommandPlacementsForSlot(slot.slotId)).map((window) => ({
+      ...window,
+      enemySlotId: slot.slotId,
+    })),
+  );
+}
 
 watch(
-  () => rotationSchemes.value.enemyLevel,
+  () => rotationSchemes.value.enemySlots,
   (value) => {
-    const normalized = Math.max(1, Math.min(100, Math.round(value)));
-    if (enemyLevel.value !== normalized) {
-      enemyLevel.value = normalized;
+    if (!Array.isArray(value) || value.length === 0) {
+      return;
+    }
+    const normalized = value.map((slot) => ({
+      slotId: slot.slotId,
+      enemyId: slot.enemyId,
+      level: Math.max(1, Math.min(100, Math.round(slot.level))),
+      spawnTimeEnabled: slot.spawnTimeEnabled === true,
+      spawnTime:
+        typeof slot.spawnTime === "number" && Number.isFinite(slot.spawnTime)
+          ? Math.round(slot.spawnTime * 1000) / 1000
+          : 0,
+      noDeath: slot.noDeath === true,
+    }));
+    if (JSON.stringify(enemySlots.value) !== JSON.stringify(normalized)) {
+      enemySlots.value = normalized;
+    }
+  },
+  { immediate: true, deep: true },
+);
+
+watch(
+  () => rotationSchemes.value.targetedEnemySlotId,
+  (value) => {
+    const fallback = enemySlots.value[0]?.slotId ?? "enemy_slot_1";
+    const normalized =
+      typeof value === "string" && enemySlots.value.some((slot) => slot.slotId === value)
+        ? value
+        : fallback;
+    if (targetedEnemySlotId.value !== normalized) {
+      targetedEnemySlotId.value = normalized;
     }
   },
   { immediate: true },
 );
 
-watch(enemyLevel, (value) => {
-  const normalized = Math.max(1, Math.min(100, Math.round(value)));
-  if (rotationSchemes.value.enemyLevel !== normalized) {
-    rotationSchemes.value.enemyLevel = normalized;
+watch(
+  enemySlots,
+  (value) => {
+    const normalized = value.map((slot) => ({
+      slotId: slot.slotId,
+      enemyId: slot.enemyId,
+      level: Math.max(1, Math.min(100, Math.round(slot.level))),
+      spawnTimeEnabled: slot.spawnTimeEnabled === true,
+      spawnTime:
+        typeof slot.spawnTime === "number" && Number.isFinite(slot.spawnTime)
+          ? Math.round(slot.spawnTime * 1000) / 1000
+          : 0,
+      noDeath: slot.noDeath === true,
+    }));
+    if (JSON.stringify(rotationSchemes.value.enemySlots ?? []) !== JSON.stringify(normalized)) {
+      rotationSchemes.value.enemySlots = normalized;
+    }
+    const targeted = normalized.find((slot) => slot.slotId === targetedEnemySlotId.value) ?? normalized[0];
+    if (targeted) {
+      if (rotationSchemes.value.selectedEnemyId !== targeted.enemyId) {
+        rotationSchemes.value.selectedEnemyId = targeted.enemyId;
+      }
+      if (rotationSchemes.value.enemyLevel !== targeted.level) {
+        rotationSchemes.value.enemyLevel = targeted.level;
+      }
+    }
+  },
+  { deep: true },
+);
+
+watch(targetedEnemySlotId, (value) => {
+  const fallback = enemySlots.value[0]?.slotId ?? "enemy_slot_1";
+  const normalized =
+    enemySlots.value.some((slot) => slot.slotId === value)
+      ? value
+      : fallback;
+  if (rotationSchemes.value.targetedEnemySlotId !== normalized) {
+    rotationSchemes.value.targetedEnemySlotId = normalized;
+  }
+  const targeted = enemySlots.value.find((slot) => slot.slotId === normalized);
+  if (targeted) {
+    if (rotationSchemes.value.selectedEnemyId !== targeted.enemyId) {
+      rotationSchemes.value.selectedEnemyId = targeted.enemyId;
+    }
+    if (rotationSchemes.value.enemyLevel !== targeted.level) {
+      rotationSchemes.value.enemyLevel = targeted.level;
+    }
   }
 });
 
@@ -327,11 +431,13 @@ function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null |
     return null;
   }
 
-  return simulateRotation({
+  return rotationSimulationCache.simulate({
     rotation,
     party: partySnapshots.value,
     partyVariantsBySlot: partyVariantsBySlot.value,
     initialVariantIndex: activeVariantIndex.value,
+    enemySlots: enemySlots.value,
+    targetedEnemySlotId: targetedEnemySlotId.value,
     enemyId: selectedEnemyId.value,
     enemyLevel: enemyLevel.value,
     enemyStats: resolvedEnemyStats.value,
@@ -351,9 +457,11 @@ function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null |
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
     contingencyContracts: getActiveContractsForActiveScheme(),
+    customTriggers: normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []),
+    customTriggerVariables: normalizeCustomTriggerVariables(activeScheme.value.triggerVariables ?? []),
     battleStartConsumableIdsBySlot: getBattleStartConsumableIdsForActiveScheme(),
-    enemyActionWindows: buildEnemyActionWindows(selectedEnemyId.value, getEnemyCommandPlacementsForActiveScheme()),
-  });
+    enemyActionWindows: buildEnemyActionWindowsForActiveScheme(),
+  }).result;
 }
 
 function snapshotForVariant(snapshot: BuildStoreStateSnapshot, variantIndex: number): BuildStoreStateSnapshot {
@@ -417,11 +525,13 @@ function simulateForSnapshot(
   if (snapshotParty.length === 0) {
     return null;
   }
-  return simulateRotation({
+  return rotationSimulationCache.simulate({
     rotation,
     party: snapshotParty,
     partyVariantsBySlot: snapshotVariantsBySlot,
     initialVariantIndex: snapshot.activeVariantIndex ?? 0,
+    enemySlots: enemySlots.value,
+    targetedEnemySlotId: targetedEnemySlotId.value,
     enemyId: selectedEnemyId.value,
     enemyLevel: enemyLevel.value,
     enemyStats: resolvedEnemyStats.value,
@@ -441,9 +551,11 @@ function simulateForSnapshot(
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
     contingencyContracts: getActiveContractsForActiveScheme(),
+    customTriggers: normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []),
+    customTriggerVariables: normalizeCustomTriggerVariables(activeScheme.value.triggerVariables ?? []),
     battleStartConsumableIdsBySlot: getBattleStartConsumableIdsForActiveScheme(),
-    enemyActionWindows: buildEnemyActionWindows(selectedEnemyId.value, getEnemyCommandPlacementsForActiveScheme()),
-  });
+    enemyActionWindows: buildEnemyActionWindowsForActiveScheme(),
+  }).result;
 }
 
 function getActiveContractsForActiveScheme(): ActiveContingencyContract[] {
@@ -470,7 +582,7 @@ function getActiveContractsForActiveScheme(): ActiveContingencyContract[] {
 
 
 function getTallyWindowSummary(
-  simulation: ReturnType<typeof simulateRotation> | null | undefined,
+  simulation: RotationSimulationResult | null | undefined,
   timing: DamageTallyTiming,
 ): { totalDamage: number; dps: number } {
   if (!simulation) {
@@ -570,6 +682,16 @@ function cloneBuildSnapshot(snapshot: BuildStoreStateSnapshot): BuildStoreStateS
   return JSON.parse(JSON.stringify(snapshot)) as BuildStoreStateSnapshot;
 }
 
+async function copyText(value: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  if (typeof window !== "undefined") {
+    window.prompt("Copy to clipboard:", value);
+  }
+}
+
 function captureRuntimeSnapshot(): BuildRuntimeSnapshot | null {
   if (page.value !== "build-detail" || !activeBuildId.value) {
     return null;
@@ -589,6 +711,36 @@ function captureRuntimeSnapshot(): BuildRuntimeSnapshot | null {
       contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
     },
   };
+}
+
+function captureSavedBuildRuntimeSnapshot(build: SavedBuild): BuildRuntimeSnapshot {
+  return {
+    currentBuildState: cloneBuildSnapshot(build.currentBuildState),
+    rotationState: cloneJson(build.rotationState),
+    damageTallyTiming: cloneJson(build.damageTallyTiming),
+    compareSettings: cloneJson(
+      build.compareSettings ?? {
+        enabled: false,
+        leftVariantIndex: build.currentBuildState.activeVariantIndex ?? 0,
+        rightVariantIndex: 1,
+      },
+    ),
+    scopedRotationUiState: cloneJson(
+      build.scopedRotationUiState ?? {
+        sp: null,
+        contracts: null,
+      },
+    ),
+  };
+}
+
+const isActiveTemplateBuild = computed(() => activeBuildSource.value === "template");
+
+function hasUnsavedTemplateChanges(): boolean {
+  if (!isActiveTemplateBuild.value || !templateBaselineSnapshot.value) {
+    return false;
+  }
+  return snapshotSignature(captureRuntimeSnapshot()) !== snapshotSignature(templateBaselineSnapshot.value);
 }
 
 function snapshotSignature(snapshot: BuildRuntimeSnapshot | null): string {
@@ -1190,6 +1342,10 @@ function persistCurrentBuild() {
   if (!currentBuildSnapshot.value) {
     return;
   }
+  if (!buildListStore.isUserBuild(activeBuildId.value)) {
+    recordHistoryIfChanged();
+    return;
+  }
   currentBuildSnapshot.value = cloneBuildSnapshot(buildStore.exportStateSnapshot());
 
   buildListStore.updateBuildRuntime({
@@ -1216,7 +1372,7 @@ function persistCurrentBuild() {
 }
 
 function hydrateBuildDetail(buildId: string): boolean {
-  const selected = builds.value.find((build) => build.id === buildId) ?? null;
+  const selected = buildListStore.findBuildById(buildId);
   if (!selected) {
     return false;
   }
@@ -1224,7 +1380,11 @@ function hydrateBuildDetail(buildId: string): boolean {
   isHydratingBuildDetail.value = true;
   try {
     buildListStore.setActiveBuild(buildId);
+    templateBaselineSnapshot.value = buildListStore.isTemplateBuild(buildId)
+      ? captureSavedBuildRuntimeSnapshot(selected)
+      : null;
     currentBuildSnapshot.value = cloneBuildSnapshot(selected.currentBuildState);
+    activeDamageTallyTiming.value = cloneJson(selected.damageTallyTiming);
     buildStore.setActiveVariantIndex(selected.currentBuildState.activeVariantIndex ?? 0);
     buildStore.hydrateStateSnapshot(cloneBuildSnapshot(selected.currentBuildState));
     compareBuildsEnabled.value = selected.compareSettings?.enabled === true;
@@ -1239,33 +1399,15 @@ function hydrateBuildDetail(buildId: string): boolean {
 
 function openBuild(buildId: string) {
   persistCurrentBuild();
-  if (!builds.value.some((build) => build.id === buildId)) {
+  if (!buildListStore.findBuildById(buildId)) {
     return;
   }
   void router.push({ name: "build-builder", params: { buildId } });
 }
 
 function updateActiveDamageTallyTiming(next: DamageTallyTiming) {
-  if (!activeBuildId.value || !currentBuildSnapshot.value) {
-    return;
-  }
-  currentBuildSnapshot.value = cloneBuildSnapshot(buildStore.exportStateSnapshot());
-  buildListStore.updateBuildRuntime({
-    buildId: activeBuildId.value,
-    currentBuildState: currentBuildSnapshot.value,
-    plannedBuildState: currentBuildSnapshot.value,
-    rotationState: exportRotationSchemes(),
-    scopedRotationUiState: {
-      sp: readScopedStorageState(ROTATION_SP_STORAGE_KEY),
-      contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
-    },
-    damageTallyTiming: next,
-    compareSettings: {
-      enabled: compareBuildsEnabled.value,
-      leftVariantIndex: activeVariantIndex.value,
-      rightVariantIndex: compareTargetVariantIndex.value,
-    },
-  });
+  activeDamageTallyTiming.value = cloneJson(next);
+  persistCurrentBuild();
 }
 
 function createBuild() {
@@ -1291,8 +1433,88 @@ function copyBuild(buildId: string) {
 }
 
 function backToBuildList() {
+  if (hasUnsavedTemplateChanges()) {
+    templateExitPromptOpen.value = true;
+    return;
+  }
   persistCurrentBuild();
   void router.push({ name: "build-list" });
+}
+
+function cancelTemplateExitPrompt() {
+  templateExitPromptOpen.value = false;
+}
+
+function discardTemplateChangesAndExit() {
+  templateExitPromptOpen.value = false;
+  void router.push({ name: "build-list" });
+}
+
+function saveTemplateAsNewBuildAndExit() {
+  if (!activeBuildId.value) {
+    return;
+  }
+  const snapshot = captureRuntimeSnapshot();
+  if (!snapshot) {
+    templateExitPromptOpen.value = false;
+    void router.push({ name: "build-list" });
+    return;
+  }
+  const newBuildId = buildListStore.createBuildFromRuntime({
+    sourceBuildId: activeBuildId.value,
+    currentBuildState: snapshot.currentBuildState,
+    plannedBuildState: snapshot.currentBuildState,
+    rotationState: snapshot.rotationState,
+    scopedRotationUiState: snapshot.scopedRotationUiState,
+    summary: {
+      totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
+      dps: firstSchemeDps.value,
+      updatedAt: Date.now(),
+    },
+    damageTallyTiming: snapshot.damageTallyTiming,
+    compareSettings: snapshot.compareSettings,
+  });
+  if (!newBuildId) {
+    if (typeof window !== "undefined") {
+      window.alert(t("buildList.maximumBuildsReached"));
+    }
+    return;
+  }
+  templateExitPromptOpen.value = false;
+  buildListStore.setActiveBuild(newBuildId);
+  void router.push({ name: "build-list" });
+}
+
+function buildExportPayload(): SavedBuild | null {
+  const source = activeBuild.value;
+  const runtimeSnapshot = captureRuntimeSnapshot();
+  if (!source || !runtimeSnapshot) {
+    return null;
+  }
+
+  return {
+    ...cloneJson(source),
+    currentBuildState: cloneBuildSnapshot(runtimeSnapshot.currentBuildState),
+    plannedBuildState: cloneBuildSnapshot(runtimeSnapshot.currentBuildState),
+    rotationState: cloneJson(runtimeSnapshot.rotationState),
+    scopedRotationUiState: cloneJson(runtimeSnapshot.scopedRotationUiState),
+    summary: {
+      totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
+      dps: firstSchemeDps.value,
+      updatedAt: Date.now(),
+    },
+    damageTallyTiming: cloneJson(runtimeSnapshot.damageTallyTiming),
+    compareSettings: cloneJson(runtimeSnapshot.compareSettings),
+  };
+}
+
+async function exportActiveBuild() {
+  persistCurrentBuild();
+  const payload = buildExportPayload();
+  if (!payload) {
+    return;
+  }
+  await copyText(JSON.stringify(payload, null, 2));
 }
 
 function editBuildMetadata(payload: { buildId: string; locale: "en" | "zh-CN"; name: string; description: string }) {
@@ -1335,7 +1557,7 @@ watch(
       return;
     }
 
-    if (!builds.value.some((build) => build.id === nextBuildId)) {
+    if (!buildListStore.findBuildById(nextBuildId)) {
       void router.replace({ name: "build-list" });
       return;
     }
@@ -1421,6 +1643,56 @@ watch(
             >
               {{ t("ui.backToBuilds") }}
             </button>
+            <button
+              v-if="debugModeEnabled"
+              type="button"
+              class="rounded-full border border-[#3d4f1c] bg-[#eff4cc] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#364116] transition hover:bg-[#e6efb3]"
+              @click="exportActiveBuild"
+            >
+              {{ locale === "zh-CN" ? "导出构筑" : "Export Build" }}
+            </button>
+            <template v-if="workspace === 'rotation'">
+              <button
+                type="button"
+                class="rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
+                :class="isActiveRotationRelayed
+                  ? 'cursor-not-allowed border-[#8aa0ad] bg-[#51626d] text-[#dbe5ea]'
+                  : 'border-[#1c4f6b] bg-[#123246] text-[#d7edf9] hover:bg-[#19455f]'"
+                :disabled="isActiveRotationRelayed"
+                @click="!isActiveRotationRelayed && (triggersPopupOpen = true)"
+              >
+                {{ locale === "zh-CN" ? `触发器 ${activeTriggerCount}/${32}` : `Triggers ${activeTriggerCount}/${32}` }}
+              </button>
+              <button
+                type="button"
+                class="rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
+                :class="isActiveRotationRelayed
+                  ? 'cursor-not-allowed border-[#a28686] bg-[#6d5151] text-[#eadbdb]'
+                  : 'border-[#5a1f1f] bg-[#2f0f0f] text-[#f5d5d5] hover:bg-[#451414]'"
+                :disabled="isActiveRotationRelayed"
+                @click="!isActiveRotationRelayed && (contractsPopupOpen = true)"
+              >
+                {{ locale === "zh-CN" ? `危机合约词条 Lv${contingencyTotalLevel}` : `Contingency Contracts Lv${contingencyTotalLevel}` }}
+              </button>
+              <button
+                type="button"
+                class="rounded-full border border-[#d0d0d0] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
+                :class="canUndo ? 'text-[#4a4a4a] hover:border-[#b9b9b9] hover:text-[#222]' : 'cursor-not-allowed text-[#b5b5b5]'"
+                :disabled="!canUndo"
+                @click="undoLastChange"
+              >
+                {{ t("ui.undo") }}
+              </button>
+              <button
+                type="button"
+                class="rounded-full border border-[#d0d0d0] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
+                :class="canRedo ? 'text-[#4a4a4a] hover:border-[#b9b9b9] hover:text-[#222]' : 'cursor-not-allowed text-[#b5b5b5]'"
+                :disabled="!canRedo"
+                @click="redoLastChange"
+              >
+                {{ t("ui.redo") }}
+              </button>
+            </template>
 
             <div class="flex rounded-full border border-[#d0d0d0] bg-white p-1 shadow-sm">
               <button
@@ -1455,7 +1727,8 @@ watch(
 
       <BuildListPage
         v-if="page === 'build-list'"
-        :builds="builds"
+        :user-builds="userBuilds"
+        :template-builds="templateBuilds"
         :active-build-id="activeBuildId"
         @open="openBuild"
         @create="createBuild"
@@ -1794,6 +2067,8 @@ watch(
           :history-revision="historyRevision"
           :debug-mode="debugModeEnabled"
           :enemies="ENEMIES"
+          :enemy-slots="enemySlots"
+          :targeted-enemy-slot-id="targetedEnemySlotId"
           :selected-enemy-id="selectedEnemyId"
           :enemy-name="selectedEnemyDisplayName"
           :enemy-level="enemyLevel"
@@ -1804,11 +2079,17 @@ watch(
           :enemy-finisher-multiplier="selectedEnemy.finisherMultiplier"
           :enemy-finisher-sp-gain="selectedEnemy.finisherSpGain"
           :damage-tally-timing="activeDamageTallyTiming"
+          :contracts-popup-open="contractsPopupOpen"
+          :triggers-popup-open="triggersPopupOpen"
           :can-undo="canUndo"
           :can-redo="canRedo"
+          @update:enemy-slots="enemySlots = $event"
+          @update:targeted-enemy-slot-id="targetedEnemySlotId = $event"
           @update:selected-enemy-id="selectedEnemyId = $event"
           @update:enemy-level="enemyLevel = $event"
           @update:damage-tally-timing="updateActiveDamageTallyTiming"
+          @update:contracts-popup-open="contractsPopupOpen = $event"
+          @update:triggers-popup-open="triggersPopupOpen = $event"
           @undo="undoLastChange"
           @redo="redoLastChange"
           @history-transient-start="beginTransientHistory"
@@ -1847,6 +2128,43 @@ watch(
             @click="confirmResetGuestUser"
           >
             {{ locale === "zh-CN" ? "确认重置" : "Yes, reset" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="templateExitPromptOpen"
+      class="fixed inset-0 z-[170] flex items-center justify-center bg-black/35 px-4"
+    >
+      <div class="w-full max-w-lg rounded-2xl border border-[#d6d6d6] bg-white p-5 shadow-2xl">
+        <div class="text-lg font-semibold text-[#1b1b1b]">
+          {{ t("buildList.templateChangedTitle") }}
+        </div>
+        <div class="mt-2 text-sm leading-6 text-[#666]">
+          {{ t("buildList.templateChangedBody") }}
+        </div>
+        <div class="mt-5 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-md border border-[#d7d7d7] bg-white px-3 py-2 text-sm text-[#444] transition hover:bg-[#f5f5f5]"
+            @click="cancelTemplateExitPrompt"
+          >
+            {{ t("ui.cancel") }}
+          </button>
+          <button
+            type="button"
+            class="rounded-md border border-[#d7d7d7] bg-white px-3 py-2 text-sm text-[#444] transition hover:bg-[#f5f5f5]"
+            @click="discardTemplateChangesAndExit"
+          >
+            {{ t("buildList.discardChanges") }}
+          </button>
+          <button
+            type="button"
+            class="rounded-md border border-[#d8d18a] bg-[#f7f4cf] px-3 py-2 text-sm font-semibold text-[#4f4a1d] transition hover:bg-[#f2edb9]"
+            @click="saveTemplateAsNewBuildAndExit"
+          >
+            {{ t("buildList.saveAsNew") }}
           </button>
         </div>
       </div>
