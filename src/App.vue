@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useBuildStore, type BuildStoreStateSnapshot, type CharacterBuildSlot } from "@/stores/buildStore";
@@ -18,8 +18,8 @@ import RotationWorkspace from "@/components/workspaces/RotationWorkspace.vue";
 import { useRotationSchemes, type RotationSchemesState } from "@/lib/combat/rotationSchemes";
 import { buildPartySnapshots, buildPartySnapshotsByVariant } from "@/lib/combat/buildSnapshots";
 import { makeEnemyModifierSnapshot } from "@/lib/combat/simulateRotation";
-import { createRotationSimulationCache } from "@/lib/combat/simulationCache";
-import type { RotationSimulationResult } from "@/lib/combat/rotation";
+import { buildInitialStateFromCheckpoint, buildRelayCumulativeOutputPrefix, createRotationSimulationCache } from "@/lib/combat/simulationCache";
+import type { Rotation, RotationSimulationResult } from "@/lib/combat/rotation";
 import type { CharacterCombatSnapshot } from "@/lib/combat/rotation";
 import {
   buildEnemyActionWindows,
@@ -39,19 +39,32 @@ import {
 import { useLocale } from "@/i18n/useLocale";
 import { getCharacterDisplayNameByCharacter, getWeaponDisplayNameByWeapon } from "@/i18n/domain/displayNames";
 import { getCharacterImagePath, getWeaponImagePath, getGearImagePath, toAssetUrl } from "@/lib/assets/imagePaths";
-import { getEnemyDisplayName } from "@/data/enemyCustomNames";
+import { getEnemyDisplayName, getEnemyIconId } from "@/data/enemyCustomNames";
 import {
   getContingencyContractVariant,
   normalizeActiveContingencyContracts,
   type ActiveContingencyContract,
 } from "@/lib/combat/contracts";
 import { normalizeCustomCombatTriggers, normalizeCustomTriggerVariables } from "@/lib/combat/triggers";
+import {
+  makeDefaultBuildStageSettings,
+  normalizeBuildStageSettings,
+  resolveBuildStageSettings,
+  resolveEnemyBaseForStage,
+  STAGE_PRESETS,
+  type BuildStageSettings,
+  normalizeCustomStageDefinitions,
+  getStageDisplayName,
+  type CustomStageDefinition,
+} from "@/lib/stages/stageSettings";
 
 const HISTORY_LIMIT = 5;
 
 type BuildRuntimeSnapshot = {
   currentBuildState: BuildStoreStateSnapshot;
   rotationState: RotationSchemesState;
+  stageSettings: BuildStageSettings;
+  customStages: CustomStageDefinition[];
   damageTallyTiming: DamageTallyTiming;
   compareSettings: {
     enabled: boolean;
@@ -74,7 +87,10 @@ const mobileSummaryOpen = ref(false);
 const confirmResetGuestOpen = ref(false);
 const templateExitPromptOpen = ref(false);
 const contractsPopupOpen = ref(false);
+const stageSettingsPopupOpen = ref(false);
+const stageOverrideEnemyId = ref("aggeloi_ram");
 const triggersPopupOpen = ref(false);
+const rotationStagePopupOpen = ref(false);
 
 const buildStore = useBuildStore();
 const buildListStore = useBuildListStore();
@@ -108,6 +124,19 @@ const historyRevision = ref(0);
 const activeTransientHistory = ref<{ baseline: BuildRuntimeSnapshot; baselineSignature: string } | null>(null);
 const templateBaselineSnapshot = ref<BuildRuntimeSnapshot | null>(null);
 const rotationSimulationCache = createRotationSimulationCache();
+const buildSummarySimulationCaches = new Map<string, ReturnType<typeof createRotationSimulationCache>>();
+const builderSimulationRevision = ref(0);
+const simulationTransitionLoading = ref(false);
+
+function waitForAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
 
 const routeBuildId = computed(() =>
   typeof route.params.buildId === "string" ? route.params.buildId : "",
@@ -139,6 +168,69 @@ const workspace = computed<"builder" | "rotation">({
   },
 });
 
+const activeBuildStageSettings = computed<BuildStageSettings>({
+  get: () => normalizeBuildStageSettings(activeBuild.value?.stageSettings ?? makeDefaultBuildStageSettings()),
+  set: (value) => {
+    if (activeBuild.value) activeBuild.value.stageSettings = normalizeBuildStageSettings(value);
+  },
+});
+const resolvedStageSettings = computed(() => resolveBuildStageSettings(activeBuildStageSettings.value));
+const activeBuildCustomStages = computed<CustomStageDefinition[]>({
+  get: () => normalizeCustomStageDefinitions(activeBuild.value?.customStages),
+  set: (value) => { if (activeBuild.value) activeBuild.value.customStages = normalizeCustomStageDefinitions(value); },
+});
+const stageEnemyHpBaseOverrides = computed(() => Object.fromEntries(
+  ENEMIES.filter((enemy) => enemy.id !== "aggeloi_ram_cc" && enemy.id !== "hedron_cc")
+    .map((enemy) => [enemy.id, resolveEnemyBaseForStage(enemy, resolvedStageSettings.value).baseHpLv1]),
+));
+const selectableStageEnemies = computed(() => ENEMIES.filter((enemy) => enemy.id !== "aggeloi_ram_cc" && enemy.id !== "hedron_cc"));
+function updateStageSettings(mutator: (draft: BuildStageSettings) => void) {
+  const draft = cloneJson(activeBuildStageSettings.value);
+  mutator(draft);
+  activeBuildStageSettings.value = draft;
+}
+function setStageMode(mode: "preset" | "custom") {
+  updateStageSettings((draft) => { draft.mode = mode; });
+  if (mode === "custom" && !activeBuildStageSettings.value.custom.contractsEnabled) {
+    contractsPopupOpen.value = false;
+  }
+}
+function setCustomStageName(name: string) {
+  updateStageSettings((draft) => { draft.custom.name = name; });
+}
+function setCustomStageContractsEnabled(enabled: boolean) {
+  updateStageSettings((draft) => { draft.custom.contractsEnabled = enabled; });
+  if (!enabled) contractsPopupOpen.value = false;
+}
+function setStageInitialSp(value: number) {
+  updateStageSettings((draft) => { draft.initialSp = Math.max(0, Number.isFinite(value) ? value : 0); });
+}
+function setStageSpRegenRate(value: number) {
+  updateStageSettings((draft) => { draft.spRegenRate = Math.max(0, Number.isFinite(value) ? value : 0); });
+}
+function setCustomStageEnemyHpMultiplier(enemyId: string, value: number) {
+  updateStageSettings((draft) => { draft.custom.enemyHpMultipliers[enemyId] = Math.max(0.01, value || 1); });
+}
+function setCustomStageEnemyHp(enemyId: string, value: number) {
+  updateStageSettings((draft) => {
+    draft.custom.enemyHpBaseOverrides[enemyId] = Math.max(1, Math.round(value || 1));
+  });
+}
+function addCustomStageEnemyOverride() {
+  const enemy = selectableStageEnemies.value.find((entry) => entry.id === stageOverrideEnemyId.value);
+  if (!enemy) return;
+  updateStageSettings((draft) => {
+    draft.custom.enemyHpBaseOverrides[enemy.id] ??= enemy.baseHpLv1;
+    draft.custom.enemyHpMultipliers[enemy.id] ??= 1;
+  });
+}
+function removeCustomStageEnemyOverride(enemyId: string) {
+  updateStageSettings((draft) => {
+    delete draft.custom.enemyHpBaseOverrides[enemyId];
+    delete draft.custom.enemyHpMultipliers[enemyId];
+  });
+}
+
 const {
   ENEMIES,
   enemySlots,
@@ -147,11 +239,13 @@ const {
   selectedEnemy,
   enemyLevel,
   resolvedEnemyStats,
-} = useEnemyState();
+} = useEnemyState(stageEnemyHpBaseOverrides);
 const selectedEnemyDisplayName = computed(() =>
   getEnemyDisplayName(selectedEnemy.value.id, selectedEnemy.value.name, locale.value as "en" | "zh-CN"),
 );
-const selectedEnemyIconPath = computed(() => toAssetUrl(`/item-icons/enemies/${selectedEnemy.value.id}.webp`));
+const selectedEnemyIconPath = computed(() =>
+  toAssetUrl(`/item-icons/enemies/${getEnemyIconId(selectedEnemy.value.id)}.webp`),
+);
 
 const {
   rotationSchemes,
@@ -160,8 +254,25 @@ const {
   hydrateRotationSchemes,
   exportRotationSchemes,
 } = useRotationSchemes(activeBuildId);
+const relayDisplaySourceScheme = computed(() => {
+  const schemes = rotationSchemes.value.schemes;
+  const activeId = activeScheme.value.id;
+  const activeIndex = schemes.findIndex((scheme) => scheme.id === activeId);
+  if (activeIndex <= 0) {
+    return activeScheme.value;
+  }
+  let sourceIndex = activeIndex;
+  while (sourceIndex > 0 && schemes[sourceIndex]?.simulationMode === "relay_from_previous") {
+    sourceIndex -= 1;
+  }
+  return schemes[sourceIndex] ?? activeScheme.value;
+});
+const rotationDisplayStageSettings = computed(() => resolveBuildStageSettings(
+  normalizeBuildStageSettings(relayDisplaySourceScheme.value.stageSettings ?? activeBuildStageSettings.value),
+  activeBuildCustomStages.value,
+));
 const activeContingencyContracts = computed<ActiveContingencyContract[]>(() =>
-  normalizeActiveContingencyContracts(activeScheme.value.activeContracts ?? []),
+  normalizeActiveContingencyContracts(relayDisplaySourceScheme.value.activeContracts ?? []),
 );
 const contingencyTotalLevel = computed(() =>
   activeContingencyContracts.value.reduce((sum, entry) => {
@@ -170,9 +281,12 @@ const contingencyTotalLevel = computed(() =>
   }, 0),
 );
 const activeTriggerCount = computed(() =>
-  normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []).length,
+  normalizeCustomCombatTriggers(relayDisplaySourceScheme.value.triggers ?? []).length,
 );
 const isActiveRotationRelayed = computed(() => activeScheme.value.simulationMode === "relay_from_previous");
+watch(isActiveRotationRelayed, (relayed) => {
+  if (relayed) rotationStagePopupOpen.value = false;
+});
 
 const BUILD_STORAGE_SCOPE_DEFAULT = "__default__";
 
@@ -456,12 +570,187 @@ function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null |
     enemyStaggerRecoverySeconds: selectedEnemy.value.staggerRecoverySeconds,
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
+    enemyHpBaseOverrides: stageEnemyHpBaseOverrides.value,
     contingencyContracts: getActiveContractsForActiveScheme(),
     customTriggers: normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []),
     customTriggerVariables: normalizeCustomTriggerVariables(activeScheme.value.triggerVariables ?? []),
     battleStartConsumableIdsBySlot: getBattleStartConsumableIdsForActiveScheme(),
     enemyActionWindows: buildEnemyActionWindowsForActiveScheme(),
   }).result;
+}
+
+function getBuildSummarySimulationCache(schemeId: string) {
+  let cache = buildSummarySimulationCaches.get(schemeId);
+  if (!cache) {
+    cache = createRotationSimulationCache();
+    buildSummarySimulationCaches.set(schemeId, cache);
+  }
+  return cache;
+}
+
+function rebaseSummaryRotation(rotation: Rotation, displayOffset: number): Rotation {
+  if (!(displayOffset > 0)) return rotation;
+  return {
+    ...rotation,
+    steps: rotation.steps.map((step) => ({
+      ...step,
+      startTime: typeof step.startTime === "number" ? step.startTime - displayOffset : step.startTime,
+    })),
+  };
+}
+
+function getSummaryEnemyActionWindows(scheme: typeof activeScheme.value) {
+  const slotIds = new Set([
+    ...enemySlots.value.map((slot) => slot.slotId),
+    ...Object.keys(scheme.enemyCommandsBySlot ?? {}),
+  ]);
+  return [...slotIds].flatMap((slotId) => {
+    const slot = enemySlots.value.find((entry) => entry.slotId === slotId);
+    const enemyId = slot?.enemyId ?? "";
+    return buildEnemyActionWindows(
+      enemyId,
+      scheme.enemyCommandsBySlot?.[slotId]
+        ?? getDefaultEnemyCommandPlacements(enemyId),
+    ).map((window) => ({ ...window, enemySlotId: slotId }));
+  });
+}
+
+function rebaseSummaryEnemyActionWindows(
+  windows: ReturnType<typeof getSummaryEnemyActionWindows>,
+  displayOffset: number,
+) {
+  if (!(displayOffset > 0)) return windows;
+  return windows.map((window) => ({
+    ...window,
+    startTime: window.startTime - displayOffset,
+    endTime: window.endTime - displayOffset,
+  }));
+}
+
+function simulateFinalRotationChain(): RotationSimulationResult | null {
+  const schemes = rotationSchemes.value.schemes;
+  if (partySnapshots.value.length === 0 || schemes.length === 0) return null;
+
+  let chainStartIndex = schemes.length - 1;
+  while (chainStartIndex > 0 && schemes[chainStartIndex]?.simulationMode === "relay_from_previous") {
+    chainStartIndex -= 1;
+  }
+
+  let previousResult: RotationSimulationResult | null = null;
+  let inheritedContracts: ActiveContingencyContract[] = [];
+  let inheritedTriggers = normalizeCustomCombatTriggers([]);
+  let inheritedTriggerVariables = normalizeCustomTriggerVariables([]);
+
+  for (let index = chainStartIndex; index < schemes.length; index += 1) {
+    const scheme = schemes[index]!;
+    const sourceStageSettings = normalizeBuildStageSettings(schemes[chainStartIndex]?.stageSettings ?? activeBuildStageSettings.value);
+    const ownStageSettings = normalizeBuildStageSettings(scheme.stageSettings ?? activeBuildStageSettings.value);
+    const stage = resolveBuildStageSettings(
+      index > chainStartIndex && scheme.simulationMode === "relay_from_previous" ? sourceStageSettings : ownStageSettings,
+      activeBuildCustomStages.value,
+    );
+    const ownContracts = stage.contractsEnabled
+      ? normalizeActiveContingencyContracts(scheme.activeContracts ?? [])
+      : [];
+    const contracts = index > chainStartIndex && scheme.simulationMode === "relay_from_previous"
+      ? inheritedContracts
+      : ownContracts;
+    const ownTriggers = normalizeCustomCombatTriggers(scheme.triggers ?? []);
+    const triggers = index > chainStartIndex && scheme.simulationMode === "relay_from_previous"
+      ? inheritedTriggers
+      : ownTriggers;
+    const ownTriggerVariables = normalizeCustomTriggerVariables(scheme.triggerVariables ?? []);
+    const triggerVariables = index > chainStartIndex && scheme.simulationMode === "relay_from_previous"
+      ? inheritedTriggerVariables
+      : ownTriggerVariables;
+    const teamConfig = scheme.teamSpConfig;
+    const startingEnergy = stage.lockInitialEnergy
+      ? [0, 1, 2, 3].map(() => stage.initialEnergyPct)
+      : teamConfig?.startingEnergyBySlot ?? [100, 100, 100, 100];
+    const consumables = stage.disableConsumables
+      ? [null, null, null, null]
+      : teamConfig?.consumableBySlot ?? [null, null, null, null];
+    const enemyHpOverrides = Object.fromEntries(selectableStageEnemies.value.map((enemy) => [
+      enemy.id,
+      resolveEnemyBaseForStage(enemy, stage).baseHpLv1,
+    ]));
+    const actionWindows = getSummaryEnemyActionWindows(scheme);
+    const baseArgs = {
+      rotation: scheme.rotation,
+      party: partySnapshots.value,
+      partyVariantsBySlot: partyVariantsBySlot.value,
+      initialVariantIndex: activeVariantIndex.value,
+      enemySlots: enemySlots.value,
+      targetedEnemySlotId: targetedEnemySlotId.value,
+      enemyId: selectedEnemyId.value,
+      enemyLevel: enemyLevel.value,
+      enemyStats: resolvedEnemyStats.value,
+      enemyMods: makeEnemyModifierSnapshot({ resistances: {
+        PHYSICAL_RESIST_PCT: selectedEnemy.value.resistances.Physical,
+        HEAT_RESIST_PCT: selectedEnemy.value.resistances.Heat,
+        CRYO_RESIST_PCT: selectedEnemy.value.resistances.Cryo,
+        ELECTRIC_RESIST_PCT: selectedEnemy.value.resistances.Electric,
+        NATURE_RESIST_PCT: selectedEnemy.value.resistances.Nature,
+        AETHER_RESIST_PCT: selectedEnemy.value.resistances.Aether,
+      } }),
+      enemyStaggerGauge: selectedEnemy.value.staggerGauge,
+      enemyStaggerNodes: selectedEnemy.value.staggerNodes,
+      enemyStaggerRecoverySeconds: selectedEnemy.value.staggerRecoverySeconds,
+      enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
+      enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
+      enemyHpBaseOverrides: enemyHpOverrides,
+      contingencyContracts: contracts,
+      customTriggers: triggers,
+      customTriggerVariables: triggerVariables,
+      battleStartInitialSp: stage.initialSp,
+      battleStartSpRegenRate: stage.spRegenRate,
+      battleStartStartingEnergyPctBySlot: startingEnergy,
+      battleStartControlledOperatorSlot: teamConfig?.controlledOperatorSlot ?? 0,
+      battleStartConsumableIdsBySlot: consumables,
+      enemyActionWindows: actionWindows,
+    };
+
+    const shouldRelay = index > chainStartIndex
+      && scheme.simulationMode === "relay_from_previous"
+      && previousResult
+      && (previousResult.simulationCheckpoints?.length ?? 0) > 0;
+    if (shouldRelay) {
+      const relayMarkers: RotationSimulationResult["relayTimeline"] = [...(previousResult!.relayTimeline ?? [])]
+        .filter((entry) => entry.inherited !== true)
+        .sort((left, right) => left.time - right.time);
+      const relayMarker: RotationSimulationResult["relayTimeline"][number] | undefined = relayMarkers[0];
+      const relayTime: number = relayMarker?.time ?? previousResult!.totalTime;
+      const relayGameTime: number = relayMarker?.gameTime ?? previousResult!.totalGameTime;
+      const displayOffset: number = (previousResult!.displayTimeOffset ?? 0) + relayTime;
+      const displayGameOffset: number = (previousResult!.displayGameTimeOffset ?? 0) + relayGameTime;
+      const checkpoints: NonNullable<RotationSimulationResult["simulationCheckpoints"]> = [...(previousResult!.simulationCheckpoints ?? [])]
+        .filter((entry) => entry.time <= relayTime + 0.0001)
+        .sort((left, right) => left.time - right.time);
+      const checkpoint: NonNullable<RotationSimulationResult["simulationCheckpoints"]>[number] | undefined = checkpoints[checkpoints.length - 1];
+      if (checkpoint) {
+        previousResult = getBuildSummarySimulationCache(scheme.id).simulate({
+          ...baseArgs,
+          rotation: rebaseSummaryRotation(scheme.rotation, displayOffset),
+          enemyActionWindows: rebaseSummaryEnemyActionWindows(actionWindows, displayOffset),
+          contingencyContracts: inheritedContracts,
+          customTriggers: inheritedTriggers,
+          customTriggerVariables: inheritedTriggerVariables,
+          battleStartConsumableIdsBySlot: [null, null, null, null],
+          initialState: buildInitialStateFromCheckpoint(checkpoint, relayTime, relayGameTime, displayOffset, displayGameOffset),
+          resumeOutputPrefix: buildRelayCumulativeOutputPrefix(previousResult!, checkpoint),
+          relayStartTime: 0,
+          relayStartGameTime: 0,
+          emitRotationRelayedEvent: true,
+        }).result;
+      }
+    } else {
+      previousResult = getBuildSummarySimulationCache(scheme.id).simulate(baseArgs).result;
+    }
+    inheritedContracts = contracts;
+    inheritedTriggers = triggers;
+    inheritedTriggerVariables = triggerVariables;
+  }
+  return previousResult;
 }
 
 function snapshotForVariant(snapshot: BuildStoreStateSnapshot, variantIndex: number): BuildStoreStateSnapshot {
@@ -550,6 +839,7 @@ function simulateForSnapshot(
     enemyStaggerRecoverySeconds: selectedEnemy.value.staggerRecoverySeconds,
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
+    enemyHpBaseOverrides: stageEnemyHpBaseOverrides.value,
     contingencyContracts: getActiveContractsForActiveScheme(),
     customTriggers: normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []),
     customTriggerVariables: normalizeCustomTriggerVariables(activeScheme.value.triggerVariables ?? []),
@@ -559,6 +849,9 @@ function simulateForSnapshot(
 }
 
 function getActiveContractsForActiveScheme(): ActiveContingencyContract[] {
+  if (!resolvedStageSettings.value.contractsEnabled) {
+    return [];
+  }
   if (typeof window === "undefined") {
     return [];
   }
@@ -601,11 +894,9 @@ function getTallyWindowSummary(
   };
 
   if (!timing.enabled) {
-    const { start, end } = getAutoWindow();
-    const duration = Math.max(0, end - start);
-    const totalDamage = simulation.timeline
-      .filter((entry) => entry.time >= start - 0.0001 && entry.time <= end + 0.0001)
-      .reduce((sum, entry) => sum + entry.damage, 0);
+    const end = Math.max(0, (simulation.displayTimeOffset ?? 0) + simulation.totalTime);
+    const duration = end;
+    const totalDamage = simulation.totalDamage;
     return {
       totalDamage,
       dps: duration > 0 ? totalDamage / duration : 0,
@@ -625,7 +916,8 @@ function getTallyWindowSummary(
 }
 
 const builderRotationSimulation = computed(() => {
-  return simulateForRotation(activeScheme.value.rotation);
+  void builderSimulationRevision.value;
+  return simulateFinalRotationChain();
 });
 
 const builderTallySummary = computed(() =>
@@ -636,13 +928,8 @@ const builderRotationDps = computed(() => {
   return builderTallySummary.value.dps;
 });
 
-const firstSchemeSimulation = computed(() => {
-  const firstScheme = rotationSchemes.value.schemes[0];
-  return simulateForRotation(firstScheme?.rotation);
-});
-
-const firstSchemeDps = computed(() => {
-  return getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).dps;
+const finalSchemeDps = computed(() => {
+  return getTallyWindowSummary(builderRotationSimulation.value, activeDamageTallyTiming.value).dps;
 });
 
 const DAMAGE_CONTRIBUTION_COLORS = ["#d9cf57", "#73b45d", "#5c9fe8", "#d07fc7"];
@@ -651,6 +938,18 @@ const builderDamageContributions = computed(() => {
   const simulation = builderRotationSimulation.value;
   if (!simulation) {
     return [];
+  }
+
+  if (!activeDamageTallyTiming.value.enabled) {
+    const totalDamage = simulation.totalDamage;
+    return simulation.damageBySlot.map((entry, index) => ({
+      ...entry,
+      color: DAMAGE_CONTRIBUTION_COLORS[index % DAMAGE_CONTRIBUTION_COLORS.length],
+      percent: totalDamage > 0 ? (entry.damage / totalDamage) * 100 : 0,
+      localizedCharacterName: getCharacterDisplayNameByCharacter(
+        CHARACTERS.find((character) => character.id === slots.value[entry.slot]?.selectedCharId) ?? null,
+      ) || entry.characterName,
+    }));
   }
 
   const start = activeDamageTallyTiming.value.enabled
@@ -700,6 +999,8 @@ function captureRuntimeSnapshot(): BuildRuntimeSnapshot | null {
   return {
     currentBuildState: cloneBuildSnapshot(buildStore.exportStateSnapshot()),
     rotationState: cloneJson(exportRotationSchemes()),
+    stageSettings: cloneJson(activeBuildStageSettings.value),
+    customStages: cloneJson(activeBuildCustomStages.value),
     damageTallyTiming: cloneJson(activeDamageTallyTiming.value),
     compareSettings: {
       enabled: compareBuildsEnabled.value,
@@ -717,6 +1018,8 @@ function captureSavedBuildRuntimeSnapshot(build: SavedBuild): BuildRuntimeSnapsh
   return {
     currentBuildState: cloneBuildSnapshot(build.currentBuildState),
     rotationState: cloneJson(build.rotationState),
+    stageSettings: cloneJson(build.stageSettings),
+    customStages: cloneJson(normalizeCustomStageDefinitions(build.customStages)),
     damageTallyTiming: cloneJson(build.damageTallyTiming),
     compareSettings: cloneJson(
       build.compareSettings ?? {
@@ -835,6 +1138,8 @@ function applyRuntimeSnapshot(snapshot: BuildRuntimeSnapshot) {
     compareBuildsEnabled.value = snapshot.compareSettings.enabled;
     compareTargetVariantIndex.value = snapshot.compareSettings.rightVariantIndex;
     hydrateRotationSchemes(cloneJson(snapshot.rotationState));
+    activeBuildStageSettings.value = cloneJson(snapshot.stageSettings);
+    activeBuildCustomStages.value = cloneJson(snapshot.customStages);
     writeScopedStorageState(ROTATION_SP_STORAGE_KEY, snapshot.scopedRotationUiState.sp);
     writeScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY, snapshot.scopedRotationUiState.contracts);
     buildListStore.updateBuildRuntime({
@@ -842,6 +1147,8 @@ function applyRuntimeSnapshot(snapshot: BuildRuntimeSnapshot) {
       currentBuildState: cloneBuildSnapshot(snapshot.currentBuildState),
       plannedBuildState: cloneBuildSnapshot(snapshot.currentBuildState),
       rotationState: cloneJson(snapshot.rotationState),
+      stageSettings: cloneJson(snapshot.stageSettings),
+      customStages: cloneJson(snapshot.customStages),
       scopedRotationUiState: cloneJson(snapshot.scopedRotationUiState),
       damageTallyTiming: cloneJson(snapshot.damageTallyTiming),
       compareSettings: cloneJson(snapshot.compareSettings),
@@ -1122,6 +1429,8 @@ const activeGearContribution = computed(() => {
       activeSlot.value.kit2,
     ],
     mods: zeroMods,
+    mainAttr: selectedChar.value.mainAttr,
+    secondaryAttr: selectedChar.value.secondaryAttr,
   });
 
   const attributes = (["STR", "AGI", "INT", "WIL"] as const)
@@ -1145,6 +1454,7 @@ const compareTargetActiveSlot = computed(() => {
 });
 
 const comparisonSummaries = computed(() => {
+  void builderSimulationRevision.value;
   if (!compareBuildsEnabled.value || !currentBuildSnapshot.value) {
     return null;
   }
@@ -1157,6 +1467,36 @@ const comparisonSummaries = computed(() => {
     right: getTallyWindowSummary(rightSimulation, activeDamageTallyTiming.value),
   };
 });
+
+async function recalculateBuilderRotation() {
+  if (simulationTransitionLoading.value) return;
+  simulationTransitionLoading.value = true;
+  await nextTick();
+  await waitForAnimationFrame();
+  try {
+    rotationSimulationCache.clear();
+    for (const cache of buildSummarySimulationCaches.values()) cache.clear();
+    builderSimulationRevision.value += 1;
+    await nextTick();
+  } finally {
+    simulationTransitionLoading.value = false;
+  }
+}
+
+async function openRotationWorkspace() {
+  if (simulationTransitionLoading.value || workspace.value === "rotation") return;
+  const buildId = routeBuildId.value || activeBuildId.value;
+  if (!buildId) return;
+  simulationTransitionLoading.value = true;
+  await nextTick();
+  await waitForAnimationFrame();
+  try {
+    await router.push({ name: "build-rotation", params: { buildId } });
+    await nextTick();
+  } finally {
+    simulationTransitionLoading.value = false;
+  }
+}
 
 function updateCompareEnabled(value: boolean) {
   compareBuildsEnabled.value = value;
@@ -1339,6 +1679,19 @@ function persistCurrentBuild() {
     return;
   }
 
+  // The route is the owner of the currently mounted build workspace. During a
+  // route transition, never write the still-hydrated runtime into whichever
+  // build id happened to update first.
+  if (!routeBuildId.value || routeBuildId.value !== activeBuildId.value) {
+    if (debugModeEnabled.value && typeof console !== "undefined") {
+      console.warn("[Build scope] Skipped runtime persistence during build-id mismatch", {
+        routeBuildId: routeBuildId.value,
+        activeBuildId: activeBuildId.value,
+      });
+    }
+    return;
+  }
+
   if (!currentBuildSnapshot.value) {
     return;
   }
@@ -1353,13 +1706,15 @@ function persistCurrentBuild() {
     currentBuildState: currentBuildSnapshot.value,
     plannedBuildState: currentBuildSnapshot.value,
     rotationState: exportRotationSchemes(),
+    stageSettings: cloneJson(activeBuildStageSettings.value),
+    customStages: cloneJson(activeBuildCustomStages.value),
     scopedRotationUiState: {
       sp: readScopedStorageState(ROTATION_SP_STORAGE_KEY),
       contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
     },
     summary: {
-      totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
-      dps: firstSchemeDps.value,
+      totalDamage: builderTallySummary.value.totalDamage,
+      dps: finalSchemeDps.value,
     },
     damageTallyTiming: activeDamageTallyTiming.value,
     compareSettings: {
@@ -1389,7 +1744,7 @@ function hydrateBuildDetail(buildId: string): boolean {
     buildStore.hydrateStateSnapshot(cloneBuildSnapshot(selected.currentBuildState));
     compareBuildsEnabled.value = selected.compareSettings?.enabled === true;
     compareTargetVariantIndex.value = selected.compareSettings?.rightVariantIndex ?? 1;
-    hydrateRotationSchemes(selected.rotationState);
+    hydrateRotationSchemes(cloneJson(selected.rotationState));
   } finally {
     isHydratingBuildDetail.value = false;
   }
@@ -1422,6 +1777,22 @@ function createBuild() {
   void router.push({ name: "build-builder", params: { buildId: id } });
 }
 
+function importBuild(raw: unknown) {
+  persistCurrentBuild();
+  const id = buildListStore.importBuild(raw);
+  if (!id) {
+    if (typeof window !== "undefined") {
+      window.alert(
+        userBuilds.value.length >= 6
+          ? t("buildList.maximumBuildsReached")
+          : t("buildList.importInvalid"),
+      );
+    }
+    return;
+  }
+  void router.push({ name: "build-builder", params: { buildId: id } });
+}
+
 function copyBuild(buildId: string) {
   persistCurrentBuild();
   const id = buildListStore.copyBuild(buildId);
@@ -1447,6 +1818,10 @@ function cancelTemplateExitPrompt() {
 
 function discardTemplateChangesAndExit() {
   templateExitPromptOpen.value = false;
+  if (templateBaselineSnapshot.value) {
+    applyRuntimeSnapshot(cloneJson(templateBaselineSnapshot.value));
+    templateBaselineSnapshot.value = cloneJson(templateBaselineSnapshot.value);
+  }
   void router.push({ name: "build-list" });
 }
 
@@ -1467,8 +1842,8 @@ function saveTemplateAsNewBuildAndExit() {
     rotationState: snapshot.rotationState,
     scopedRotationUiState: snapshot.scopedRotationUiState,
     summary: {
-      totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
-      dps: firstSchemeDps.value,
+      totalDamage: builderTallySummary.value.totalDamage,
+      dps: finalSchemeDps.value,
       updatedAt: Date.now(),
     },
     damageTallyTiming: snapshot.damageTallyTiming,
@@ -1499,8 +1874,8 @@ function buildExportPayload(): SavedBuild | null {
     rotationState: cloneJson(runtimeSnapshot.rotationState),
     scopedRotationUiState: cloneJson(runtimeSnapshot.scopedRotationUiState),
     summary: {
-      totalDamage: getTallyWindowSummary(firstSchemeSimulation.value, activeDamageTallyTiming.value).totalDamage,
-      dps: firstSchemeDps.value,
+      totalDamage: builderTallySummary.value.totalDamage,
+      dps: finalSchemeDps.value,
       updatedAt: Date.now(),
     },
     damageTallyTiming: cloneJson(runtimeSnapshot.damageTallyTiming),
@@ -1531,7 +1906,7 @@ function deleteBuild(buildId: string) {
 }
 
 watch(
-  [slots, activeSlotIndex, rotationSchemes, firstSchemeSimulation, firstSchemeDps, page, activeBuildId, activeVariantIndex],
+  [slots, activeSlotIndex, rotationSchemes, builderRotationSimulation, finalSchemeDps, page, activeBuildId, activeVariantIndex],
   () => {
     persistCurrentBuild();
   },
@@ -1572,6 +1947,20 @@ watch(
 
 <template>
   <div class="min-h-screen w-full bg-[#ececec] text-[#1b1b1b]">
+    <div
+      v-if="simulationTransitionLoading"
+      class="fixed inset-0 z-[200] flex items-center justify-center bg-black/25 backdrop-blur-[1px]"
+      role="status"
+      aria-live="polite"
+    >
+      <div class="flex items-center gap-3 rounded-xl border border-white/50 bg-white/95 px-5 py-3 text-sm font-medium text-[#333] shadow-xl">
+        <svg class="h-5 w-5 animate-spin text-[#929a18]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" />
+          <path class="opacity-90" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+        </svg>
+        <span>{{ t("ui.loading") }}</span>
+      </div>
+    </div>
     <div class="w-full border-b border-[#dadada] bg-white/80 backdrop-blur">
       <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 py-3">
         <div class="flex flex-col">
@@ -1656,23 +2045,12 @@ watch(
                 type="button"
                 class="rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
                 :class="isActiveRotationRelayed
-                  ? 'cursor-not-allowed border-[#8aa0ad] bg-[#51626d] text-[#dbe5ea]'
-                  : 'border-[#1c4f6b] bg-[#123246] text-[#d7edf9] hover:bg-[#19455f]'"
+                  ? 'cursor-not-allowed border-[#8aa0ad] bg-[#dce5ea] text-[#778994]'
+                  : 'border-[#36516a] bg-[#eaf2f8] text-[#27445d] hover:bg-[#dceaf4]'"
                 :disabled="isActiveRotationRelayed"
-                @click="!isActiveRotationRelayed && (triggersPopupOpen = true)"
+                @click="!isActiveRotationRelayed && (rotationStagePopupOpen = true)"
               >
-                {{ locale === "zh-CN" ? `触发器 ${activeTriggerCount}/${32}` : `Triggers ${activeTriggerCount}/${32}` }}
-              </button>
-              <button
-                type="button"
-                class="rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
-                :class="isActiveRotationRelayed
-                  ? 'cursor-not-allowed border-[#a28686] bg-[#6d5151] text-[#eadbdb]'
-                  : 'border-[#5a1f1f] bg-[#2f0f0f] text-[#f5d5d5] hover:bg-[#451414]'"
-                :disabled="isActiveRotationRelayed"
-                @click="!isActiveRotationRelayed && (contractsPopupOpen = true)"
-              >
-                {{ locale === "zh-CN" ? `危机合约词条 Lv${contingencyTotalLevel}` : `Contingency Contracts Lv${contingencyTotalLevel}` }}
+                {{ locale === "zh-CN" ? `关卡：${getStageDisplayName(rotationDisplayStageSettings, 'zh-CN')}` : `Stage: ${getStageDisplayName(rotationDisplayStageSettings, 'en')}` }}
               </button>
               <button
                 type="button"
@@ -1715,7 +2093,8 @@ watch(
                     ? 'bg-[#ece81a] text-[#1b1b1b]'
                     : 'text-[#555] hover:bg-[#f3f3f3]'
                 "
-                @click="workspace = 'rotation'"
+                :disabled="simulationTransitionLoading"
+                @click="openRotationWorkspace"
               >
                 {{ t("ui.rotation") }}
               </button>
@@ -1732,6 +2111,7 @@ watch(
         :active-build-id="activeBuildId"
         @open="openBuild"
         @create="createBuild"
+        @import="importBuild"
         @copy="copyBuild"
         @edit-metadata="editBuildMetadata"
         @delete="deleteBuild"
@@ -1953,22 +2333,32 @@ watch(
                   <div class="mt-1 text-lg font-semibold">{{ t("rotation.rotationSummary") }}</div>
                 </div>
 
-                <label class="block min-w-[220px]">
-                  <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.rotationScheme") }}</div>
-                  <select
-                    :value="activeScheme.id"
-                    class="w-full rounded-lg border border-[#d6d6d6] bg-white px-3 py-2 text-sm text-[#1b1b1b]"
-                    @change="setActiveScheme(($event.target as HTMLSelectElement).value)"
-                  >
-                    <option
-                      v-for="scheme in rotationSchemes.schemes"
-                      :key="scheme.id"
-                      :value="scheme.id"
+                <div class="flex items-end gap-2">
+                  <label class="block min-w-[220px]">
+                    <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.rotationScheme") }}</div>
+                    <select
+                      :value="activeScheme.id"
+                      class="w-full rounded-lg border border-[#d6d6d6] bg-white px-3 py-2 text-sm text-[#1b1b1b]"
+                      @change="setActiveScheme(($event.target as HTMLSelectElement).value)"
                     >
-                      {{ scheme.name }}
-                    </option>
-                  </select>
-                </label>
+                      <option
+                        v-for="scheme in rotationSchemes.schemes"
+                        :key="scheme.id"
+                        :value="scheme.id"
+                      >
+                        {{ scheme.name }}
+                      </option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    class="rounded-lg border border-[#b8c22d] bg-[#ece81a] px-3 py-2 text-sm font-semibold text-[#292929] transition hover:bg-[#e1dd16] disabled:cursor-wait disabled:opacity-60"
+                    :disabled="simulationTransitionLoading"
+                    @click="recalculateBuilderRotation"
+                  >
+                    {{ locale === "zh-CN" ? "重新计算" : "Recalculate" }}
+                  </button>
+                </div>
               </div>
 
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -2066,7 +2456,7 @@ watch(
           :build-id="activeBuildId ?? undefined"
           :history-revision="historyRevision"
           :debug-mode="debugModeEnabled"
-          :enemies="ENEMIES"
+          :enemies="selectableStageEnemies"
           :enemy-slots="enemySlots"
           :targeted-enemy-slot-id="targetedEnemySlotId"
           :selected-enemy-id="selectedEnemyId"
@@ -2080,6 +2470,13 @@ watch(
           :enemy-finisher-sp-gain="selectedEnemy.finisherSpGain"
           :damage-tally-timing="activeDamageTallyTiming"
           :contracts-popup-open="contractsPopupOpen"
+          :stage-contracts-enabled="resolvedStageSettings.contractsEnabled"
+          :stage-initial-sp="resolvedStageSettings.initialSp"
+          :stage-sp-regen-rate="resolvedStageSettings.spRegenRate"
+          :enemy-hp-base-overrides="stageEnemyHpBaseOverrides"
+          :stage-settings="activeBuildStageSettings"
+          :custom-stages="activeBuildCustomStages"
+          :stage-workspace-popup-open="rotationStagePopupOpen"
           :triggers-popup-open="triggersPopupOpen"
           :can-undo="canUndo"
           :can-redo="canRedo"
@@ -2090,12 +2487,105 @@ watch(
           @update:damage-tally-timing="updateActiveDamageTallyTiming"
           @update:contracts-popup-open="contractsPopupOpen = $event"
           @update:triggers-popup-open="triggersPopupOpen = $event"
+          @update:stage-workspace-popup-open="rotationStagePopupOpen = $event"
+          @update:custom-stages="activeBuildCustomStages = $event"
           @undo="undoLastChange"
           @redo="redoLastChange"
           @history-transient-start="beginTransientHistory"
           @history-transient-commit="commitTransientHistory"
         />
       </template>
+    </div>
+
+    <div
+      v-if="stageSettingsPopupOpen"
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
+      @click.self="stageSettingsPopupOpen = false"
+    >
+      <section class="flex h-[min(720px,calc(100vh-2rem))] w-[min(720px,calc(100vw-2rem))] flex-none flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <header class="flex items-center justify-between border-b border-[#e4e4e4] px-5 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-[#222]">{{ locale === "zh-CN" ? "关卡设置" : "Stage Settings" }}</h2>
+            <p class="mt-1 text-xs text-[#777]">{{ locale === "zh-CN" ? "关卡设置应用于整个构筑。" : "Stage settings apply to the entire build." }}</p>
+          </div>
+          <button type="button" class="rounded-lg border border-[#d4d4d4] px-3 py-1.5 text-sm" @click="stageSettingsPopupOpen = false">{{ t("ui.close") }}</button>
+        </header>
+        <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          <div class="grid grid-cols-2 gap-3 rounded-xl border border-[#ddd] bg-[#fafafa] p-3">
+            <label class="text-xs font-semibold uppercase tracking-[0.1em] text-[#666]">
+              {{ t("rotation.startingSp") }}
+              <input :value="activeBuildStageSettings.initialSp" type="number" min="0" step="10" class="mt-1 w-full rounded-lg border border-[#ccc] bg-white px-3 py-2 text-sm font-normal tracking-normal text-[#222]" @change="setStageInitialSp(Number(($event.target as HTMLInputElement).value))">
+            </label>
+            <label class="text-xs font-semibold uppercase tracking-[0.1em] text-[#666]">
+              {{ t("rotation.spRegen") }}
+              <input :value="activeBuildStageSettings.spRegenRate" type="number" min="0" step="0.5" class="mt-1 w-full rounded-lg border border-[#ccc] bg-white px-3 py-2 text-sm font-normal tracking-normal text-[#222]" @change="setStageSpRegenRate(Number(($event.target as HTMLInputElement).value))">
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <button
+              v-for="preset in STAGE_PRESETS"
+              :key="preset.id"
+              type="button"
+              class="rounded-xl border p-4 text-left transition"
+              :class="activeBuildStageSettings.mode === 'preset' && activeBuildStageSettings.presetId === preset.id ? 'border-[#66751b] bg-[#f5f8df]' : 'border-[#ddd] hover:bg-[#fafafa]'"
+              @click="setStageMode('preset')"
+            >
+              <div class="font-semibold text-[#222]">{{ preset.name }}</div>
+              <div class="mt-1 text-xs text-[#777]">{{ locale === "zh-CN" ? "启用危机合约及预设敌人生命值。" : "Contracts enabled with preset enemy HP bases." }}</div>
+            </button>
+            <button
+              type="button"
+              class="rounded-xl border p-4 text-left transition"
+              :class="activeBuildStageSettings.mode === 'custom' ? 'border-[#66751b] bg-[#f5f8df]' : 'border-[#ddd] hover:bg-[#fafafa]'"
+              @click="setStageMode('custom')"
+            >
+              <div class="font-semibold text-[#222]">{{ locale === "zh-CN" ? "自定义关卡" : "Custom Stage" }}</div>
+              <div class="mt-1 text-xs text-[#777]">{{ locale === "zh-CN" ? "编辑合约权限及敌人1级基础生命值。" : "Edit contract availability and enemy Lv. 1 base HP." }}</div>
+            </button>
+          </div>
+
+          <div v-if="activeBuildStageSettings.mode === 'preset'" class="space-y-3 rounded-xl border border-[#ddd] bg-[#fafafa] p-4">
+            <div>
+              <div class="text-sm font-semibold text-[#333]">{{ resolvedStageSettings.name }}</div>
+              <div class="mt-1 text-xs text-[#777]">{{ locale === 'zh-CN' ? '预设数值为只读。' : 'Preset values are read-only.' }}</div>
+            </div>
+            <div class="text-xs font-semibold uppercase tracking-[0.1em] text-[#666]">{{ locale === 'zh-CN' ? '敌人生命倍率' : 'Enemy HP Multipliers' }}</div>
+            <div v-if="Object.keys(resolvedStageSettings.enemyHpMultipliers).length === 0" class="text-sm text-[#888]">{{ locale === 'zh-CN' ? '无倍率设置' : 'No multiplier settings' }}</div>
+            <div v-for="(multiplier, enemyId) in resolvedStageSettings.enemyHpMultipliers" :key="enemyId" class="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-3 rounded-lg border border-[#ddd] bg-white px-3 py-2">
+              <span class="truncate text-sm text-[#333]">{{ getEnemyDisplayName(String(enemyId), selectableStageEnemies.find((enemy) => enemy.id === enemyId)?.name ?? String(enemyId), locale as 'en' | 'zh-CN') }}</span>
+              <input :value="multiplier" type="number" disabled class="w-full cursor-not-allowed rounded-md border border-[#ddd] bg-[#f1f1f1] px-2 py-1.5 text-sm text-[#666]">
+            </div>
+          </div>
+
+          <div v-if="activeBuildStageSettings.mode === 'custom'" class="space-y-4 rounded-xl border border-[#ddd] bg-[#fafafa] p-4">
+            <label class="block text-sm text-[#444]">
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#666]">{{ locale === "zh-CN" ? "关卡名称" : "Stage Name" }}</span>
+              <input :value="activeBuildStageSettings.custom.name" class="w-full rounded-lg border border-[#ccc] bg-white px-3 py-2" @change="setCustomStageName(($event.target as HTMLInputElement).value)">
+            </label>
+            <label class="flex items-center gap-2 text-sm text-[#333]">
+              <input type="checkbox" :checked="activeBuildStageSettings.custom.contractsEnabled" @change="setCustomStageContractsEnabled(($event.target as HTMLInputElement).checked)">
+              {{ locale === "zh-CN" ? "启用危机合约" : "Enable Contingency Contracts" }}
+            </label>
+            <div>
+              <div class="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#666]">{{ locale === "zh-CN" ? "敌人生命值覆盖" : "Enemy HP Overrides" }}</div>
+              <div class="flex gap-2">
+                <select v-model="stageOverrideEnemyId" class="min-w-0 flex-1 rounded-lg border border-[#ccc] bg-white px-3 py-2 text-sm">
+                  <option v-for="enemy in selectableStageEnemies" :key="enemy.id" :value="enemy.id">{{ getEnemyDisplayName(enemy.id, enemy.name, locale as 'en' | 'zh-CN') }}</option>
+                </select>
+                <button type="button" class="rounded-lg border border-[#bbb] bg-white px-3 py-2 text-sm" @click="addCustomStageEnemyOverride">{{ locale === "zh-CN" ? "添加" : "Add" }}</button>
+              </div>
+              <div class="mt-3 space-y-2">
+                <div v-for="(hp, enemyId) in activeBuildStageSettings.custom.enemyHpBaseOverrides" :key="enemyId" class="grid grid-cols-[minmax(0,1fr)_110px_100px_auto] items-end gap-2 rounded-lg border border-[#ddd] bg-white p-2">
+                  <span class="truncate text-sm text-[#333]">{{ getEnemyDisplayName(String(enemyId), selectableStageEnemies.find((enemy) => enemy.id === enemyId)?.name ?? String(enemyId), locale as 'en' | 'zh-CN') }}</span>
+                  <label class="text-[10px] uppercase tracking-[0.08em] text-[#777]">{{ locale === 'zh-CN' ? '1级基础生命' : 'Lv.1 Base HP' }}<input :value="hp" type="number" min="1" step="1" class="mt-1 w-full rounded-md border border-[#ccc] px-2 py-1.5 text-sm" @change="setCustomStageEnemyHp(String(enemyId), Number(($event.target as HTMLInputElement).value))"></label>
+                  <label class="text-[10px] uppercase tracking-[0.08em] text-[#777]">{{ locale === 'zh-CN' ? '生命倍率' : 'HP Multiplier' }}<input :value="activeBuildStageSettings.custom.enemyHpMultipliers[String(enemyId)] ?? 1" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-md border border-[#ccc] px-2 py-1.5 text-sm" @change="setCustomStageEnemyHpMultiplier(String(enemyId), Number(($event.target as HTMLInputElement).value))"></label>
+                  <button type="button" class="rounded-md border border-[#d8bcbc] px-2 py-1.5 text-xs text-[#852f2f]" @click="removeCustomStageEnemyOverride(String(enemyId))">{{ locale === "zh-CN" ? "移除" : "Remove" }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <div

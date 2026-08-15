@@ -4,6 +4,15 @@ export const ENEMY_CUSTOM_NAMES_EN: Record<string, string> = {
   nefarith_conqueror: "Nefarith",
 };
 
+const ENEMY_ICON_ID_ALIASES: Record<string, string> = {
+  aggeloi_ram_cc: "aggeloi_ram",
+  hedron_cc: "hedron",
+};
+
+export function getEnemyIconId(enemyId: string): string {
+  return ENEMY_ICON_ID_ALIASES[enemyId] ?? enemyId;
+}
+
 export const ENEMY_CUSTOM_NAMES_ZH: Record<string, string> = {
   rhodagn: "罗丹",
   road_plunderer: "莫留财",
@@ -49,6 +58,7 @@ export const ENEMY_CUSTOM_NAMES_ZH: Record<string, string> = {
   bonekrusher_vanguard: "碾骨先锋",
   bonekrusher_siegeknuckles: "碾骨破城者",
   aggeloi_ram: "大角天使",
+  aggeloi_ram_cc: "大角天使（危机合约）",
   aggeloi_sentinel: "岗哨天使",
   aggeloi_heavy_ram: "刚角天使",
   aggeloi_sting: "钉刺天使",
@@ -77,6 +87,7 @@ export const ENEMY_CUSTOM_NAMES_ZH: Record<string, string> = {
   ereignis: "埃尔埃格尼斯",
   tidalklast: "破潮之像",
   hedron: "晶锥天使",
+  hedron_cc: "晶锥天使（危机合约）",
   hedron_delta: "晶锥天使δ",
   rockhowler: "山犼兽",
   craghowler: "巨山犼兽",
@@ -118,6 +129,7 @@ export const ENEMY_WIKI_SLUG_BY_ID: Record<string, string> = {
   bonekrusher_vanguard: "eny_0074_lbshield",
   bonekrusher_siegeknuckles: "eny_0075_lbroshan",
   aggeloi_ram: "eny_0021_agmelee",
+  aggeloi_ram_cc: "eny_0021_agmelee",
   aggeloi_sentinel: "eny_0039_agcanno",
   aggeloi_heavy_ram: "eny_0023_aghornb",
   aggeloi_sting: "eny_0025_agrange",
@@ -172,6 +184,7 @@ export const ENEMY_WIKI_SLUG_BY_ID: Record<string, string> = {
   ereignis: "eny_0080_reaper",
   tidalklast: "eny_0090_wgabyss",
   hedron: "eny_0088_wgthorns",
+  hedron_cc: "eny_0088_wgthorns",
   hedron_delta: "eny_0106_wgthorns2",
   rockhowler: "eny_0112_jzmonk",
   craghowler: "eny_0114_jzmking",

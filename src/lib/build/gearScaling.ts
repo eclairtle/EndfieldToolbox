@@ -1,5 +1,5 @@
 import type { GearSubLevel } from "@/lib/build/gearInstances";
-import type { AttrKey, CharacterStatKey, ModifierStatKey } from "./stats";
+import type { GearSubstatKey } from "@/data/gears";
 
 const LEVEL_MULTIPLIERS: Record<GearSubLevel, number> = {
   0: 1.0,
@@ -9,7 +9,7 @@ const LEVEL_MULTIPLIERS: Record<GearSubLevel, number> = {
 };
 
 export function scaledGearSubValue(
-  stat: AttrKey | CharacterStatKey | ModifierStatKey,
+  stat: GearSubstatKey,
   baseValue: number,
   level: GearSubLevel,
 ): number {
@@ -21,7 +21,7 @@ export function scaledGearSubValue(
   }
 
   // Attribute stats use floor; integer modifier stats use nearest integer.
-  if (stat === "STR" || stat === "AGI" || stat === "INT" || stat === "WIL") {
+  if (stat === "STR" || stat === "AGI" || stat === "INT" || stat === "WIL" || stat === "MAIN_ATTR_FLAT" || stat === "SECONDARY_ATTR_FLAT") {
     return Math.floor(scaled);
   }
   return Math.round(scaled);
@@ -31,11 +31,11 @@ export function effectiveGearSubLevel(level: GearSubLevel, upgradable: boolean):
   return upgradable ? level : 0;
 }
 
-export function formatGearSubValue(stat: AttrKey | CharacterStatKey | ModifierStatKey, value: number): string {
+export function formatGearSubValue(stat: GearSubstatKey, value: number): string {
   if (stat.endsWith("_PCT")) {
     return `+${(value * 100).toFixed(1)}%`;
   }
-  if (stat === "STR" || stat === "AGI" || stat === "INT" || stat === "WIL") {
+  if (stat === "STR" || stat === "AGI" || stat === "INT" || stat === "WIL" || stat === "MAIN_ATTR_FLAT" || stat === "SECONDARY_ATTR_FLAT") {
     return `+${Math.floor(value)}`;
   }
   return `+${Math.round(value)}`;

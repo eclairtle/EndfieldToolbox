@@ -16,6 +16,7 @@ const AKEKURI_COMBO_SP_BONUS_CAP_1 = 0.5;
 const AKEKURI_COMBO_SP_BONUS_CAP_2 = 0.75;
 
 const AKEKURI_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["STAGGER_NODE_REACHED", "ENEMY_STAGGERED", "SKILL_SP_RECOVERED"],
   onEvent: (ctx) => {
     if (ctx.event.type === "STAGGER_NODE_REACHED" || ctx.event.type === "ENEMY_STAGGERED") {
       ctx.state.triggerSelfCombo({

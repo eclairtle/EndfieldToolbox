@@ -326,6 +326,7 @@ export type CommandHitEffectDefinition = CommandHitEffectCore & {
 
 export type CommandHitDefinition = {
   name?: string;
+  countsAsFinalStrike?: boolean;
   multiplier: ScalingTable;
   flatAmount?: ScalingTable; // default 0, used by healing/flat formulas
   scalingStat?: "ATK" | "WIL"; // default ATK
@@ -422,6 +423,7 @@ export type CommandDefinition = {
 
 export type ResolvedCommandHit = {
   name?: string;
+  countsAsFinalStrike?: boolean;
   multiplier: ScalingTable;
   flatAmount: ScalingTable;
   scalingStat: "ATK" | "WIL";
@@ -556,6 +558,7 @@ export function resolveCommandDefinition(
     initialEffects: command.initialEffects ?? [],
     hits: command.hits.map((hit) => ({
       name: hit.name,
+      countsAsFinalStrike: hit.countsAsFinalStrike ?? false,
       multiplier: hit.multiplier,
       flatAmount: hit.flatAmount ?? flat12(0),
       scalingStat: hit.scalingStat ?? "ATK",
@@ -604,6 +607,7 @@ export function resolveCommandsDefinition(
 
 export type ResolvedCommandHitAtLevel = {
   name?: string;
+  countsAsFinalStrike?: boolean;
   multiplier: number;
   flatAmount: number;
   scalingStat: "ATK" | "WIL";
@@ -940,6 +944,7 @@ export function resolveCommandAtLevel(
     initialEffects: (command.initialEffects ?? []).map((effect) => resolveHitEffectAtLevel(effect, level)),
     hits: activeHits.map((hit) => ({
       name: hit.name,
+      countsAsFinalStrike: hit.countsAsFinalStrike ?? false,
       multiplier: resolveTable(hit.multiplier, level) / splitHitCount,
       flatAmount: hit.flatAmount ? resolveTable(hit.flatAmount, level) : 0,
       scalingStat: hit.scalingStat ?? "ATK",

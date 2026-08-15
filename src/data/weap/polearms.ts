@@ -62,6 +62,7 @@ export const JET: WeaponBase = {
         "The two effects apply separately and do not stack with themselves.",
       ].join("\n");
     },
+    combatEventTypes: ["BATTLE_SKILL_CAST", "COMBO_SKILL_HIT"],
     onCombatEvent: (ctx) => {
       const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
       if (sourceSlot !== ctx.wearer.slot) {
@@ -121,6 +122,7 @@ export const MOUNTAIN_BEARER: WeaponBase = {
       "The two effects apply separately and do not stack with themselves.",
     ].join("\n");
   },
+  combatEventTypes: ["ENEMY_DEBUFF_APPLIED"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
@@ -203,6 +205,7 @@ export const CHIMERIC_JUSTICE: WeaponBase = {
       "Effects of the same name cannot stack.",
     ].join("\n");
   },
+  combatEventTypes: ["ENEMY_DEBUFF_APPLIED"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (

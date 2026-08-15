@@ -3,6 +3,7 @@ import type { CharacterCombatHooks } from "@/lib/combat/hooks";
 import { flat12, pct, type CommandDefinition } from "@/lib/commands";
 
 const GILBERTA_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["COMBAT_INITIALIZED", "STAGE_BEGIN", "ROTATION_RELAYED", "ARTS_REACTION_APPLIED"],
   onEvent: (ctx) => {
     if (
       ctx.state.markTriggerOnce("gilberta_messengers_song:init")

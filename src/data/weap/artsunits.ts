@@ -35,6 +35,7 @@ export const DELIVERY_GUARANTEED: WeaponBase = {
     { id: "ULT_GAIN_UP", name: "Ultimate Gain Efficiency Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Pursuit: Duty Fulfilled", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["PHYSICAL_REACTION_APPLIED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -94,6 +95,7 @@ export const STANZA_OF_MEMORIALS: WeaponBase = {
     { id: "ATK_UP", name: "Attack Boost [M]", rank: 2, implemented: true },
     { id: "UNIQUE", name: "Twilight: Lustrous Pyre", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["ULTIMATE_CAST"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -147,6 +149,7 @@ export const DETONATION_UNIT: WeaponBase = {
     { id: "ARTS_INTENSITY_UP", name: "Arts Intensity Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Detonate: Imposing Champion", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["ARTS_BURST_APPLIED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -192,6 +195,7 @@ export const DREAMS_OF_THE_STARRY_BEACH: WeaponBase = {
     { id: "HEALING_UP", name: "Treatment Efficiency Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Infliction: Tidal Murmurs", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["ARTS_REACTION_CONSUMED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -241,6 +245,7 @@ export const CHIVALRIC_VIRTUES: WeaponBase = {
     { id: "HP_UP", name: "HP Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Medicant: Blight Fervor", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["HEALING_HIT_EXECUTED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -286,6 +291,7 @@ export const LONE_BARGE: WeaponBase = {
     { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Suppression: Streaming Blitz", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["ARTS_REACTION_CONSUMED", "ULTIMATE_CAST"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -406,6 +412,7 @@ export const WILD_WANDERER: WeaponBase = {
       "Effects of the same name cannot stack.",
     ].join("\n");
   },
+  combatEventTypes: ["ARTS_REACTION_APPLIED"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (

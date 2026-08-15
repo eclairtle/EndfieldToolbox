@@ -15,6 +15,7 @@ function hasFriendlyPresenceTalentEnabled(ctx: {
 }
 
 const ARDELIA_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["BASIC_ATTACK_FINAL_STRIKE_HIT"],
   onResolvedHit: (ctx) => {
     if (ctx.source.characterId !== "ardelia") {
       return;

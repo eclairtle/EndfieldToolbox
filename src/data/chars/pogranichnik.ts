@@ -295,6 +295,7 @@ const POGRANICHNIK_EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const POGRANICHNIK_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["SNAPSHOT_INITIALIZED", "SKILL_SP_RECOVERED", "PHYSICAL_REACTION_APPLIED", "COMBO_SKILL_HIT"],
   onEvent: (ctx) => {
     if (ctx.event.type === "SNAPSHOT_INITIALIZED" && ctx.event.sourceSlot === ctx.self.slot) {
       livingBannerSpRecoveredBySlot.set(ctx.self.slot, 0);

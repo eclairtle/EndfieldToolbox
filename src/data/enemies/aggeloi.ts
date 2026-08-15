@@ -14,6 +14,7 @@ type AggeloiEnemyInput = {
   staggerRecoverySeconds: number;
   finisherMultiplier: number;
   finisherSpGain: number;
+  crowdControlLevel?: number;
   resistances?: Partial<EnemyBase["resistances"]>;
   listeners?: EnemyBase["listeners"];
 };
@@ -43,6 +44,7 @@ function makeAggeloiEnemy(input: AggeloiEnemyInput): EnemyBase {
     staggerRecoverySeconds: input.staggerRecoverySeconds,
     finisherMultiplier: input.finisherMultiplier,
     finisherSpGain: input.finisherSpGain,
+    crowdControlLevel: input.crowdControlLevel,
     listeners: input.listeners,
   };
 }
@@ -51,6 +53,20 @@ export const AGGELOI_RAM = makeAggeloiEnemy({
   id: "aggeloi_ram",
   name: "Ram",
   baseHpLv1: 138,
+  baseAtkLv1: 33,
+  def: 100,
+  weight: 1,
+  staggerGauge: 60,
+  staggerRecoverySeconds: 6,
+  finisherMultiplier: 1,
+  finisherSpGain: 25,
+});
+
+export const AGGELOI_RAM_CC = makeAggeloiEnemy({
+  id: "aggeloi_ram_cc",
+  name: "Ram (CC)",
+  // The Contingency Contract version follows Mudflow's full HP progression.
+  baseHpLv1: 180,
   baseAtkLv1: 33,
   def: 100,
   weight: 1,
@@ -210,6 +226,16 @@ export const NEFARITH_BONEKRUSHER = makeAggeloiEnemy({
         endEffects: [
           { type: "CLEAR_FIELD_EFFECTS" },
           { type: "TRANSFORM_ENEMY", enemyId: "nefarith_conqueror", resetHp: true },
+          {
+            type: "APPLY_BUFF",
+            buffId: "nefarith_transformation_super_armor",
+            label: "Transformation Super Armor",
+            effects: {
+              SUPER_ARMOR_PCT: 0.9,
+            },
+            durationSeconds: 5,
+            timeScale: "game",
+          },
         ],
       },
     },
@@ -303,6 +329,10 @@ export const AGGELOI_HEAVY_RAM_ALPHA = makeAggeloiEnemy({
   staggerRecoverySeconds: 7.5,
   finisherMultiplier: 1.25,
   finisherSpGain: 35,
+  // Advanced enemies are normally crowd-controlled by these statuses.
+  // Heavy Ram α still receives Lift/Knockdown/Solidification, but they do not
+  // count as an active crowd-control state for interruption/trigger checks.
+  crowdControlLevel: 2,
   resistances: {
     Physical: 0.2,
     Heat: 0.2,
@@ -321,6 +351,9 @@ export const AGGELOI_HEAVY_STING_ALPHA = makeAggeloiEnemy({
   staggerRecoverySeconds: 7.5,
   finisherMultiplier: 1.25,
   finisherSpGain: 35,
+  // Like Heavy Ram α, these statuses still apply but do not count as an
+  // active crowd-control state for interruption/trigger checks.
+  crowdControlLevel: 2,
   resistances: {
     Physical: 0.2,
     Heat: 0.2,

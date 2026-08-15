@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { EnemyBase } from "@/data/enemies";
-import { getEnemyDisplayName } from "@/data/enemyCustomNames";
+import { getEnemyDisplayName, getEnemyIconId } from "@/data/enemyCustomNames";
 import { toAssetUrl } from "@/lib/assets/imagePaths";
 import { useLocale } from "@/i18n/useLocale";
 
@@ -46,7 +46,7 @@ const selectedEnemyName = computed(() =>
     : "",
 );
 const selectedEnemyIcon = computed(() =>
-  selectedEnemy.value ? toAssetUrl(`/item-icons/enemies/${selectedEnemy.value.id}.webp`) : "",
+  selectedEnemy.value ? toAssetUrl(`/item-icons/enemies/${getEnemyIconId(selectedEnemy.value.id)}.webp`) : "",
 );
 </script>
 

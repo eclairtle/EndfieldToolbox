@@ -112,6 +112,27 @@ export const QINGBO: GearBase[] = [
     ],
   },
   {
+    "id": "item_equip_t4_suit_combo_cd01_edc_04",
+    "name": "Qingbo Positioning Kit T1",
+    "slot": "KIT",
+    "set": "Qingbo",
+    "defFlat": 21,
+    "subs": [
+      {
+        "stat": "AGI",
+        "value": 32
+      },
+      {
+        "stat": "STR",
+        "value": 21
+      },
+      {
+        "stat": "PHYSICAL_DMG_PCT",
+        "value": 0.23
+      }
+    ],
+  },
+  {
     "id": "item_equip_t4_suit_combo_cd01_hand_01",
     "name": "Qingbo Gauntlets",
     "slot": "GLOVES",

@@ -41,6 +41,7 @@ export const FORGEBORN_SCATHE: WeaponBase = {
       "Effects of the same name cannot stack.",
     ].join("\n");
   },
+  combatEventTypes: ["ULTIMATE_CAST"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ULTIMATE_CAST") {
@@ -73,6 +74,7 @@ export const EMINENT_REPUTE: WeaponBase = {
     { id: "PHYSICAL_DMG_UP", name: "Physical DMG Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Brutality: Disciplinarian", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["PHYSICAL_REACTION_APPLIED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -181,6 +183,7 @@ export const THERMITE_CUTTER: WeaponBase = {
     { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Flow: Thermal Release", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["SKILL_SP_RECOVERED", "TEAM_LINK_GAINED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -247,12 +250,18 @@ export const LUPINE_SCARLET: WeaponBase = {
       `After reaching 16 stacks, gain another Physical DMG Dealt and Heat DMG Dealt +${percent(19.2 + 4.8 * y)} for 20s.`,
     ].join("\n");
   },
+  combatEventTypes: ["CRIT_THRESHOLD_REACHED"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "CRIT_THRESHOLD_REACHED") {
       return;
     }
-    if (ctx.event.commandAttackType !== "BATTLE_SKILL" && ctx.event.commandAttackType !== "COMBO_SKILL" && ctx.event.commandAttackType !== "ULTIMATE") {
+    if (
+      ctx.event.commandAttackType !== "BASIC_ATTACK"
+      && ctx.event.commandAttackType !== "BATTLE_SKILL"
+      && ctx.event.commandAttackType !== "COMBO_SKILL"
+      && ctx.event.commandAttackType !== "ULTIMATE"
+    ) {
       return;
     }
     const y = skillY(ctx.wearer.weaponSkillLevels[2] ?? 1);
@@ -329,6 +338,14 @@ export const GRAND_VISION: WeaponBase = {
     const index = Math.max(0, Math.min(GRAND_VISION_UNIQUE_DESCRIPTIONS.length - 1, uniqueSkillLevel - 1));
     return GRAND_VISION_UNIQUE_DESCRIPTIONS[index] ?? null;
   },
+  combatEventTypes: [
+    "ARTS_REACTION_APPLIED",
+    "ENEMY_DEBUFF_APPLIED",
+    "BATTLE_SKILL_END",
+    "ULTIMATE_END",
+    "BATTLE_SKILL_CAST",
+    "ULTIMATE_CAST",
+  ],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (sourceSlot !== ctx.wearer.slot) {

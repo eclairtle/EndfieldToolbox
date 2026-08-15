@@ -1,5 +1,5 @@
 import { computed, ref, watch, type Ref } from "vue";
-import type { EnemySlotState, Rotation } from "@/lib/combat/rotation";
+import type { EnemySlotState, Rotation, PartySlot } from "@/lib/combat/rotation";
 import { getDefaultEnemyCommandPlacements, type EnemyCommandPlacement } from "@/lib/enemy/enemyActionWindows";
 import type { ActiveContingencyContract } from "@/lib/combat/contracts";
 import type { CustomCombatTrigger, TriggerVariableDefinition } from "@/lib/combat/triggers";
@@ -8,12 +8,14 @@ import { ROTATION_ENEMY_COMMANDS_STORAGE_KEY } from "@/lib/storageKeys";
 import { ROTATION_CONTRACTS_STORAGE_KEY } from "@/lib/storageKeys";
 import { ROTATION_SCHEMES_STORAGE_KEY } from "@/lib/storageKeys";
 import { ROTATION_SP_STORAGE_KEY } from "@/lib/storageKeys";
+import { normalizeBuildStageSettings, type BuildStageSettings } from "@/lib/stages/stageSettings";
 
 export type RotationTeamSpConfig = {
   initialSp: number;
   spRegenRate: number;
   startingEnergyBySlot: number[];
   consumableBySlot: (string | null)[];
+  controlledOperatorSlot?: PartySlot;
 };
 
 export type RotationSchemeLocale = "en" | "zh-CN";
@@ -33,6 +35,7 @@ export type RotationScheme = {
   activeContracts?: ActiveContingencyContract[];
   triggers?: CustomCombatTrigger[];
   triggerVariables?: TriggerVariableDefinition[];
+  stageSettings?: BuildStageSettings;
   enemyCommandsByEnemy?: Record<string, EnemyCommandPlacement[]>;
   enemyCommandsBySlot?: Record<string, EnemyCommandPlacement[]>;
 };
@@ -51,6 +54,11 @@ let initialized = false;
 const BUILD_STORAGE_SCOPE_DEFAULT = "__default__";
 let activeBuildScopeId = BUILD_STORAGE_SCOPE_DEFAULT;
 const MAX_ROTATION_SCHEMES_PER_BUILD = 4;
+const MAX_ENEMY_SLOTS = 10;
+
+function makeCanonicalEnemySlotId(index: number) {
+  return `enemy_slot_${index + 1}`;
+}
 
 function createRotation(): Rotation {
   return { steps: [], groups: [], critRiggingRules: [] };
@@ -69,6 +77,7 @@ function createScheme(index: number): RotationScheme {
     activeContracts: [],
     triggers: [],
     triggerVariables: [],
+    stageSettings: normalizeBuildStageSettings(undefined),
     enemyCommandsByEnemy: {},
     enemyCommandsBySlot: {},
   };
@@ -145,6 +154,7 @@ function makeDefaultTeamSpConfig(): RotationTeamSpConfig {
     spRegenRate: 8,
     startingEnergyBySlot: [100, 100, 100, 100],
     consumableBySlot: [null, null, null, null],
+    controlledOperatorSlot: 0,
   };
 }
 
@@ -161,6 +171,7 @@ function normalizeTeamSpConfig(value: Partial<RotationTeamSpConfig> | null | und
         return typeof id === "string" && id.length > 0 ? id : null;
       })
       : [null, null, null, null],
+    controlledOperatorSlot: Math.max(0, Math.min(3, Number(value?.controlledOperatorSlot ?? 0))) as PartySlot,
   };
 }
 
@@ -359,6 +370,7 @@ function normalizeState(
           normalizeCustomTriggerVariables(scheme?.triggerVariables),
         ),
         triggerVariables: normalizeCustomTriggerVariables(scheme?.triggerVariables),
+        stageSettings: scheme?.stageSettings ? normalizeBuildStageSettings(scheme.stageSettings) : undefined,
         enemyCommandsByEnemy: {
           ...legacyEnemyCommandsByScheme[typeof scheme?.id === "string" ? scheme.id : `rotation_${index}`],
           ...normalizeEnemyCommandsByEnemy(scheme?.enemyCommandsByEnemy),
@@ -396,8 +408,39 @@ function normalizeState(
     typeof value?.enemyLevel === "number" && Number.isFinite(value.enemyLevel)
       ? Math.max(1, Math.min(100, Math.round(value.enemyLevel)))
       : 90;
-  const normalizedEnemySlots = Array.isArray(value?.enemySlots)
-    ? value.enemySlots
+  const sourceEnemySlots = Array.isArray(value?.enemySlots)
+    ? value.enemySlots.slice(0, MAX_ENEMY_SLOTS)
+    : [];
+  const getCanonicalSlotIdForSource = (slotId: unknown, fallbackIndex: number) => {
+    const numberedMatch = typeof slotId === "string"
+      ? /^enemy_slot_(?:virtual_)?(\d+)$/.exec(slotId)
+      : null;
+    const slotNumber = numberedMatch ? Number(numberedMatch[1]) : fallbackIndex + 1;
+    return Number.isInteger(slotNumber) && slotNumber >= 1 && slotNumber <= MAX_ENEMY_SLOTS
+      ? makeCanonicalEnemySlotId(slotNumber - 1)
+      : makeCanonicalEnemySlotId(fallbackIndex);
+  };
+  const legacyEnemySlotIdToCanonical = new Map<string, string>();
+  for (let index = 0; index < sourceEnemySlots.length; index += 1) {
+    const sourceSlot = sourceEnemySlots[index];
+    if (sourceSlot && typeof sourceSlot.slotId === "string" && sourceSlot.slotId.length > 0) {
+      legacyEnemySlotIdToCanonical.set(
+        sourceSlot.slotId,
+        getCanonicalSlotIdForSource(sourceSlot.slotId, index),
+      );
+    }
+  }
+  const canonicalizeEnemySlotId = (slotId: string) => {
+    const mapped = legacyEnemySlotIdToCanonical.get(slotId);
+    if (mapped) return mapped;
+    const numberedMatch = /^enemy_slot_(?:virtual_)?(\d+)$/.exec(slotId);
+    const slotNumber = numberedMatch ? Number(numberedMatch[1]) : Number.NaN;
+    return Number.isInteger(slotNumber) && slotNumber >= 1 && slotNumber <= MAX_ENEMY_SLOTS
+      ? makeCanonicalEnemySlotId(slotNumber - 1)
+      : null;
+  };
+  const normalizedEnemySlots = sourceEnemySlots.length > 0
+    ? sourceEnemySlots
         .map((slot, index) => {
           if (!slot || typeof slot !== "object") {
             return {
@@ -409,10 +452,7 @@ function normalizeState(
               noDeath: false,
             };
           }
-          const slotId =
-            typeof slot.slotId === "string" && slot.slotId.length > 0
-              ? slot.slotId
-              : `enemy_slot_${index + 1}`;
+          const slotId = getCanonicalSlotIdForSource(slot.slotId, index);
           const enemyId =
             typeof slot.enemyId === "string" && slot.enemyId.length > 0
               ? slot.enemyId
@@ -429,15 +469,30 @@ function normalizeState(
           const noDeath = slot.noDeath === true;
           return { slotId, enemyId, level, spawnTimeEnabled, spawnTime, noDeath };
         })
-        .slice(0, 10)
     : [];
   const enemySlots = normalizedEnemySlots.length > 0
     ? normalizedEnemySlots
     : [{ slotId: "enemy_slot_1", enemyId: legacySelectedEnemyId, level: legacyEnemyLevel, spawnTimeEnabled: false, spawnTime: 0, noDeath: false }];
-  const targetedEnemySlotId =
-    typeof value?.targetedEnemySlotId === "string" && enemySlots.some((slot) => slot.slotId === value.targetedEnemySlotId)
-      ? value.targetedEnemySlotId
-      : enemySlots[0]!.slotId;
+  const migratedTargetedEnemySlotId = typeof value?.targetedEnemySlotId === "string"
+    ? canonicalizeEnemySlotId(value.targetedEnemySlotId)
+    : null;
+  const targetedEnemySlotId = migratedTargetedEnemySlotId
+    && enemySlots.some((slot) => slot.slotId === migratedTargetedEnemySlotId)
+    ? migratedTargetedEnemySlotId
+    : enemySlots[0]!.slotId;
+
+  for (const scheme of schemes) {
+    const migratedCommandsBySlot: Record<string, EnemyCommandPlacement[]> = {};
+    for (const [legacySlotId, placements] of Object.entries(scheme.enemyCommandsBySlot ?? {})) {
+      const canonicalSlotId = canonicalizeEnemySlotId(legacySlotId);
+      if (!canonicalSlotId) continue;
+      migratedCommandsBySlot[canonicalSlotId] = [
+        ...(migratedCommandsBySlot[canonicalSlotId] ?? []),
+        ...placements,
+      ];
+    }
+    scheme.enemyCommandsBySlot = migratedCommandsBySlot;
+  }
 
   return {
     schemes,
@@ -546,7 +601,11 @@ function ensureState(buildIdRef?: Ref<string | undefined>): Ref<RotationSchemesS
           stateRef.value = loadStateForScope(activeBuildScopeId);
         }
       },
-      { immediate: true },
+      // Build hydration updates the active id and then installs the SavedBuild
+      // rotation snapshot in the same call stack. A deferred scope switch can
+      // otherwise run afterward and replace that snapshot with stale scoped
+      // storage (or persist the previous build under the new scope).
+      { immediate: true, flush: "sync" },
     );
   }
 

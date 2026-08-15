@@ -2,6 +2,7 @@
 const props = defineProps<{
   open: boolean;
   vm: any;
+  embedded?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -14,11 +15,11 @@ const emit = defineEmits<{
 <template>
   <div
     v-if="open"
-    class="fixed inset-0 z-[140] flex items-center justify-center bg-black/35 px-4 py-8"
+    :class="embedded ? 'h-full min-h-0 overflow-y-auto' : 'fixed inset-0 z-[140] flex items-center justify-center bg-black/35 px-4 py-8'"
     @click.self="emit('close')"
   >
-    <div class="w-full max-w-6xl rounded-2xl border border-[#505050] bg-[#cfcfcf] p-4 text-[#1b1b1b] shadow-2xl">
-      <div class="mb-3 flex items-center justify-between gap-3">
+    <div :class="embedded ? 'w-full bg-[#cfcfcf] p-4 text-[#1b1b1b]' : 'w-full max-w-6xl rounded-2xl border border-[#505050] bg-[#cfcfcf] p-4 text-[#1b1b1b] shadow-2xl'">
+      <div v-if="!embedded" class="mb-3 flex items-center justify-between gap-3">
         <div class="text-sm uppercase tracking-[0.2em] text-[#777]">{{ vm.locale === "zh-CN" ? "词条" : "Contingency Contracts" }}</div>
         <button
           type="button"

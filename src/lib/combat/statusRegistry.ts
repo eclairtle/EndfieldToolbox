@@ -96,7 +96,7 @@ export const COMBAT_STATUS_DEFINITIONS: Record<SupportedCombatStatusId, CombatSt
     id: "contract_battle_chill_cooldown",
     label: { en: "Team: Battle Chill Cooldown", zh: "队列：失温冷却" },
     defaultKind: "special_stack",
-    defaultTimeScale: "game",
+    defaultTimeScale: "real",
     defaultHidden: true,
     defaultDurationSeconds: 3,
     allowPermanent: true,

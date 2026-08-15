@@ -179,6 +179,7 @@ const LASTRITE_EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const LASTRITE_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["ARTS_INFLICTION_APPLIED", "BASIC_ATTACK_FINAL_STRIKE_HIT", "ARTS_INFLICTION_CONSUMED"],
   onEvent: (ctx) => {
     if (ctx.event.type === "ARTS_INFLICTION_APPLIED") {
       const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();

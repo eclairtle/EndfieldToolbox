@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useLocale } from "@/i18n/useLocale";
 import { getCritRigModeFromRules } from "@/lib/combat/critRigging";
 import type {
@@ -58,8 +58,48 @@ const props = defineProps<{
   }) => void;
 }>();
 
-const { t } = useLocale();
+const { t, locale } = useLocale();
 const critRiggingExpanded = ref(false);
+const enemyStartTimeDraft = ref("");
+const stepStartTimeDraft = ref("");
+
+watch(
+  () => [props.selectedEnemyCommand?.id, props.selectedEnemyCommand?.startTime] as const,
+  ([, startTime]) => {
+    enemyStartTimeDraft.value = typeof startTime === "number" ? startTime.toFixed(3) : "";
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [props.selectedStep?.id, props.selectedStep?.startTime] as const,
+  ([, startTime]) => {
+    stepStartTimeDraft.value = typeof startTime === "number" ? startTime.toFixed(3) : "";
+  },
+  { immediate: true },
+);
+
+function commitEnemyStartTime() {
+  if (!props.selectedEnemyCommand) return;
+  const value = Math.max(0, Number(Number(enemyStartTimeDraft.value || 0).toFixed(3)));
+  enemyStartTimeDraft.value = value.toFixed(3);
+  if (Math.abs(value - props.selectedEnemyCommand.startTime) <= 0.0001) return;
+  props.onUpdateEnemyCommandPlacement(props.selectedEnemyCommand.id, { startTime: value });
+}
+
+function commitStepStartTime() {
+  if (!props.selectedStep) return;
+  const value = stepStartTimeDraft.value === ""
+    ? undefined
+    : Number(Number(stepStartTimeDraft.value).toFixed(3));
+  if (value != null && !Number.isFinite(value)) {
+    stepStartTimeDraft.value = props.selectedStep.startTime?.toFixed(3) ?? "";
+    return;
+  }
+  stepStartTimeDraft.value = value?.toFixed(3) ?? "";
+  if (value === props.selectedStep.startTime) return;
+  props.onUpdateSelectedStep({ startTime: value });
+}
 
 function getCritRigMode(
   hitIndex: number,
@@ -86,6 +126,32 @@ function updateSwapBuildTarget(fromVariant: number, toVariant: number) {
   const current = [...(props.selectedStep?.buildSwapMap ?? [1, 2, 3, 0])] as [number, number, number, number];
   current[fromVariant] = Math.max(0, Math.min(3, toVariant));
   props.onUpdateSelectedStep({ buildSwapMap: current });
+}
+
+function isEnemySlotMissed(slotNumber: number): boolean {
+  if (props.selectedStep?.missed === true) return true;
+  return props.selectedStep?.missedEnemySlots?.includes(slotNumber) === true;
+}
+
+function setEnemySlotMissed(slotNumber: number, missed: boolean) {
+  if (!props.selectedStep) return;
+  const current = new Set(
+    props.selectedStep.missed === true
+      ? Array.from({ length: 10 }, (_, index) => index + 1)
+      : props.selectedStep.missedEnemySlots ?? [],
+  );
+  if (missed) current.add(slotNumber);
+  else current.delete(slotNumber);
+  props.onUpdateSelectedStep({
+    // Convert the legacy all-or-nothing flag into the explicit slot mask.
+    missed: false,
+    missedEnemySlots: [...current].sort((left, right) => left - right),
+  });
+}
+
+function setAllEnemySlotsMissed(missed: boolean) {
+  if (!props.selectedStep) return;
+  props.onUpdateSelectedStep({ missed });
 }
 </script>
 
@@ -182,16 +248,13 @@ function updateSwapBuildTarget(fromVariant: number, toVariant: number) {
       <label class="block">
         <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.realStartTime") }}</div>
         <input
-          :value="selectedEnemyCommand.startTime.toFixed(3)"
+          v-model="enemyStartTimeDraft"
           type="number"
           min="0"
           step="0.1"
           class="w-full rounded-lg border border-[#d7d7d7] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#c8d13c]"
-          @input="
-            onUpdateEnemyCommandPlacement(selectedEnemyCommand.id, {
-              startTime: Math.max(0, Number(Number(($event.target as HTMLInputElement).value || 0).toFixed(3))),
-            })
-          "
+          @blur="commitEnemyStartTime"
+          @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
         >
       </label>
 
@@ -290,18 +353,13 @@ function updateSwapBuildTarget(fromVariant: number, toVariant: number) {
       <label class="block">
         <div class="mb-1 text-xs uppercase tracking-[0.16em] text-[#7a7a7a]">{{ t("rotation.realStartTime") }}</div>
         <input
-          :value="selectedStep?.startTime?.toFixed(3) ?? ''"
+          v-model="stepStartTimeDraft"
           type="number"
           min="0"
           step="0.1"
           class="w-full rounded-lg border border-[#d7d7d7] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#c8d13c]"
-          @input="
-            onUpdateSelectedStep({
-              startTime: ($event.target as HTMLInputElement).value === ''
-                ? undefined
-                : Number(Number(($event.target as HTMLInputElement).value).toFixed(3)),
-            })
-          "
+          @blur="commitStepStartTime"
+          @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
         >
       </label>
 
@@ -330,19 +388,30 @@ function updateSwapBuildTarget(fromVariant: number, toVariant: number) {
       </label>
 
       <div class="grid grid-cols-1 gap-2 text-sm text-[#444]">
-        <label class="inline-flex items-center gap-2 rounded-lg border border-[#ececec] bg-white px-3 py-2">
-          <input
-            :checked="selectedStep?.missed === true"
-            type="checkbox"
-            class="h-4 w-4 accent-[#8f8f8f]"
-            @change="
-              onUpdateSelectedStep({
-                missed: ($event.target as HTMLInputElement).checked,
-              })
-            "
-          >
-          <span>{{ t("rotation.missedNullifyHits") }}</span>
-        </label>
+        <div class="rounded-lg border border-[#ececec] bg-white px-3 py-2">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.1em] text-[#666]">{{ locale === 'zh-CN' ? '未命中' : 'Missed' }}</span>
+            <label class="inline-flex items-center gap-1 border-r border-[#ddd] pr-3 text-xs font-semibold text-[#444]">
+              <input
+                :checked="selectedStep?.missed === true"
+                type="checkbox"
+                class="h-3.5 w-3.5 accent-[#8f8f8f]"
+                @change="setAllEnemySlotsMissed(($event.target as HTMLInputElement).checked)"
+              >
+              <span>{{ locale === 'zh-CN' ? '全部' : 'All' }}</span>
+            </label>
+            <label v-for="slotNumber in 10" :key="slotNumber" class="inline-flex items-center gap-1 text-xs text-[#555]">
+              <input
+                :checked="isEnemySlotMissed(slotNumber)"
+                type="checkbox"
+                class="h-3.5 w-3.5 accent-[#8f8f8f]"
+                @change="setEnemySlotMissed(slotNumber, ($event.target as HTMLInputElement).checked)"
+              >
+              <span>{{ slotNumber }}</span>
+            </label>
+          </div>
+          <div class="mt-1 text-[11px] text-[#888]">{{ locale === 'zh-CN' ? '槽位选项仅跳过范围命中；“全部”也会使单体命中失效。' : 'Slot options skip splash hits only; All also nullifies single-target hits.' }}</div>
+        </div>
         <label class="inline-flex items-center gap-2 rounded-lg border border-[#ececec] bg-white px-3 py-2">
           <input
             :checked="selectedStep?.interrupted === true"

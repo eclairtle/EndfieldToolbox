@@ -193,6 +193,9 @@ function setExpressionType(expression: TriggerValueExpression, nextType: Trigger
     case "enemy_rank":
       replaceExpression(expression, { type: "enemy_rank", enemy: { type: "alias_enemy", alias: "event_enemy_target" } });
       return;
+    case "enemy_crowd_control_level":
+      replaceExpression(expression, { type: "enemy_crowd_control_level", enemy: { type: "alias_enemy", alias: "event_enemy_target" } });
+      return;
     case "enemy_rank_literal":
       replaceExpression(expression, { type: "enemy_rank_literal", rank: "common" });
       return;
@@ -231,6 +234,7 @@ function getEnemyReferenceMode(reference: TriggerEnemyReferenceExpression) {
   if (reference.type === "enemy_from_group") {
     return "event_enemy_group_member";
   }
+  if (reference.type === "current_enemy") return "current_enemy";
   return "event_enemy_target";
 }
 
@@ -243,6 +247,7 @@ function setEnemyReferenceMode(reference: TriggerEnemyReferenceExpression, mode:
     replaceEnemyRef(reference, { type: "enemy_from_group", alias: "event_enemy_group", index: { type: "number_literal", value: 1 } });
     return;
   }
+  if (mode === "current_enemy") { replaceEnemyRef(reference, { type: "current_enemy" }); return; }
   replaceEnemyRef(reference, { type: "alias_enemy", alias: "event_enemy_target" });
 }
 
@@ -269,7 +274,7 @@ function setEnemyReferenceGroupIndex(reference: TriggerEnemyReferenceExpression,
 }
 
 function getOperatorReferenceMode(reference: TriggerOperatorReferenceExpression) {
-  return reference.type === "controlled_operator" ? "controlled_operator" : "event_operator";
+  return reference.type === "controlled_operator" ? "controlled_operator" : reference.type === "current_operator" ? "current_operator" : "event_operator";
 }
 
 function setOperatorReferenceMode(reference: TriggerOperatorReferenceExpression, mode: string) {
@@ -277,6 +282,7 @@ function setOperatorReferenceMode(reference: TriggerOperatorReferenceExpression,
     replaceOperatorRef(reference, { type: "controlled_operator" });
     return;
   }
+  if (mode === "current_operator") { replaceOperatorRef(reference, { type: "current_operator" }); return; }
   replaceOperatorRef(reference, { type: "alias_operator", alias: "event_operator" });
 }
 
@@ -466,6 +472,8 @@ function getReferenceTargetMode(reference: TriggerStatusTargetExpression) {
   if (reference.type === "alias_operator") {
     return "event_operator";
   }
+  if (reference.type === "current_operator") return "current_operator";
+  if (reference.type === "current_enemy") return "current_enemy";
   if (reference.type === "enemy_in_slot") {
     return "enemy_in_slot";
   }
@@ -492,6 +500,8 @@ function setReferenceTargetMode(reference: TriggerStatusTargetExpression, mode: 
     replaceStatusTarget(reference, { type: "alias_operator", alias: "event_operator" });
     return;
   }
+  if (mode === "current_operator") { replaceStatusTarget(reference, { type: "current_operator" }); return; }
+  if (mode === "current_enemy") { replaceStatusTarget(reference, { type: "current_enemy" }); return; }
   if (mode === "enemy_in_slot") {
     replaceStatusTarget(reference, { type: "enemy_in_slot", slotNumber: { type: "number_literal", value: 1 } });
     return;
@@ -529,6 +539,8 @@ function getExpressionLabel(expression: TriggerValueExpression) {
       return locale.value === "zh-CN" ? "敌人身份" : "Enemy Identity";
     case "enemy_rank":
       return locale.value === "zh-CN" ? "敌人位阶" : "Enemy Rank";
+    case "enemy_crowd_control_level":
+      return locale.value === "zh-CN" ? "敌人控制等级" : "Enemy Crowd Control Level";
     case "enemy_rank_literal":
       return locale.value === "zh-CN" ? "敌人位阶常量" : "Enemy Rank Literal";
     case "operator_hp_ratio":
@@ -608,7 +620,7 @@ function getExpressionLabel(expression: TriggerValueExpression) {
             class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm text-[#1b1b1b]"
             @change="setExpressionType(node.left, ($event.target as HTMLSelectElement).value as TriggerValueExpression['type'])"
           >
-            <option v-for="type in ['string_literal','number_literal','boolean_literal','variable_ref','status_id_literal','event_status_id','event_status_duration','event_damage_type','damage_type_literal','enemy_id_literal','enemy_identity','enemy_rank','enemy_rank_literal','operator_hp_ratio','enemy_hp_ratio','status_stack_count','contract_enabled','enemy_state_count','enemy_state','trigger_enabled']" :key="type" :value="type">
+            <option v-for="type in ['string_literal','number_literal','boolean_literal','variable_ref','status_id_literal','event_status_id','event_status_duration','event_damage_type','damage_type_literal','enemy_id_literal','enemy_identity','enemy_rank','enemy_crowd_control_level','enemy_rank_literal','operator_hp_ratio','enemy_hp_ratio','status_stack_count','contract_enabled','enemy_state_count','enemy_state','trigger_enabled']" :key="type" :value="type">
               {{ getExpressionLabel({ type } as TriggerValueExpression) }}
             </option>
           </select>
@@ -621,7 +633,7 @@ function getExpressionLabel(expression: TriggerValueExpression) {
             class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm text-[#1b1b1b]"
             @change="setExpressionType(node.right, ($event.target as HTMLSelectElement).value as TriggerValueExpression['type'])"
           >
-            <option v-for="type in ['string_literal','number_literal','boolean_literal','variable_ref','status_id_literal','event_status_id','event_status_duration','event_damage_type','damage_type_literal','enemy_id_literal','enemy_identity','enemy_rank','enemy_rank_literal','operator_hp_ratio','enemy_hp_ratio','status_stack_count','contract_enabled','enemy_state_count','enemy_state','trigger_enabled']" :key="type" :value="type">
+            <option v-for="type in ['string_literal','number_literal','boolean_literal','variable_ref','status_id_literal','event_status_id','event_status_duration','event_damage_type','damage_type_literal','enemy_id_literal','enemy_identity','enemy_rank','enemy_crowd_control_level','enemy_rank_literal','operator_hp_ratio','enemy_hp_ratio','status_stack_count','contract_enabled','enemy_state_count','enemy_state','trigger_enabled']" :key="type" :value="type">
               {{ getExpressionLabel({ type } as TriggerValueExpression) }}
             </option>
           </select>
@@ -676,11 +688,12 @@ function getExpressionLabel(expression: TriggerValueExpression) {
               </option>
             </select>
           </template>
-          <template v-else-if="node.left.type === 'enemy_identity' || node.left.type === 'enemy_rank' || node.left.type === 'enemy_hp_ratio'">
+          <template v-else-if="node.left.type === 'enemy_identity' || node.left.type === 'enemy_rank' || node.left.type === 'enemy_crowd_control_level' || node.left.type === 'enemy_hp_ratio'">
             <select :value="getEnemyReferenceMode(node.left.type === 'enemy_hp_ratio' ? node.left.target : node.left.enemy)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="setEnemyReferenceMode(node.left.type === 'enemy_hp_ratio' ? node.left.target : node.left.enemy, ($event.target as HTMLSelectElement).value)">
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_target')" value="event_enemy_target">Event Enemy Target</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_group')" value="event_enemy_group_member">Event Enemy Group Member</option>
               <option value="enemy_in_slot">Enemy In Slot</option>
+              <option value="current_enemy">Current Enemy Slot</option>
             </select>
             <template v-if="getEnemyReferenceMode(node.left.type === 'enemy_hp_ratio' ? node.left.target : node.left.enemy) === 'enemy_in_slot'">
               <select v-if="getEnemyReferenceSlotSource(node.left.type === 'enemy_hp_ratio' ? node.left.target : node.left.enemy)" :value="getNumericSourceMode(getEnemyReferenceSlotSource(node.left.type === 'enemy_hp_ratio' ? node.left.target : node.left.enemy)!)" class="mt-2 w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="setNumericSourceMode(getEnemyReferenceSlotSource(node.left.type === 'enemy_hp_ratio' ? node.left.target : node.left.enemy)!, ($event.target as HTMLSelectElement).value as 'literal' | 'variable')"><option value="literal">Literal</option><option value="variable">Variable</option></select>
@@ -706,9 +719,11 @@ function getExpressionLabel(expression: TriggerValueExpression) {
               <option value="global">{{ locale === 'zh-CN' ? '全局' : 'Global' }}</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_operator')" value="event_operator">Event Operator</option>
               <option value="controlled_operator">Controlled Operator</option>
+              <option value="current_operator">Current Operator Slot</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_target')" value="event_enemy_target">Event Enemy Target</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_group')" value="event_enemy_group_member">Event Enemy Group Member</option>
               <option value="enemy_in_slot">Enemy In Slot</option>
+              <option value="current_enemy">Current Enemy Slot</option>
             </select>
             <template v-if="getReferenceTargetMode(node.left.target) === 'enemy_in_slot' && node.left.target.type === 'enemy_in_slot'">
               <select :value="getNumericSourceMode(node.left.target.slotNumber)" class="mt-2 w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="setNumericSourceMode(node.left.target.slotNumber, ($event.target as HTMLSelectElement).value as 'literal' | 'variable')"><option value="literal">Literal</option><option value="variable">Variable</option></select>
@@ -745,6 +760,7 @@ function getExpressionLabel(expression: TriggerValueExpression) {
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_target')" value="event_enemy_target">Event Enemy Target</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_group')" value="event_enemy_group_member">Event Enemy Group Member</option>
               <option value="enemy_in_slot">Enemy In Slot</option>
+              <option value="current_enemy">Current Enemy Slot</option>
             </select>
             <input v-if="getEnemyReferenceMode(node.left.enemy) === 'enemy_in_slot'" :value="getEnemyReferenceSlotNumber(node.left.enemy)" type="number" min="1" step="1" class="mt-2 w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @input="setEnemyReferenceSlotNumber(node.left.enemy, Number(($event.target as HTMLInputElement).value))">
             <select :value="getExpressionEnemyState(node.left)" class="mt-2 w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="setExpressionEnemyState(node.left, ($event.target as HTMLSelectElement).value as TriggerEnemyLifecycleState)">
@@ -768,6 +784,7 @@ function getExpressionLabel(expression: TriggerValueExpression) {
             <select :value="getOperatorReferenceMode(node.left.target)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="setOperatorReferenceMode(node.left.target, ($event.target as HTMLSelectElement).value)">
               <option value="event_operator">Event Operator</option>
               <option value="controlled_operator">Controlled Operator</option>
+              <option value="current_operator">Current Operator Slot</option>
             </select>
           </template>
         </div>
@@ -831,11 +848,12 @@ function getExpressionLabel(expression: TriggerValueExpression) {
               </option>
             </select>
           </template>
-          <template v-else-if="node.right.type === 'enemy_identity' || node.right.type === 'enemy_rank' || node.right.type === 'enemy_hp_ratio'">
+          <template v-else-if="node.right.type === 'enemy_identity' || node.right.type === 'enemy_rank' || node.right.type === 'enemy_crowd_control_level' || node.right.type === 'enemy_hp_ratio'">
             <select :value="getEnemyReferenceMode(node.right.type === 'enemy_hp_ratio' ? node.right.target : node.right.enemy)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="setEnemyReferenceMode(node.right.type === 'enemy_hp_ratio' ? node.right.target : node.right.enemy, ($event.target as HTMLSelectElement).value)">
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_target')" value="event_enemy_target">Event Enemy Target</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_group')" value="event_enemy_group_member">Event Enemy Group Member</option>
               <option value="enemy_in_slot">Enemy In Slot</option>
+              <option value="current_enemy">Current Enemy Slot</option>
             </select>
             <input v-if="getEnemyReferenceMode(node.right.type === 'enemy_hp_ratio' ? node.right.target : node.right.enemy) === 'enemy_in_slot'" :value="getEnemyReferenceSlotNumber(node.right.type === 'enemy_hp_ratio' ? node.right.target : node.right.enemy)" type="number" min="1" step="1" class="mt-2 w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @input="setEnemyReferenceSlotNumber(node.right.type === 'enemy_hp_ratio' ? node.right.target : node.right.enemy, Number(($event.target as HTMLInputElement).value))">
           </template>
@@ -852,6 +870,7 @@ function getExpressionLabel(expression: TriggerValueExpression) {
               <option value="global">{{ locale === 'zh-CN' ? '全局' : 'Global' }}</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_operator')" value="event_operator">Event Operator</option>
               <option value="controlled_operator">Controlled Operator</option>
+              <option value="current_operator">Current Operator Slot</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_target')" value="event_enemy_target">Event Enemy Target</option>
               <option v-if="triggerEventSupportsAlias(eventType, 'event_enemy_group')" value="event_enemy_group_member">Event Enemy Group Member</option>
               <option value="enemy_in_slot">Enemy In Slot</option>

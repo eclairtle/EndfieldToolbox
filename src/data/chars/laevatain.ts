@@ -46,6 +46,7 @@ function getScorchingHeartResistanceIgnore(ctx: {
 }
 
 const LAEVATAIN_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["MELTING_FLAME_FULL", "COMBUSTION_APPLIED", "CORROSION_APPLIED"],
   onResolvedHit: (ctx) => {
     if (!ctx.source.isControlledOperatorHit) {
       return;

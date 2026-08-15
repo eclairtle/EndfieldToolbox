@@ -13,6 +13,7 @@ type TimelineActionInput = {
   command: ResolvedCommandAtLevel;
   realStartTime: number;
   missed?: boolean;
+  missedEnemySlots?: number[];
   interrupted?: boolean;
   nullified?: boolean;
   buildSwapMap?: [number, number, number, number];
@@ -220,6 +221,8 @@ function buildTimelineInputs(rotation: Rotation, party: CharacterCombatSnapshot[
       command,
       realStartTime: round(realStartTime),
       missed: step.missed === true,
+      missedEnemySlots: [...new Set(step.missedEnemySlots ?? [])]
+        .filter((slotNumber) => Number.isInteger(slotNumber) && slotNumber >= 1 && slotNumber <= 10),
       interrupted: step.interrupted === true,
       nullified: step.nullified === true,
       buildSwapMap: step.buildSwapMap,
@@ -387,6 +390,7 @@ function resolveAction(
     timeFreezeSeconds: action.command.timeFreezeSeconds,
     cutscene: action.command.cutscene,
     missed: action.missed,
+    missedEnemySlots: action.missedEnemySlots,
     interrupted: action.interrupted,
     nullified: action.nullified,
     buildSwapMap: action.buildSwapMap,
@@ -436,9 +440,21 @@ function prepareActions(
         continue;
       }
 
+      // The candidate action may itself create a time-freeze window at its
+      // authored start. It cannot pause the command that is preventing it from
+      // starting: doing so makes the blocker appear longer, then clamps the
+      // candidate past its own freeze duration. Exclude that circular source
+      // while finding the blocker's real end.
+      const extensionsWithoutCurrent = provisionalExtensions.filter((extension) => {
+        const sourceIds = extension.sourceStepIds ?? extension.sourceStepId.split(",");
+        return !sourceIds.includes(current.stepId);
+      });
+      const blockingTimeContext = extensionsWithoutCurrent.length === provisionalExtensions.length
+        ? provisionalTimeContext
+        : new RotationTimeContext(extensionsWithoutCurrent);
       const activeEnd = round(
         Math.min(
-          provisionalTimeContext.getShiftedEndTime(
+          blockingTimeContext.getShiftedEndTime(
             activeBlocking.resolvedRealStartTime,
             activeBlocking.command.durationFrames / 60,
             activeBlocking.stepId,

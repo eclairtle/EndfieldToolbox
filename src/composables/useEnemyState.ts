@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import { ENEMIES, type EnemyBase } from "@/data/enemies";
 import { calculateEnemyStats } from "@/lib/enemy/enemyScaling";
 import type { EnemySlotState } from "@/lib/combat/rotation";
@@ -9,7 +9,7 @@ function firstOrThrow<T>(arr: T[], name: string): T {
   return value;
 }
 
-export function useEnemyState() {
+export function useEnemyState(enemyHpBaseOverrides?: Ref<Record<string, number>>) {
   const firstEnemy = firstOrThrow(ENEMIES, "ENEMIES");
   const defaultEnemy = ENEMIES.find((enemy) => enemy.id === "rhodagn") ?? firstEnemy;
 
@@ -67,7 +67,9 @@ export function useEnemyState() {
   });
 
   const selectedEnemy = computed<EnemyBase>(() => {
-    return ENEMIES.find((e) => e.id === selectedEnemyId.value) ?? defaultEnemy;
+    const base = ENEMIES.find((e) => e.id === selectedEnemyId.value) ?? defaultEnemy;
+    const hpOverride = enemyHpBaseOverrides?.value[base.id];
+    return hpOverride == null ? base : { ...base, baseHpLv1: hpOverride };
   });
 
   const resolvedEnemyStats = computed(() => {

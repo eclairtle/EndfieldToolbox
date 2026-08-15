@@ -103,6 +103,7 @@ export const MODIFIER_STAT_KEYS = [
   "HEALING_PCT",
   "HEALING_RECEIVED_PCT",
   "FINAL_DMG_REDUCTION_PCT",
+  "SUPER_ARMOR_PCT",
   "WEAKNESS_PCT",
   "SUS_PCT",
   "PHYSICAL_SUS_PCT",
@@ -215,6 +216,7 @@ export function makeBaseModifierStats(): ModifierStats {
     HEALING_PCT: 0,
     HEALING_RECEIVED_PCT: 0,
     FINAL_DMG_REDUCTION_PCT: 0,
+    SUPER_ARMOR_PCT: 0,
     WEAKNESS_PCT: 0,
     SUS_PCT: 0,
     PHYSICAL_SUS_PCT: 0,
@@ -370,6 +372,8 @@ export function computeFinalStats(args: {
     gearBases: args.gearBases,
     gearInstances: args.gearInstances,
     mods,
+    mainAttr: char.mainAttr,
+    secondaryAttr: char.secondaryAttr,
   });
   attrs = gearRes.attrs;
   const attrsAfterGear: Attrs = { ...attrs };

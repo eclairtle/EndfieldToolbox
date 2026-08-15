@@ -215,5 +215,26 @@ export const TYPE_50_YINGLUNG: GearBase[] = [
         "value": 0.345
       }
     ],
+  },
+  {
+    "id": "item_equip_t4_suit_atk02_hand_02",
+    "name": "Type 50 Yinglung Gloves T1",
+    "slot": "GLOVES",
+    "set": "Type 50 Yinglung",
+    "defFlat": 42,
+    "subs": [
+      {
+        "stat": "WIL",
+        "value": 65
+      },
+      {
+        "stat": "AGI",
+        "value": 43
+      },
+      {
+        "stat": "COMBO_SKILL_DMG_PCT",
+        "value": 0.345
+      }
+    ],
   }
 ];

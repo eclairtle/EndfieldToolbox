@@ -35,6 +35,7 @@ const ESTELLA_EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const ESTELLA_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["SNAPSHOT_INITIALIZED", "COMBAT_INITIALIZED", "ARTS_REACTION_APPLIED", "BATTLE_SKILL_CAST"],
   onResolvedHit: (ctx) => {
     if (ctx.source.slot !== ctx.self.slot) {
       return;

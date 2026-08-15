@@ -34,6 +34,7 @@ export type RotationStep = {
   startTime?: number;
   groupId?: string;
   missed?: boolean;
+  missedEnemySlots?: number[];
   interrupted?: boolean;
   nullified?: boolean;
   buildSwapMap?: [number, number, number, number];
@@ -159,6 +160,18 @@ export type DamageTimelineEntry = {
   };
 };
 
+export type EnemyOriginatedHitTimelineEntry = {
+  time: number;
+  gameTime: number;
+  stepId: string;
+  sourceEnemySlotId: EnemySlotId;
+  targetEnemySlotId: EnemySlotId;
+  hitType: "healing";
+  hitName: string;
+  amount: number;
+  requestedAmount: number;
+};
+
 export type RotationTimeExtension = {
   time: number;
   gameTime: number;
@@ -182,8 +195,10 @@ export type CompiledRotationAction = {
   timeFreezeSeconds: number;
   cutscene: boolean;
   missed?: boolean;
+  missedEnemySlots?: number[];
   interrupted?: boolean;
   nullified?: boolean;
+  resolvedComboCooldownSeconds?: number;
   buildSwapMap?: [number, number, number, number];
 };
 
@@ -291,6 +306,14 @@ export type EnemyCombatStateSnapshot = {
 
 export type EnemyActionEffect = {
   type: "RESET_STAGGER" | "INTERRUPT_ONGOING_COMMANDS" | "CLEAR_FIELD_EFFECTS" | "REINITIALIZE_COMBAT" | "SET_TARGET_ENEMY";
+} | {
+  type: "APPLY_BUFF";
+  buffId: string;
+  label: string;
+  effects: Partial<ModifierStats>;
+  durationSeconds: number;
+  timeScale?: TimeScale;
+  hidden?: boolean;
 } | {
   type: "TRANSFORM_ENEMY";
   enemyId: string;
@@ -403,9 +426,11 @@ export type RotationSimulationCheckpoint = {
     totalDamage: number;
     riggedCritCount: number;
     timelineCount: number;
+    enemyTimelineHitCount: number;
     eventCount: number;
     comboWindowCount: number;
     enemyLifecycleCount: number;
+    enemyTargetCount: number;
     countdownCount: number;
     relayCount: number;
     enemyTransitionCount: number;
@@ -505,6 +530,7 @@ export type RotationSimulationResult = {
   totalGameTime: number;
   totalTime: number;
   timeline: DamageTimelineEntry[];
+  enemyTimelineHits: EnemyOriginatedHitTimelineEntry[];
   actions: CompiledRotationAction[];
   timeExtensions: RotationTimeExtension[];
   events: RotationCombatEvent[];
@@ -513,6 +539,7 @@ export type RotationSimulationResult = {
   enemyStateTimeline: EnemyCombatStateSnapshot[];
   enemyActionWindows: EnemyActionWindow[];
   enemyLifecycleTimeline: EnemyLifecycleTimelineEntry[];
+  enemyTargetTimeline: EnemyTargetTimelineEntry[];
   countdownTimeline: CountdownTimelineEntry[];
   relayTimeline: RelayTimelineEntry[];
   enemyTransitionTimeline: EnemyTransitionTimelineEntry[];
@@ -521,6 +548,8 @@ export type RotationSimulationResult = {
   displayTimeOffset?: number;
   displayGameTimeOffset?: number;
   initialResources: RotationSimulationInitialResourceState;
+  initialControlledOperatorSlot?: PartySlot;
+  initialSwitchBackLockedUntilBySlot?: Map<PartySlot, number>;
   enemySlots?: EnemySlotState[];
   targetedEnemySlotId?: EnemySlotId;
   enemyStaggerDecayRate: number;
@@ -538,6 +567,17 @@ export type EnemyLifecycleTimelineEntry = {
   gameTime: number;
   enemyId: string;
   type: "spawned" | "replaced" | "transformed" | "defeated";
+};
+
+export type EnemyTargetTimelineEntry = {
+  time: number;
+  gameTime: number;
+  enemySlotId: EnemySlotId;
+  previousEnemySlotId: EnemySlotId;
+  reason: "set_target" | "target_defeated" | "enemy_spawned";
+  succeeded: boolean;
+  sourceId?: string;
+  failureReason?: "enemy_not_active";
 };
 
 export type CountdownTimelineEntry = {
@@ -569,7 +609,7 @@ export type EnemyTransitionTimelineEntry = {
   tintColor?: string;
 };
 
-export type PassiveListenerKind = "COMBAT_HOOK" | "GEAR_SET" | "WEAPON";
+export type PassiveListenerKind = "COMBAT_HOOK" | "GEAR_SET" | "WEAPON" | "CUSTOM_TRIGGER";
 
 export type PassiveListenerDebugEntry = {
   time: number;
@@ -580,9 +620,11 @@ export type PassiveListenerDebugEntry = {
   eventCommandId?: string;
   eventCommandAttackType?: RotationCombatEvent["commandAttackType"];
   listenerKind: PassiveListenerKind;
-  slot: PartySlot;
-  characterId: string;
-  characterName: string;
+  slot?: PartySlot;
+  characterId?: string;
+  characterName?: string;
+  triggerId?: string;
+  triggerName?: string;
   listenerPresent: boolean;
 };
 
@@ -615,9 +657,11 @@ export type ComboTriggerDebugEntry = {
 };
 
 export type RotationCombatEventType =
+  | "STAGE_BEGIN"
   | "ROTATION_RELAYED"
   | "ENEMY_SPAWNED"
   | "ENEMY_REPLACED"
+  | "ENEMY_TRANSFORMED"
   | "SKILL_CAST"
   | "ULTIMATE_CAST"
   | "ULTIMATE_END"
@@ -712,12 +756,16 @@ export type RotationCombatEvent = {
   enemyHadPhysicalSusceptibility?: boolean;
   enemyWasStaggered?: boolean;
   enemyHadOriginiumCrystal?: boolean;
+  forcedReaction?: boolean;
+  iteratorEnemySlotId?: EnemySlotId;
+  iteratorOperatorSlot?: PartySlot;
 };
 
 export type ComboTriggerWindow = {
   slot: PartySlot;
   commandId: string;
   triggerId: string;
+  /** Combo-window timestamps use game time; combo cooldowns keep their command-defined clock. */
   readyAt: number;
   expiresAt: number;
   perfectTimingStartAt?: number;

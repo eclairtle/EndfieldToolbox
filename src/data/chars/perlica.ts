@@ -265,6 +265,7 @@ export const PERLICA: CharacterBase = {
     });
   },
   combatHooks: {
+    eventTypes: ["BASIC_ATTACK_FINAL_STRIKE_HIT", "ARTS_REACTION_APPLIED"],
     onEvent: (ctx) => {
       if (ctx.event.type === "BASIC_ATTACK_FINAL_STRIKE_HIT") {
         ctx.state.triggerSelfCombo({

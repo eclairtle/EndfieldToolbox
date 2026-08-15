@@ -276,6 +276,7 @@ const ALESH_EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const ALESH_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["ARTS_REACTION_CONSUMED", "PHYSICAL_REACTION_APPLIED", "ARTS_REACTION_APPLIED", "ORIGINIUM_CRYSTAL_APPLIED"],
   onResolvedHit: (ctx) => {
     if (!ctx.flags.dealsDamage || ctx.source.slot !== ctx.self.slot) {
       return;

@@ -11,6 +11,19 @@ const GENERIC_EN_CHARACTER_SKILL_NAMES: Record<CharacterSkillKey, string> = {
   ultimate: "Ultimate",
 };
 
+const characterSkillNameOverridesByLocale: Partial<Record<
+  SupportedLocale,
+  Record<string, Partial<Record<CharacterSkillKey, string>>>
+>> = {
+  "zh-CN": {
+    rossi: {
+      battleSkill: "血红之影",
+      comboSkill: "燎影时刻",
+      ultimate: "“利爪”奇袭",
+    },
+  },
+};
+
 const characterSkillNamesByLocale = apiSkillTextByLocale.characterSkills as Record<
   SupportedLocale,
   Record<string, Partial<Record<CharacterSkillKey, string>>>
@@ -114,6 +127,14 @@ export function getCharacterSkillDisplayName(args: {
   const locale = currentLocale();
   const characterId = args.character?.id;
   if (characterId) {
+    const override = characterSkillNameOverridesByLocale[locale]?.[characterId]?.[args.skillKey];
+    if (override) {
+      return cleanApiText(override);
+    }
+    const fallbackOverride = characterSkillNameOverridesByLocale.en?.[characterId]?.[args.skillKey];
+    if (fallbackOverride) {
+      return cleanApiText(fallbackOverride);
+    }
     const localized = characterSkillNamesByLocale[locale]?.[characterId]?.[args.skillKey];
     if (localized) {
       return cleanApiText(localized);

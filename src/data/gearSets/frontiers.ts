@@ -209,6 +209,27 @@ export const FRONTIERS: GearBase[] = [
     ],
   },
   {
+    "id": "item_equip_t4_suit_atb01_edc_06",
+    "name": "Frontiers Extra O2 Tube T1",
+    "slot": "KIT",
+    "set": "Frontiers",
+    "defFlat": 21,
+    "subs": [
+      {
+        "stat": "INT",
+        "value": 32
+      },
+      {
+        "stat": "AGI",
+        "value": 21
+      },
+      {
+        "stat": "SECONDARY_ATTR_PCT",
+        "value": 0.2070178350109774
+      }
+    ],
+  },
+  {
     "id": "item_equip_t4_suit_atb01_hand_01",
     "name": "Frontiers Blight RES Gloves",
     "slot": "GLOVES",
@@ -247,6 +268,27 @@ export const FRONTIERS: GearBase[] = [
       {
         "stat": "SKILL_DMG_PCT",
         "value": 0.23
+      }
+    ],
+  },
+  {
+    "id": "item_equip_t4_suit_atb01_hand_03",
+    "name": "Frontiers Fiber Gloves T1",
+    "slot": "GLOVES",
+    "set": "Frontiers",
+    "defFlat": 42,
+    "subs": [
+      {
+        "stat": "INT",
+        "value": 65
+      },
+      {
+        "stat": "AGI",
+        "value": 43
+      },
+      {
+        "stat": "ULT_GAIN_PCT",
+        "value": 0.20535714285714285
       }
     ],
   }

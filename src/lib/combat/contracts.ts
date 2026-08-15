@@ -63,12 +63,14 @@ export type ResolvedContingencyContracts = {
     durationSeconds: number;
     timeScale: TimeScale;
   }>;
+  basicAttackDamagePctValues: number[];
   battleSkillDamagePctValues: number[];
   nonCommandDamagePctValues: number[];
   battleTimeLimitSeconds?: number;
   decapitationDamageTakenPct?: number;
   bladebreakingUltimateDmgPct?: number;
   barrierInflictionIntervalSeconds?: number;
+  comboCooldownFinalMultiplier?: number;
 };
 
 function makeVariant(
@@ -837,7 +839,6 @@ const BASIC_ATTACK_BREAKDOWN: ContingencyContractDefinition = {
       "Basic Attack Breakdown III",
       "Operators' Basic Attack DMG -70%",
       "干员的普通攻击伤害-70%",
-      [{ type: "APPLY_OPERATOR_MODIFIER", stat: "BASIC_ATK_DMG_PCT", value: -0.7 }],
     ),
   ],
 };
@@ -869,12 +870,10 @@ const AUXILIARY_REBALANCE: ContingencyContractDefinition = {
     makeVariant(
       "auxiliary_rebalance_combo",
       3,
-        "Auxiliary Rebalance III (Combo)",
-        "Combo Skill cooldown -60%; Battle Skill DMG -60%",
-        "连携技冷却时间-60%，战技伤害-60%",
-      [
-        { type: "APPLY_OPERATOR_MODIFIER", stat: "COMBO_COOLDOWN_TOTAL", value: -0.6 },
-      ],
+      "Auxiliary Rebalance III (Combo)",
+      "Combo Skill cooldown -60%; Battle Skill DMG -60%",
+      "连携技冷却时间-60%，战技伤害-60%",
+      [],
     ),
   ],
 };
@@ -1059,14 +1058,14 @@ const FINAL_WAVE_REPLACEMENT: ContingencyContractDefinition = {
   variants: [
     makeVariant(
       "final_wave_replacement_1",
-      2,
+      1,
       "RE-Construct I",
       "Heavy Ram and Heavy Sting enemies in the final wave are replaced by Heavy Ram α and Heavy Sting α",
       "最终波次的“刚角天使”与“重刺天使”变为“刚角天使α”与“重刺天使α”",
     ),
     makeVariant(
       "final_wave_replacement_2",
-      3,
+      2,
       "RE-Construct II",
       "Heavy Ram and Heavy Sting enemies in the third and fourth waves are replaced by Heavy Ram α and Heavy Sting α",
       "第三、四波次的“刚角天使”与“重刺天使”变为“刚角天使α”与“重刺天使α”",
@@ -1194,6 +1193,7 @@ export function resolveContingencyContracts(
     encasementActive: false,
     swiftendActive: false,
     suppressionOnInflictionEffects: [],
+    basicAttackDamagePctValues: [],
     battleSkillDamagePctValues: [],
     nonCommandDamagePctValues: [],
   };
@@ -1248,12 +1248,19 @@ export function resolveContingencyContracts(
         variant.level === 2 ? -1 : -0.5,
       );
     }
+    if (active.id === "basic_attack_breakdown") {
+      resolved.basicAttackDamagePctValues.push(-0.7);
+    }
     if (active.id === "auxiliary_rebalance") {
       if (active.variantId === "auxiliary_rebalance_misc") {
         resolved.nonCommandDamagePctValues.push(1.0);
         resolved.battleSkillDamagePctValues.push(-0.6);
       } else if (active.variantId === "auxiliary_rebalance_combo") {
         resolved.battleSkillDamagePctValues.push(-0.6);
+        resolved.comboCooldownFinalMultiplier = Math.min(
+          resolved.comboCooldownFinalMultiplier ?? 1,
+          0.4,
+        );
       }
     }
     if (active.id === "encasement") {

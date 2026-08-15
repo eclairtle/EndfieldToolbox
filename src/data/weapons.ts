@@ -115,6 +115,7 @@ export type WeaponBase = {
   skills: [WeaponSkillDef, WeaponSkillDef, WeaponSkillDef];
   getUniqueStaticModifiers?: (uniqueSkillLevel: number) => Partial<ModifierStats>;
   getUniqueSkillDescription?: (uniqueSkillLevel: number) => string | null;
+  combatEventTypes?: readonly RotationCombatEvent["type"][];
   onCombatEvent?: (ctx: WeaponEventListenerContext) => void;
 };
 
@@ -124,6 +125,7 @@ import * as greatsword from "./weap/greatswords";
 import * as artsunit from "./weap/artsunits";
 import * as polearm from "./weap/polearms";
 import { GENERATED_MISSING_WEAPONS } from "./weap/generatedMissing";
+import { VERSION_14_WEAPONS } from "./weap/version14";
 
 // Keep GENERATED_MISSING_WEAPONS for stubs and unpromoted entries only.
 // When a weapon gets a real implementation, move it into its typed category file.
@@ -152,6 +154,7 @@ export const WEAPONS: WeaponBase[] = [
   artsunit.LONE_BARGE,
   artsunit.MONAIHE,
   artsunit.WILD_WANDERER,
+  ...VERSION_14_WEAPONS,
   ...GENERATED_MISSING_WEAPONS,
 ];
 

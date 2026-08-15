@@ -163,6 +163,7 @@ const DAPAN_COMMANDS: CommandDefinition[] = [
 ];
 
 const DAPAN_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["ENEMY_DEBUFF_APPLIED", "ENEMY_DEBUFF_CONSUMED"],
   onEvent: (ctx) => {
     if (
       ctx.event.type === "ENEMY_DEBUFF_APPLIED"

@@ -57,6 +57,13 @@ export type RotationSimulationCacheResult = {
   reusedCachedResult: boolean;
 };
 
+export type RotationSimulationRecomputeDebug = {
+  invalidation: RotationSimulationInvalidation;
+  recalculatedCheckpointCount: number;
+  recalculatedCheckpointTimes: number[];
+  reusedThroughCheckpointTime: number | null;
+};
+
 type CacheEntry = {
   args: RotationSimulationArgs;
   exactSignature: string;
@@ -66,12 +73,46 @@ type CacheEntry = {
 
 const DEFAULT_CHUNK_SECONDS = 15;
 
-function cloneJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function deepClone<T>(value: T): T {
-  return structuredClone(value);
+function deepClone<T>(value: T, seen = new WeakMap<object, unknown>()): T {
+  if (value == null || typeof value !== "object") {
+    return value;
+  }
+  if (seen.has(value)) {
+    return seen.get(value) as T;
+  }
+  if (value instanceof Date) {
+    return new Date(value.getTime()) as T;
+  }
+  if (value instanceof Map) {
+    const cloned = new Map();
+    seen.set(value, cloned);
+    for (const [key, entry] of value.entries()) {
+      cloned.set(deepClone(key, seen), deepClone(entry, seen));
+    }
+    return cloned as T;
+  }
+  if (value instanceof Set) {
+    const cloned = new Set();
+    seen.set(value, cloned);
+    for (const entry of value.values()) {
+      cloned.add(deepClone(entry, seen));
+    }
+    return cloned as T;
+  }
+  if (Array.isArray(value)) {
+    const cloned: unknown[] = [];
+    seen.set(value, cloned);
+    for (const entry of value) {
+      cloned.push(deepClone(entry, seen));
+    }
+    return cloned as T;
+  }
+  const cloned = Object.create(Object.getPrototypeOf(value)) as Record<PropertyKey, unknown>;
+  seen.set(value, cloned);
+  for (const key of Reflect.ownKeys(value)) {
+    cloned[key] = deepClone((value as Record<PropertyKey, unknown>)[key], seen);
+  }
+  return cloned as T;
 }
 
 function rebaseRealTime(value: number, offset: number): number {
@@ -119,26 +160,26 @@ function rebaseRuntimeStatuses(
 
 function rebaseActiveComboWindows(
   windows: RotationSimulationCheckpoint["runtime"]["activeComboWindowBySlot"],
-  realOffset: number,
+  gameOffset: number,
 ): RotationSimulationCheckpoint["runtime"]["activeComboWindowBySlot"] {
   return new Map(
     [...windows.entries()].map(([slot, window]) => [
       slot,
       {
         ...window,
-        readyAt: rebaseRealTime(window.readyAt, realOffset),
-        expiresAt: rebaseRealTime(window.expiresAt, realOffset),
+        readyAt: rebaseGameTime(window.readyAt, gameOffset),
+        expiresAt: rebaseGameTime(window.expiresAt, gameOffset),
         perfectTimingStartAt:
           typeof window.perfectTimingStartAt === "number"
-            ? rebaseRealTime(window.perfectTimingStartAt, realOffset)
+            ? rebaseGameTime(window.perfectTimingStartAt, gameOffset)
             : undefined,
         perfectTimingEndAt:
           typeof window.perfectTimingEndAt === "number"
-            ? rebaseRealTime(window.perfectTimingEndAt, realOffset)
+            ? rebaseGameTime(window.perfectTimingEndAt, gameOffset)
             : undefined,
         consumedAt:
           typeof window.consumedAt === "number"
-            ? rebaseRealTime(window.consumedAt, realOffset)
+            ? rebaseGameTime(window.consumedAt, gameOffset)
             : undefined,
       },
     ]),
@@ -158,7 +199,15 @@ function rebaseRotationEventTime<T extends { time: number; gameTime: number }>(
 }
 
 function stableStringify(value: unknown): string {
-  return JSON.stringify(value);
+  return JSON.stringify(value, (_key, entry: unknown) => {
+    if (entry instanceof Map) {
+      return { __type: "Map", entries: [...entry.entries()] };
+    }
+    if (entry instanceof Set) {
+      return { __type: "Set", values: [...entry.values()] };
+    }
+    return entry;
+  });
 }
 
 function makeGlobalSignature(args: RotationSimulationArgs): string {
@@ -177,10 +226,16 @@ function makeGlobalSignature(args: RotationSimulationArgs): string {
     enemyStaggerRecoverySeconds: args.enemyStaggerRecoverySeconds,
     enemyFinisherMultiplier: args.enemyFinisherMultiplier ?? null,
     enemyFinisherSpGain: args.enemyFinisherSpGain ?? null,
+    enemyHpBaseOverrides: args.enemyHpBaseOverrides ?? {},
     battleStartConsumableIdsBySlot: args.battleStartConsumableIdsBySlot ?? [],
+    battleStartControlledOperatorSlot: args.battleStartControlledOperatorSlot ?? 0,
     contingencyContracts: args.contingencyContracts ?? [],
     customTriggers: args.customTriggers ?? [],
     customTriggerVariables: args.customTriggerVariables ?? [],
+    initialState: args.initialState ?? null,
+    relayStartTime: args.relayStartTime ?? null,
+    relayStartGameTime: args.relayStartGameTime ?? null,
+    emitRotationRelayedEvent: args.emitRotationRelayedEvent ?? false,
   });
 }
 
@@ -241,28 +296,29 @@ function requiresFullRecomputeForEarliestTime(time: number): boolean {
   return !(time > 0);
 }
 
-function hasIndependentPreBattleSetup(args: RotationSimulationArgs): boolean {
-  if (args.initialState) {
-    return false;
-  }
-  return (args.rotation.steps ?? []).some((step) => Number(step.startTime ?? 0) < 0);
-}
-
 function buildCheckpointSummaries(
   result: RotationSimulationResult,
   chunkSeconds: number,
 ): RotationSimulationCheckpointSummary[] {
   if ((result.simulationCheckpoints?.length ?? 0) > 0) {
-    return result.simulationCheckpoints!.map((checkpoint) => ({
-      chunkIndex: checkpoint.chunkIndex,
-      chunkStartTime: Math.max(0, checkpoint.chunkIndex - 1) * chunkSeconds,
-      chunkEndTime: checkpoint.time,
-      actionCount: checkpoint.outputCounts.timelineCount >= 0
-        ? result.actions.filter((action) => action.realStartTime <= checkpoint.time + 0.0001).length
-        : 0,
-      hitCount: checkpoint.outputCounts.timelineCount,
-      eventCount: checkpoint.outputCounts.eventCount,
-    }));
+    const actionsByStartTime = [...result.actions].sort((left, right) => left.realStartTime - right.realStartTime);
+    let actionIndex = 0;
+    return result.simulationCheckpoints!.map((checkpoint) => {
+      while (
+        actionIndex < actionsByStartTime.length
+        && actionsByStartTime[actionIndex]!.realStartTime <= checkpoint.time + 0.0001
+      ) {
+        actionIndex += 1;
+      }
+      return {
+        chunkIndex: checkpoint.chunkIndex,
+        chunkStartTime: Math.max(0, checkpoint.chunkIndex - 1) * chunkSeconds,
+        chunkEndTime: checkpoint.time,
+        actionCount: checkpoint.outputCounts.timelineCount >= 0 ? actionIndex : 0,
+        hitCount: checkpoint.outputCounts.timelineCount,
+        eventCount: checkpoint.outputCounts.eventCount,
+      };
+    });
   }
   if (!(chunkSeconds > 0)) {
     return [];
@@ -303,11 +359,13 @@ export function buildResumeOutputPrefix(
       damage: checkpoint.runtime.damageBySlot.get(entry.slot) ?? 0,
     })),
     timeline: result.timeline.slice(0, checkpoint.outputCounts.timelineCount),
+    enemyTimelineHits: result.enemyTimelineHits.slice(0, checkpoint.outputCounts.enemyTimelineHitCount),
     events: result.events.slice(0, checkpoint.outputCounts.eventCount),
     comboWindows: result.comboWindows.slice(0, checkpoint.outputCounts.comboWindowCount),
     actorStateTimeline: result.actorStateTimeline.slice(0, checkpoint.outputCounts.actorStateCount),
     enemyStateTimeline: result.enemyStateTimeline.slice(0, checkpoint.outputCounts.enemyStateCount),
     enemyLifecycleTimeline: result.enemyLifecycleTimeline.slice(0, checkpoint.outputCounts.enemyLifecycleCount),
+    enemyTargetTimeline: result.enemyTargetTimeline.slice(0, checkpoint.outputCounts.enemyTargetCount),
     countdownTimeline: result.countdownTimeline.slice(0, checkpoint.outputCounts.countdownCount),
     relayTimeline: result.relayTimeline.slice(0, checkpoint.outputCounts.relayCount),
     enemyTransitionTimeline: result.enemyTransitionTimeline.slice(0, checkpoint.outputCounts.enemyTransitionCount),
@@ -316,6 +374,51 @@ export function buildResumeOutputPrefix(
     statusChangeLog: result.statusChangeLog.slice(0, checkpoint.outputCounts.statusChangeLogCount),
     simulationCheckpoints: (result.simulationCheckpoints ?? []).filter((entry) => entry.time <= checkpoint.time + 0.0001),
     warnings: [...(result.warnings ?? [])],
+    actionRuntimeByStepId: result.actions
+      .filter((action) => action.realStartTime <= checkpoint.time + 0.0001)
+      .map((action) => ({
+        stepId: action.stepId,
+        resolvedComboCooldownSeconds: action.resolvedComboCooldownSeconds,
+        nullified: action.nullified === true,
+        interrupted: action.interrupted === true,
+      })),
+  };
+}
+
+/**
+ * Relay rotations inherit runtime through buildInitialStateFromCheckpoint, but
+ * their displayed timelines use a fresh local time axis. Only cumulative
+ * counters may cross that boundary; carrying lifecycle/state/event history
+ * would replay old records at the new rotation's matching local timestamps.
+ */
+export function buildRelayCumulativeOutputPrefix(
+  result: RotationSimulationResult,
+  checkpoint: NonNullable<RotationSimulationResult["simulationCheckpoints"]>[number],
+) {
+  return {
+    totalDamage: checkpoint.outputCounts.totalDamage,
+    riggedCritCount: checkpoint.outputCounts.riggedCritCount,
+    damageBySlot: result.damageBySlot.map((entry) => ({
+      slot: entry.slot,
+      damage: checkpoint.runtime.damageBySlot.get(entry.slot) ?? 0,
+    })),
+    timeline: [],
+    enemyTimelineHits: [],
+    events: [],
+    comboWindows: [],
+    actorStateTimeline: [],
+    enemyStateTimeline: [],
+    enemyLifecycleTimeline: [],
+    enemyTargetTimeline: [],
+    countdownTimeline: [],
+    relayTimeline: [],
+    enemyTransitionTimeline: [],
+    comboTriggerDebug: [],
+    passiveListenerDebug: [],
+    statusChangeLog: [],
+    simulationCheckpoints: [],
+    warnings: [],
+    actionRuntimeByStepId: [],
   };
 }
 
@@ -361,7 +464,7 @@ export function buildInitialStateFromCheckpoint(
           })),
         ]),
       ),
-      activeComboWindowBySlot: rebaseActiveComboWindows(runtime.activeComboWindowBySlot, relayTime),
+      activeComboWindowBySlot: rebaseActiveComboWindows(runtime.activeComboWindowBySlot, relayGameTime),
       lastComboTriggerTimeBySlot: new Map(
         [...runtime.lastComboTriggerTimeBySlot.entries()].map(([slot, time]) => [slot, rebaseRealTime(time, relayTime)]),
       ),
@@ -555,23 +658,15 @@ function analyzeInvalidation(
   };
 }
 
-export function createRotationSimulationCache(options?: { chunkSeconds?: number }) {
+export function createRotationSimulationCache(options?: {
+  chunkSeconds?: number;
+  onRecompute?: (debug: RotationSimulationRecomputeDebug) => void;
+}) {
   const chunkSeconds = options?.chunkSeconds ?? DEFAULT_CHUNK_SECONDS;
   let previousEntry: CacheEntry | null = null;
 
   const simulate = (args: RotationSimulationArgs): RotationSimulationCacheResult => {
-    let invalidation = analyzeInvalidation(previousEntry?.args ?? null, args, chunkSeconds);
-    if (
-      invalidation.kind === "timeline_local"
-      && (hasIndependentPreBattleSetup(args) || (previousEntry?.args ? hasIndependentPreBattleSetup(previousEntry.args) : false))
-    ) {
-      invalidation = {
-        kind: "full",
-        reason: "party_changed",
-        earliestTime: null,
-        checkpointChunkIndex: null,
-      };
-    }
+    const invalidation = analyzeInvalidation(previousEntry?.args ?? null, args, chunkSeconds);
     const exactSignature = makeExactSignature(args);
 
     if (previousEntry && previousEntry.exactSignature === exactSignature) {
@@ -584,6 +679,8 @@ export function createRotationSimulationCache(options?: { chunkSeconds?: number 
     }
 
     let result: RotationSimulationResult;
+    let reusedThroughCheckpointTime: number | null = null;
+    let reusedCheckpointCount = 0;
     if (
       previousEntry
       && invalidation.kind === "timeline_local"
@@ -593,6 +690,10 @@ export function createRotationSimulationCache(options?: { chunkSeconds?: number 
         .filter((entry) => entry.time <= invalidation.earliestTime + 0.0001)
         .sort((left, right) => right.time - left.time)[0];
       if (checkpoint) {
+        reusedThroughCheckpointTime = checkpoint.time;
+        reusedCheckpointCount = (previousEntry.result.simulationCheckpoints ?? [])
+          .filter((entry) => entry.time <= checkpoint.time + 0.0001)
+          .length;
         result = simulateRotation({
           ...args,
           resumeFromCheckpoint: checkpoint,
@@ -605,8 +706,15 @@ export function createRotationSimulationCache(options?: { chunkSeconds?: number 
       result = simulateRotation(args);
     }
     const checkpoints = buildCheckpointSummaries(result, chunkSeconds);
+    const recalculatedCheckpoints = (result.simulationCheckpoints ?? []).slice(reusedCheckpointCount);
+    options?.onRecompute?.({
+      invalidation,
+      recalculatedCheckpointCount: recalculatedCheckpoints.length,
+      recalculatedCheckpointTimes: recalculatedCheckpoints.map((checkpoint) => checkpoint.time),
+      reusedThroughCheckpointTime,
+    });
     previousEntry = {
-      args: cloneJson(args),
+      args: deepClone(args),
       exactSignature,
       result,
       checkpoints,

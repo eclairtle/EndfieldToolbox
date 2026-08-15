@@ -1,7 +1,7 @@
 // src/lib/gears.ts
 import { isGearUpgradable, type GearBase } from "@/data/gears";
 import type { GearInstance } from "@/lib/build/gearInstances";
-import type { Attrs, ModifierStats } from "@/lib/build/stats";
+import type { AttrKey, Attrs, ModifierStats } from "@/lib/build/stats";
 import { effectiveGearSubLevel, scaledGearSubValue } from "@/lib/build/gearScaling";
 
 type GearApplyResult = {
@@ -23,6 +23,8 @@ export function applyGears(args: {
   gearBases: (GearBase | null)[];
   gearInstances: (GearInstance | null)[];
   mods: ModifierStats;
+  mainAttr?: AttrKey;
+  secondaryAttr?: AttrKey;
 }): GearApplyResult {
   let attrs = args.attrs;
   let defFlat = 0;
@@ -43,6 +45,12 @@ export function applyGears(args: {
       const scaled = scaledGearSubValue(sub.stat, sub.value, lv);
 
       switch (sub.stat) {
+        case "MAIN_ATTR_FLAT":
+          if (args.mainAttr) attrs = addAttr(attrs, args.mainAttr, scaled);
+          break;
+        case "SECONDARY_ATTR_FLAT":
+          if (args.secondaryAttr) attrs = addAttr(attrs, args.secondaryAttr, scaled);
+          break;
         case "STR":
           attrs = addAttr(attrs, "STR", scaled);
           break;

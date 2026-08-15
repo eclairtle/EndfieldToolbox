@@ -178,6 +178,13 @@ function getAntalFocusedEnemySlotId(args: {
 }
 
 const ANTAL_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: [
+    "BATTLE_SKILL_HIT",
+    "COMBO_SKILL_HIT",
+    "ULTIMATE_HIT",
+    "PHYSICAL_REACTION_APPLIED",
+    "ARTS_INFLICTION_APPLIED",
+  ],
   onEvent: (ctx) => {
     if (
       (ctx.event.type === "BATTLE_SKILL_HIT" || ctx.event.type === "COMBO_SKILL_HIT" || ctx.event.type === "ULTIMATE_HIT")

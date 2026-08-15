@@ -4,7 +4,7 @@ import type { ResolvedCommandHitAtLevel } from "@/lib/commands";
 import type { CommandHitEffectDefinition } from "@/lib/commands";
 import type { CharacterClass } from "@/data/characters";
 import type { CombatEffectTree } from "@/lib/combat/effectTree";
-import type { EnemySlotId } from "@/lib/combat/rotation";
+import type { EnemySlotId, RotationCombatEvent } from "@/lib/combat/rotation";
 
 export type CombatHookEnemySelector = "primary" | "targeted";
 export type CombatHookEnemyRef =
@@ -269,6 +269,7 @@ export type CombatEventHookContext = {
     enemyHadOriginiumCrystal?: boolean;
     enemyHadPhysicalSusceptibility?: boolean;
     enemyWasStaggered?: boolean;
+    forcedReaction?: boolean;
   };
   state: {
     getPrimaryEnemySlotId(): EnemySlotId | null;
@@ -444,6 +445,7 @@ export type CombatEventHookContext = {
 };
 
 export type CharacterCombatHooks = {
+  eventTypes?: readonly RotationCombatEvent["type"][];
   onResolvedHit?: (ctx: CombatResolvedHitHookContext) => void;
   onActionStart?: (ctx: CombatActionStartHookContext) => void;
   onEvent?: (ctx: CombatEventHookContext) => void;

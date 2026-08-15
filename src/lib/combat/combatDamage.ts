@@ -219,6 +219,10 @@ function getEnemyDamageTakenBonus(damageType: ElementType, enemyMods: ModifierSt
   }
 }
 
+function getEnemySuperArmorMultiplier(enemyMods: ModifierStats): number {
+  return Math.max(0, 1 - enemyMods.SUPER_ARMOR_PCT);
+}
+
 export function calculateHealingAmount(args: {
   baseAmount: number;
   healerMods: ModifierStats;
@@ -264,6 +268,7 @@ export function calculateResolvedHitDamage(args: {
   const critDamageBonus = attackerMods.CRIT_DMG_PCT;
 
   const damageTakenMultiplier = floorDamageMultiplier(1 + getEnemyDamageTakenBonus(damageType, enemyMods));
+  const superArmorMultiplier = getEnemySuperArmorMultiplier(enemyMods);
   const effectiveResistance = getEnemyResistance(damageType, enemyMods) - getResistanceIgnore(damageType, attackerMods);
   const resistMultiplier = floorDamageMultiplier(1 - effectiveResistance);
   const susceptibilityMultiplier = floorDamageMultiplier(1 + getEnemySusceptibility(damageType, enemyMods, attackerMods));
@@ -288,6 +293,7 @@ export function calculateResolvedHitDamage(args: {
     dmgBonusMultiplier *
     dmgAmpMultiplier *
     damageTakenMultiplier *
+    superArmorMultiplier *
     resistMultiplier *
     susceptibilityMultiplier *
     defenseMultiplier;
@@ -324,6 +330,7 @@ export function calculateReactionDamage(args: {
   const dmgAmpMultiplier = floorDamageMultiplier(1 + getDamageAmpBonus(args.damageType, args.attackerMods));
 
   const damageTakenMultiplier = floorDamageMultiplier(1 + getEnemyDamageTakenBonus(args.damageType, args.enemyMods));
+  const superArmorMultiplier = getEnemySuperArmorMultiplier(args.enemyMods);
   const effectiveResistance = getEnemyResistance(args.damageType, args.enemyMods) - getResistanceIgnore(args.damageType, args.attackerMods);
   const resistMultiplier = floorDamageMultiplier(1 - effectiveResistance);
   const susceptibilityMultiplier = floorDamageMultiplier(1 + getEnemySusceptibility(args.damageType, args.enemyMods, args.attackerMods));
@@ -348,6 +355,7 @@ export function calculateReactionDamage(args: {
     dmgBonusMultiplier *
     dmgAmpMultiplier *
     damageTakenMultiplier *
+    superArmorMultiplier *
     resistMultiplier *
     susceptibilityMultiplier *
     defenseMultiplier *

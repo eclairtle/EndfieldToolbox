@@ -8,9 +8,11 @@ import { CONTINGENCY_CONTRACTS } from "@/lib/combat/contracts";
 
 export type CustomTriggerEventType =
   | "NO_EVENT"
+  | "STAGE_BEGIN"
   | "ROTATION_RELAYED"
   | "ENEMY_SPAWNED"
   | "ENEMY_REPLACED"
+  | "ENEMY_TRANSFORMED"
   | "COMBAT_INITIALIZED"
   | "SKILL_CAST"
   | "ULTIMATE_CAST"
@@ -51,6 +53,8 @@ export type CustomTriggerActionType =
   | "STOP_TRIGGER"
   | "BREAK"
   | "IF_THEN_ELSE"
+  | "FOR_EACH_ENEMY"
+  | "FOR_EACH_OPERATOR"
   | "FIRE_TRIGGER";
 export type TriggerComparator = "equals" | "not_equals" | "gt" | "gte" | "lt" | "lte";
 export type TriggerHpOperation = "damage" | "heal";
@@ -86,12 +90,14 @@ export type TriggerVariableDefinition = {
 
 export type TriggerOperatorReferenceExpression =
   | { type: "alias_operator"; alias: "event_operator" }
-  | { type: "controlled_operator" };
+  | { type: "controlled_operator" }
+  | { type: "current_operator" };
 
 export type TriggerEnemyReferenceExpression =
   | { type: "alias_enemy"; alias: "event_enemy_target" }
   | { type: "enemy_in_slot"; slotNumber: TriggerNumericSource }
-  | { type: "enemy_from_group"; alias: "event_enemy_group"; index: TriggerNumericSource };
+  | { type: "enemy_from_group"; alias: "event_enemy_group"; index: TriggerNumericSource }
+  | { type: "current_enemy" };
 
 export type TriggerReferenceExpression =
   | TriggerOperatorReferenceExpression
@@ -119,6 +125,7 @@ export type TriggerValueExpression =
   | { type: "enemy_id_literal"; enemyId: string }
   | { type: "enemy_identity"; enemy: TriggerEnemyReferenceExpression }
   | { type: "enemy_rank"; enemy: TriggerEnemyReferenceExpression }
+  | { type: "enemy_crowd_control_level"; enemy: TriggerEnemyReferenceExpression }
   | { type: "enemy_rank_literal"; rank: EnemyRank }
   | { type: "operator_hp_ratio"; target: TriggerOperatorReferenceExpression }
   | { type: "enemy_hp_ratio"; target: TriggerEnemyReferenceExpression }
@@ -243,6 +250,8 @@ export type TriggerAction =
       thenActions: TriggerAction[];
       elseActions: TriggerAction[];
     }
+  | { type: "FOR_EACH_ENEMY"; state: TriggerEnemyLifecycleState | "any"; actions: TriggerAction[] }
+  | { type: "FOR_EACH_OPERATOR"; actions: TriggerAction[] }
   | {
       type: "FIRE_TRIGGER";
       target: TriggerControlReference;
@@ -316,6 +325,12 @@ export const CUSTOM_TRIGGER_EVENT_OPTIONS: TriggerEventOption[] = [
     availableAliases: [],
   },
   {
+    id: "STAGE_BEGIN",
+    label: { en: "Stage Begin", zh: "关卡开始" },
+    description: { en: "Runs once when cumulative real time reaches 0 seconds.", zh: "在累计现实时间到达 0 秒时仅触发一次。" },
+    availableAliases: ["event_time", "event_game_time"],
+  },
+  {
     id: "ROTATION_RELAYED",
     label: { en: "Rotation Relayed", zh: "轮次接力开始" },
     description: { en: "Runs when a relayed rotation starts from an inherited relay point.", zh: "在接力轮次从继承的接力点开始时触发。" },
@@ -331,6 +346,12 @@ export const CUSTOM_TRIGGER_EVENT_OPTIONS: TriggerEventOption[] = [
     id: "ENEMY_REPLACED",
     label: { en: "Enemy Replaced", zh: "敌人替换" },
     description: { en: "Runs when an active enemy is replaced by another active enemy in the same slot.", zh: "在一个活动敌人被同槽位的另一名活动敌人替换时触发。" },
+    availableAliases: ["event_enemy_target", "event_enemy_group", "event_time", "event_game_time"],
+  },
+  {
+    id: "ENEMY_TRANSFORMED",
+    label: { en: "Enemy Transformed", zh: "敌人转变" },
+    description: { en: "Runs when an active enemy transforms into another identity in the same slot.", zh: "在一个活动敌人在同槽位内转变为另一身份时触发。" },
     availableAliases: ["event_enemy_target", "event_enemy_group", "event_time", "event_game_time"],
   },
   {
@@ -493,6 +514,8 @@ export const CUSTOM_TRIGGER_ACTION_OPTIONS: TriggerPresetOption<CustomTriggerAct
     label: { en: "If / Then / Else", zh: "如果 / 则 / 否则" },
     description: { en: "Checks a nested condition at runtime, then runs either the then-list or else-list.", zh: "在动作执行时检查嵌套条件，并执行 then 或 else 动作列表。" },
   },
+  { id: "FOR_EACH_ENEMY", label: { en: "For Each Enemy", zh: "遍历敌人" }, description: { en: "Runs nested actions once for each enemy matching a lifecycle state.", zh: "对符合生命周期状态的每个敌人执行嵌套动作。" } },
+  { id: "FOR_EACH_OPERATOR", label: { en: "For Each Operator", zh: "遍历干员" }, description: { en: "Runs nested actions once for each party operator.", zh: "对队伍中的每名干员执行嵌套动作。" } },
   {
     id: "FIRE_TRIGGER",
     label: { en: "Fire Trigger", zh: "触发指定触发器" },
@@ -534,7 +557,7 @@ export function getDefaultTriggerVariableId(type: TriggerVariableType): string {
 }
 
 export const CUSTOM_TRIGGER_TARGET_OPTIONS: TriggerPresetOption<
-  "event_operator" | "controlled_operator" | "event_enemy_target" | "event_enemy_group_member" | "enemy_in_slot" | "team" | "global"
+  "event_operator" | "controlled_operator" | "current_operator" | "event_enemy_target" | "event_enemy_group_member" | "enemy_in_slot" | "current_enemy" | "team" | "global"
 >[] = [
   {
     id: "event_operator",
@@ -546,6 +569,7 @@ export const CUSTOM_TRIGGER_TARGET_OPTIONS: TriggerPresetOption<
     label: { en: "Controlled Operator", zh: "当前主控干员" },
     description: { en: "Uses the currently controlled operator.", zh: "使用当前主控干员。" },
   },
+  { id: "current_operator", label: { en: "Current Operator Slot", zh: "当前遍历干员槽位" }, description: { en: "Uses the operator in the current operator iterator.", zh: "使用当前干员迭代器中的干员。" } },
   {
     id: "event_enemy_target",
     label: { en: "Event Enemy Target", zh: "事件敌方目标" },
@@ -561,6 +585,7 @@ export const CUSTOM_TRIGGER_TARGET_OPTIONS: TriggerPresetOption<
     label: { en: "Enemy In Slot", zh: "槽位敌人" },
     description: { en: "Uses the enemy in a specific enemy slot.", zh: "使用指定敌人槽位中的敌人。" },
   },
+  { id: "current_enemy", label: { en: "Current Enemy Slot", zh: "当前遍历敌人槽位" }, description: { en: "Uses the enemy slot in the current enemy iterator.", zh: "使用当前敌人迭代器中的敌人槽位。" } },
   {
     id: "team",
     label: { en: "Team", zh: "队伍" },
@@ -714,6 +739,8 @@ function isTriggerValueExpression(value: unknown): value is TriggerValueExpressi
       return isTriggerEnemyReferenceExpression(typed.enemy);
     case "enemy_rank":
       return isTriggerEnemyReferenceExpression(typed.enemy);
+    case "enemy_crowd_control_level":
+      return isTriggerEnemyReferenceExpression(typed.enemy);
     case "enemy_rank_literal":
       return CUSTOM_TRIGGER_ENEMY_RANK_OPTIONS.some((option) => option.id === typed.rank);
     case "operator_hp_ratio":
@@ -743,7 +770,7 @@ function isTriggerOperatorReferenceExpression(value: unknown): value is TriggerO
   if (typed.type === "alias_operator") {
     return typed.alias === "event_operator";
   }
-  return typed.type === "controlled_operator";
+  return typed.type === "controlled_operator" || typed.type === "current_operator";
 }
 
 function isTriggerEnemyReferenceExpression(value: unknown): value is TriggerEnemyReferenceExpression {
@@ -758,6 +785,8 @@ function isTriggerEnemyReferenceExpression(value: unknown): value is TriggerEnem
       return normalizeTriggerNumericSource(typed.slotNumber) != null;
     case "enemy_from_group":
       return typed.alias === "event_enemy_group" && normalizeTriggerNumericSource(typed.index) != null;
+    case "current_enemy":
+      return true;
     default:
       return false;
   }
@@ -821,6 +850,10 @@ function normalizeTriggerValueExpression(value: unknown): TriggerValueExpression
       const enemy = normalizeTriggerEnemyReferenceExpression(typed.enemy);
       return enemy ? { type: "enemy_rank", enemy } : null;
     }
+    case "enemy_crowd_control_level": {
+      const enemy = normalizeTriggerEnemyReferenceExpression(typed.enemy);
+      return enemy ? { type: "enemy_crowd_control_level", enemy } : null;
+    }
     case "enemy_rank_literal":
       return {
         type: "enemy_rank_literal",
@@ -880,6 +913,7 @@ function normalizeTriggerOperatorReferenceExpression(value: unknown): TriggerOpe
   if (typed.type === "controlled_operator") {
     return { type: "controlled_operator" };
   }
+  if (typed.type === "current_operator") return { type: "current_operator" };
   return null;
 }
 
@@ -895,6 +929,8 @@ function normalizeTriggerEnemyReferenceExpression(value: unknown): TriggerEnemyR
       return { type: "enemy_in_slot", slotNumber: normalizeTriggerNumericSource(typed.slotNumber, 1) ?? { type: "number_literal", value: 1 } };
     case "enemy_from_group":
       return { type: "enemy_from_group", alias: "event_enemy_group", index: normalizeTriggerNumericSource(typed.index, 1) ?? { type: "number_literal", value: 1 } };
+    case "current_enemy":
+      return { type: "current_enemy" };
     default:
       return null;
   }
@@ -1180,6 +1216,19 @@ function normalizeTriggerAction(value: unknown): TriggerAction | null {
       elseActions,
     };
   }
+  if (typed.type === "FOR_EACH_ENEMY") {
+    return {
+      type: "FOR_EACH_ENEMY",
+      state: typed.state === "any" || isTriggerEnemyLifecycleState(typed.state) ? typed.state : "active",
+      actions: Array.isArray(typed.actions) ? typed.actions.map(normalizeTriggerAction).filter((entry): entry is TriggerAction => entry != null) : [],
+    };
+  }
+  if (typed.type === "FOR_EACH_OPERATOR") {
+    return {
+      type: "FOR_EACH_OPERATOR",
+      actions: Array.isArray(typed.actions) ? typed.actions.map(normalizeTriggerAction).filter((entry): entry is TriggerAction => entry != null) : [],
+    };
+  }
   if (typed.type === "FIRE_TRIGGER") {
     const target = normalizeTriggerControlReference(typed.target);
     const checkEnabled = normalizeTriggerValueExpression(typed.checkEnabled);
@@ -1364,6 +1413,14 @@ export function makeDefaultIfThenElseAction(): TriggerAction {
   };
 }
 
+export function makeDefaultForEachEnemyAction(): TriggerAction {
+  return { type: "FOR_EACH_ENEMY", state: "active", actions: [makeDefaultApplyStatusAction()] };
+}
+
+export function makeDefaultForEachOperatorAction(): TriggerAction {
+  return { type: "FOR_EACH_OPERATOR", actions: [makeDefaultApplyStatusAction()] };
+}
+
 export function makeDefaultFireTriggerAction(): TriggerAction {
   return {
     type: "FIRE_TRIGGER",
@@ -1445,7 +1502,7 @@ function sanitizeTriggerValueExpression(
   }
   if (expression.type === "enemy_identity") {
     expression.enemy = sanitizeTriggerEnemyReferenceExpression(expression.enemy, variablesById);
-  } else if (expression.type === "enemy_rank") {
+  } else if (expression.type === "enemy_rank" || expression.type === "enemy_crowd_control_level") {
     expression.enemy = sanitizeTriggerEnemyReferenceExpression(expression.enemy, variablesById);
   } else if (expression.type === "operator_hp_ratio") {
     expression.target = sanitizeTriggerOperatorReferenceExpression(expression.target);
@@ -1495,7 +1552,7 @@ function sanitizeTriggerReferenceExpression(
   reference: TriggerReferenceExpression,
   variablesById: Map<string, TriggerVariableDefinition>,
 ): TriggerReferenceExpression {
-  if (reference.type === "alias_operator" || reference.type === "controlled_operator") {
+  if (reference.type === "alias_operator" || reference.type === "controlled_operator" || reference.type === "current_operator") {
     return sanitizeTriggerOperatorReferenceExpression(reference);
   }
   return sanitizeTriggerEnemyReferenceExpression(reference, variablesById);
@@ -1566,7 +1623,7 @@ function sanitizeTriggerActionRecursive(
       action.noDeath = sanitizeTriggerValueExpression(action.noDeath, variablesById);
       return;
     case "MODIFY_HP":
-      action.target = action.target.type === "alias_operator" || action.target.type === "controlled_operator"
+      action.target = action.target.type === "alias_operator" || action.target.type === "controlled_operator" || action.target.type === "current_operator"
         ? sanitizeTriggerOperatorReferenceExpression(action.target)
         : sanitizeTriggerEnemyReferenceExpression(action.target, variablesById);
       action.amount = sanitizeTriggerValueExpression(action.amount, variablesById);
@@ -1602,6 +1659,10 @@ function sanitizeTriggerActionRecursive(
       sanitizeTriggerConditionNodeRecursive(action.ifCondition, variablesById);
       action.thenActions.forEach((entry) => sanitizeTriggerActionRecursive(entry, variablesById));
       action.elseActions.forEach((entry) => sanitizeTriggerActionRecursive(entry, variablesById));
+      return;
+    case "FOR_EACH_ENEMY":
+    case "FOR_EACH_OPERATOR":
+      action.actions.forEach((entry) => sanitizeTriggerActionRecursive(entry, variablesById));
       return;
     case "FIRE_TRIGGER":
       action.target = sanitizeTriggerControlReference(action.target, variablesById);
@@ -1761,10 +1822,13 @@ export function matchesCustomTriggerEventType(
   switch (triggerEventType) {
     case "NO_EVENT":
       return false;
+    case "STAGE_BEGIN":
+      return event.type === "STAGE_BEGIN";
     case "ROTATION_RELAYED":
       return event.type === "ROTATION_RELAYED";
     case "ENEMY_SPAWNED":
     case "ENEMY_REPLACED":
+    case "ENEMY_TRANSFORMED":
     case "COMBAT_INITIALIZED":
     case "SKILL_CAST":
     case "ULTIMATE_CAST":

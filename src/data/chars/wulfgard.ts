@@ -5,6 +5,7 @@ import { pct, flat12, type CommandDefinition } from "@/lib/commands";
 const WULFGARD_SCORCHING_FANGS_BUFF_ID = "wulfgard_scorching_fangs";
 
 const WULFGARD_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["ARTS_INFLICTION_APPLIED", "COMBUSTION_APPLIED", "ULTIMATE_CAST"],
   onEvent: (ctx) => {
     if (ctx.event.type === "ARTS_INFLICTION_APPLIED") {
       const affectedEnemySlotIds = ctx.state.getAffectedEnemySlotIds();

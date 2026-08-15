@@ -25,7 +25,7 @@ export type EnemyResistances =
   Aether: number;};
 
 export type EnemyCombatListener = {
-  eventType: Extract<RotationCombatEventType, "ENEMY_DEFEATED">;
+  eventType: Extract<RotationCombatEventType, "ENEMY_DEFEATED" | "ENEMY_TRANSFORMED">;
   effects?: EnemyActionEffect[];
   actionWindow?: {
     commandId?: string;
@@ -42,6 +42,7 @@ export type EnemyBase = {
   id: string;
   name: string;
   rank: EnemyRank;
+  crowdControlLevel?: number;
 
   baseHpLv1: number;
   baseAtkLv1: number;
@@ -81,12 +82,14 @@ function makeEnemy(input: {
   staggerRecoverySeconds: number;
   finisherMultiplier: number;
   finisherSpGain: number;
+  crowdControlLevel?: number;
   resistances?: Partial<EnemyBase["resistances"]>;
 }): EnemyBase {
   return {
     id: input.id,
     name: input.name,
     rank: inferEnemyRank(input.id),
+    crowdControlLevel: input.crowdControlLevel,
     baseHpLv1: input.baseHpLv1,
     baseAtkLv1: input.baseAtkLv1,
     hpScalingModel: DEFAULT_ENEMY_HP_SCALING,
@@ -112,6 +115,7 @@ function makeEnemy(input: {
 export const TIDEWALKER = makeEnemy({
   id: "tidewalker",
   name: "Tidewalker",
+  crowdControlLevel: 2,
   baseHpLv1: 1246,
   baseAtkLv1: 66,
   def: 100,
@@ -133,6 +137,7 @@ export const TIDEWALKER = makeEnemy({
 export const TIDEWALKER_DELTA = makeEnemy({
   id: "tidewalker_delta",
   name: "Tidewalker δ",
+  crowdControlLevel: 2,
   baseHpLv1: 1869,
   baseAtkLv1: 72,
   def: 100,
@@ -323,6 +328,28 @@ export const HEDRON = makeEnemy({
   id: "hedron",
   name: "Hedron",
   baseHpLv1: 152,
+  baseAtkLv1: 26,
+  def: 100,
+  weight: 1,
+  staggerGauge: 60,
+  staggerRecoverySeconds: 6,
+  finisherMultiplier: 1,
+  finisherSpGain: 25,
+  resistances: {
+    Physical: 0,
+    Heat: 0,
+    Cryo: 0.2,
+    Nature: 0.2,
+    Electric: 0,
+    Aether: 0,
+  },
+});
+
+export const HEDRON_CC = makeEnemy({
+  id: "hedron_cc",
+  name: "Hedron (CC)",
+  // Closest integer Lv. 1 base to 35,393 HP at Lv. 60 (actual: 35,399).
+  baseHpLv1: 198,
   baseAtkLv1: 26,
   def: 100,
   weight: 1,

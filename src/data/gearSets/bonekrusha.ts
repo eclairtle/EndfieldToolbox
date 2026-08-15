@@ -112,6 +112,27 @@ export const BONEKRUSHA: GearBase[] = [
     ],
   },
   {
+    "id": "item_equip_t4_suit_attri01_edc_02",
+    "name": "Bonekrusha Figurine T2",
+    "slot": "KIT",
+    "set": "Bonekrusha",
+    "defFlat": 21,
+    "subs": [
+      {
+        "stat": "WIL",
+        "value": 32
+      },
+      {
+        "stat": "INT",
+        "value": 21
+      },
+      {
+        "stat": "BATTLE_SKILL_DMG_PCT",
+        "value": 0.414
+      }
+    ],
+  },
+  {
     "id": "item_equip_t4_suit_attri01_edc_03",
     "name": "Bonekrusha Figurine",
     "slot": "KIT",
@@ -255,6 +276,27 @@ export const BONEKRUSHA: GearBase[] = [
       {
         "stat": "CRYO_ELECTRIC_DMG_PCT",
         "value": 0.192
+      }
+    ],
+  },
+  {
+    "id": "item_equip_t4_suit_attri01_hand_03",
+    "name": "Bonekrusha Gloves",
+    "slot": "GLOVES",
+    "set": "Bonekrusha",
+    "defFlat": 42,
+    "subs": [
+      {
+        "stat": "WIL",
+        "value": 65
+      },
+      {
+        "stat": "AGI",
+        "value": 43
+      },
+      {
+        "stat": "CRYO_ELECTRIC_DMG_PCT",
+        "value": 0.19166666666666668
       }
     ],
   }

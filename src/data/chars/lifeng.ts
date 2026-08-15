@@ -205,6 +205,7 @@ const LIFENG_EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const LIFENG_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["PHYSICAL_REACTION_APPLIED"],
   onResolvedHit: (ctx) => {
     if (ctx.source.commandId === "lifeng_combo_skill" && ctx.source.hitIndex === 1) {
       if (!ctx.state.markTriggerOnce(`${ctx.stepId}:lifeng_combo_link`)) {

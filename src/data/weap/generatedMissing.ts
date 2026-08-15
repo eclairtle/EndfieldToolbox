@@ -108,6 +108,7 @@ export const AGGELOSLAYER: WeaponBase = {
     { id: "UNIQUE", name: "Suppression: Emergency Boost", rank: 1, implemented: true },
   ],
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, AGGELOSLAYER_UNIQUE_DESCRIPTIONS),
+  combatEventTypes: ["BATTLE_SKILL_HIT"],
   onCombatEvent: (ctx) => {
     applyEmergencyBoostOnBattleSkillHit(ctx, {
       buffId: "weapon_aggeloslayer_emergency_boost",
@@ -446,6 +447,7 @@ export const FLUORESCENT_ROC: WeaponBase = {
     { id: "UNIQUE", name: "Suppression: Emergency Boost", rank: 1, implemented: true },
   ],
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, FLUORESCENT_ROC_UNIQUE_DESCRIPTIONS),
+  combatEventTypes: ["BATTLE_SKILL_HIT"],
   onCombatEvent: (ctx) => {
     applyEmergencyBoostOnBattleSkillHit(ctx, {
       buffId: "weapon_fluorescent_roc_emergency_boost",
@@ -665,6 +667,7 @@ export const HOWLING_GUARD: WeaponBase = {
     { id: "UNIQUE", name: "Suppression: Emergency Boost", rank: 1, implemented: true },
   ],
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, HOWLING_GUARD_UNIQUE_DESCRIPTIONS),
+  combatEventTypes: ["BATTLE_SKILL_HIT"],
   onCombatEvent: (ctx) => {
     applyEmergencyBoostOnBattleSkillHit(ctx, {
       buffId: "weapon_howling_guard_emergency_boost",
@@ -737,6 +740,7 @@ export const INDUSTRY_01: WeaponBase = {
     { id: "UNIQUE", name: "Suppression: Emergency Boost", rank: 1, implemented: true },
   ],
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, INDUSTRY_01_UNIQUE_DESCRIPTIONS),
+  combatEventTypes: ["BATTLE_SKILL_HIT"],
   onCombatEvent: (ctx) => {
     applyEmergencyBoostOnBattleSkillHit(ctx, {
       buffId: "weapon_industry_01_emergency_boost",
@@ -808,6 +812,7 @@ export const LONG_ROAD: WeaponBase = {
     { id: "UNIQUE", name: "Pursuit: Unending Cycle", rank: 1, implemented: true },
   ],
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, LONG_ROAD_UNIQUE_DESCRIPTIONS),
+  combatEventTypes: ["COMBO_SKILL_CAST"],
   onCombatEvent: (ctx) => {
     applyComboCastAtkBoost(ctx, {
       buffId: "weapon_long_road_combo_atk_boost",
@@ -1836,6 +1841,7 @@ export const WAVE_TIDE: WeaponBase = {
     { id: "UNIQUE", name: "Pursuit: Unending Cycle", rank: 1, implemented: true },
   ],
   getUniqueSkillDescription: (uniqueSkillLevel) => pickUniqueDescription(uniqueSkillLevel, WAVE_TIDE_UNIQUE_DESCRIPTIONS),
+  combatEventTypes: ["COMBO_SKILL_CAST"],
   onCombatEvent: (ctx) => {
     applyComboCastAtkBoost(ctx, {
       buffId: "weapon_wave_tide_combo_atk_boost",

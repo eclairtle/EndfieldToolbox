@@ -303,6 +303,7 @@ const MIFU_COMMANDS: CommandDefinition[] = [
 ];
 
 const MIFU_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["ENEMY_DEBUFF_APPLIED", "BATTLE_SKILL_CAST", "COMBO_SKILL_CAST", "ULTIMATE_CAST"],
   onEvent: (ctx) => {
     const applyTrailAndMangle = () => {
       if (ctx.state.hasSelfBuff(MIFU_WORLD_SPLITTER_BUFF_ID)) {
@@ -444,6 +445,7 @@ const MIFU_POTENTIAL_EFFECTS: Record<number, CharacterPotentialEffect> = {
 export const MIFU: CharacterBase = {
   id: "MIFU",
   name: "Mi Fu",
+  imagePath: "/avatars/MIFU/MIFU.webp",
   rarity: 6,
   element: "Physical",
   class: "Striker",

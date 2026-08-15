@@ -5,6 +5,8 @@ import {
   makeDefaultExecuteHitAction,
   makeDefaultFireTriggerAction,
   makeDefaultIfThenElseAction,
+  makeDefaultForEachEnemyAction,
+  makeDefaultForEachOperatorAction,
   makeDefaultModifyVariableAction,
   makeDefaultModifyHpAction,
   makeDefaultBreakAction,
@@ -62,6 +64,10 @@ function makeDefaultActionByType(actionType: TriggerAction["type"]): TriggerActi
                     ? makeDefaultBreakAction()
                 : actionType === "IF_THEN_ELSE"
                   ? makeDefaultIfThenElseAction()
+                  : actionType === "FOR_EACH_ENEMY"
+                    ? makeDefaultForEachEnemyAction()
+                    : actionType === "FOR_EACH_OPERATOR"
+                      ? makeDefaultForEachOperatorAction()
                   : actionType === "FIRE_TRIGGER"
                     ? makeDefaultFireTriggerAction()
                     : makeDefaultApplyStatusAction();
@@ -100,6 +106,9 @@ function isFireTriggerAction(action: TriggerAction): action is Extract<TriggerAc
 }
 function isIfThenElseAction(action: TriggerAction): action is Extract<TriggerAction, { type: "IF_THEN_ELSE" }> {
   return action.type === "IF_THEN_ELSE";
+}
+function isIteratorAction(action: TriggerAction): action is Extract<TriggerAction, { type: "FOR_EACH_ENEMY" | "FOR_EACH_OPERATOR" }> {
+  return action.type === "FOR_EACH_ENEMY" || action.type === "FOR_EACH_OPERATOR";
 }
 
 function getFireTriggerCheckEnabled(action: TriggerAction) {
@@ -190,6 +199,29 @@ function getIfConditionNode(action: TriggerAction): TriggerConditionNode | null 
           </div>
         </div>
 
+        <template v-if="isIteratorAction(action)">
+          <div class="mt-2 rounded-lg border border-[#b7b7b7] bg-[#ececec] p-2.5">
+            <label v-if="action.type === 'FOR_EACH_ENEMY'" class="mb-2 block">
+              <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#666]">{{ vm.locale === 'zh-CN' ? '敌人状态' : 'Enemy State' }}</div>
+              <select v-model="action.state" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm">
+                <option value="any">{{ vm.locale === 'zh-CN' ? '任意' : 'Any' }}</option>
+                <option value="active">{{ vm.locale === 'zh-CN' ? '存活中' : 'Active' }}</option>
+                <option value="dead">{{ vm.locale === 'zh-CN' ? '已死亡' : 'Dead' }}</option>
+                <option value="not_spawned">{{ vm.locale === 'zh-CN' ? '未出现' : 'Not Spawned' }}</option>
+              </select>
+            </label>
+            <TriggerActionListEditor
+              :actions="action.actions"
+              :vm="vm"
+              :enemies="enemies"
+              :variables="variables"
+              :event-type="eventType"
+              nested
+              :title="action.type === 'FOR_EACH_ENEMY' ? (vm.locale === 'zh-CN' ? '每个敌人的动作' : 'Actions For Each Enemy') : (vm.locale === 'zh-CN' ? '每名干员的动作' : 'Actions For Each Operator')"
+            />
+          </div>
+        </template>
+
         <template v-if="isIfThenElseAction(action)">
           <div class="mt-2 space-y-2">
             <div class="rounded-lg border border-[#b7b7b7] bg-[#ececec] p-2.5">
@@ -274,7 +306,7 @@ function getIfConditionNode(action: TriggerAction): TriggerConditionNode | null 
           </div>
         </template>
 
-        <template v-else>
+        <template v-else-if="!isIteratorAction(action)">
           <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             <label v-if="action.type !== 'REPLACE_ENEMY' && action.type !== 'MODIFY_HP' && action.type !== 'MODIFY_VARIABLE' && action.type !== 'SET_TARGET_ENEMY' && action.type !== 'EXECUTE_HIT' && action.type !== 'WAIT' && action.type !== 'COUNTDOWN' && action.type !== 'RELAY_ROTATION' && action.type !== 'SET_TRIGGER_ENABLED' && action.type !== 'STOP_TRIGGER' && action.type !== 'BREAK'" class="block">
               <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#666]">{{ vm.t("rotation.triggerStatus") }}</div>
@@ -427,6 +459,7 @@ function getIfConditionNode(action: TriggerAction): TriggerConditionNode | null 
               <select :value="vm.getTriggerActionExecuteHitSource(action)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm text-[#1b1b1b]" @change="vm.setTriggerActionExecuteHitSource(action, ($event.target as HTMLSelectElement).value)">
                 <option value="event_operator">Event Operator</option>
                 <option value="controlled_operator">Controlled Operator</option>
+                <option value="current_operator">Current Operator Slot</option>
               </select>
             </label>
             <label class="block">

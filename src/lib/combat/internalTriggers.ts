@@ -2,7 +2,9 @@ import type { ActiveContingencyContract } from "@/lib/combat/contracts";
 import type { CustomCombatTrigger, TriggerVariableDefinition } from "@/lib/combat/triggers";
 
 export const INTERNAL_TRIGGER_VARIABLE_BATTLE_CHILL_COUNTER_ID = "INTERNAL_battle_chill_counter";
+export const INTERNAL_TRIGGER_VARIABLE_HEAT_LOSS_COUNTER_ID = "INTERNAL_heat_loss_counter";
 export const INTERNAL_TRIGGER_ID_BATTLE_CHILL = "internal_team_battle_chill";
+export const INTERNAL_TRIGGER_ID_HEAT_LOSS = "internal_team_heat_loss";
 export const INTERNAL_TRIGGER_ID_CONTROLLED_HEALING = "internal_edit_regeneration";
 export const INTERNAL_TRIGGER_ID_ENCUMBERED_INIT = "internal_team_encumbered_init";
 export const INTERNAL_TRIGGER_ID_ENCUMBERED_SUPPRESSION_FINAL_STRIKE = "internal_team_encumbered_suppression_final_strike";
@@ -19,6 +21,12 @@ export const INTERNAL_TRIGGER_VARIABLES: TriggerVariableDefinition[] = [
   {
     id: INTERNAL_TRIGGER_VARIABLE_BATTLE_CHILL_COUNTER_ID,
     name: "INTERNAL Battle Chill Counter",
+    type: "number",
+    initialValue: { type: "number_literal", value: 0 },
+  },
+  {
+    id: INTERNAL_TRIGGER_VARIABLE_HEAT_LOSS_COUNTER_ID,
+    name: "INTERNAL Heat Loss Counter",
     type: "number",
     initialValue: { type: "number_literal", value: 0 },
   },
@@ -42,8 +50,7 @@ export const INTERNAL_COMBAT_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinitio
           left: {
             type: "status_stack_count",
             target: {
-              type: "alias_operator",
-              alias: "event_operator",
+              type: "controlled_operator",
             },
             status: {
               type: "status_id_literal",
@@ -134,6 +141,21 @@ export const INTERNAL_COMBAT_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinitio
                 value: 0,
               },
             },
+            {
+              type: "APPLY_STATUS",
+              status: { type: "status_id_literal", statusId: "contract_battle_chill_cooldown" },
+              target: { type: "controlled_operator" },
+              durationSeconds: { type: "number_literal", value: 3 },
+              stacks: { type: "number_literal", value: 1 },
+              useDefault: true,
+              maxStacks: { type: "number_literal", value: 1 },
+              permanent: false,
+              hidden: false,
+              stackingRule: "default",
+              refreshExistingStacks: true,
+              independentStacks: false,
+              statEntries: [],
+            },
           ],
           elseActions: [
             {
@@ -148,37 +170,102 @@ export const INTERNAL_COMBAT_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinitio
             },
           ],
         },
-        {
-          type: "APPLY_STATUS",
-          status: {
-            type: "status_id_literal",
-            statusId: "contract_battle_chill_cooldown",
-          },
-          target: {
-            type: "alias_operator",
-            alias: "event_operator",
-          },
-          durationSeconds: {
-            type: "number_literal",
-            value: 3,
-          },
-          stacks: {
-            type: "number_literal",
-            value: 1,
-          },
-          useDefault: true,
-          maxStacks: {
-            type: "number_literal",
-            value: 1,
-          },
-          permanent: false,
-          hidden: false,
-          stackingRule: "default",
-          refreshExistingStacks: true,
-          independentStacks: false,
-          statEntries: [],
-        },
       ],
+    },
+  },
+  {
+    enabledContractVariantIds: ["combo_skill_cryo_1", "combo_skill_cryo_2"],
+    variables: INTERNAL_TRIGGER_VARIABLES,
+    trigger: {
+      id: INTERNAL_TRIGGER_ID_HEAT_LOSS,
+      name: "Team: Heat Loss",
+      enabled: true,
+      event: { type: "COMBO_SKILL_CAST" },
+      conditions: [{
+        kind: "comparator",
+        id: "internal_heat_loss_condition_cooldown_clear",
+        left: {
+          type: "status_stack_count",
+          target: { type: "controlled_operator" },
+          status: { type: "status_id_literal", statusId: "contract_battle_chill_cooldown" },
+        },
+        comparator: "equals",
+        right: { type: "number_literal", value: 0 },
+      }],
+      actions: [{
+        type: "IF_THEN_ELSE",
+        ifCondition: {
+          kind: "logic",
+          id: "internal_heat_loss_if_trigger_now",
+          operator: "OR",
+          conditions: [
+            {
+              kind: "comparator",
+              id: "internal_heat_loss_contract_ii_enabled",
+              left: { type: "contract_enabled", variantId: "combo_skill_cryo_2" },
+              comparator: "equals",
+              right: { type: "boolean_literal", value: true },
+            },
+            {
+              kind: "comparator",
+              id: "internal_heat_loss_counter_ready",
+              left: {
+                type: "variable_ref",
+                variableId: INTERNAL_TRIGGER_VARIABLE_HEAT_LOSS_COUNTER_ID,
+                variableType: "number",
+              },
+              comparator: "gt",
+              right: { type: "number_literal", value: 0 },
+            },
+          ],
+        },
+        thenActions: [
+          {
+            type: "APPLY_STATUS",
+            status: { type: "status_id_literal", statusId: "cryo_infliction" },
+            target: { type: "controlled_operator" },
+            durationSeconds: { type: "number_literal", value: 20 },
+            stacks: { type: "number_literal", value: 1 },
+            useDefault: true,
+            maxStacks: { type: "number_literal", value: 1 },
+            permanent: false,
+            hidden: false,
+            stackingRule: "default",
+            refreshExistingStacks: true,
+            independentStacks: false,
+            statEntries: [],
+          },
+          {
+            type: "MODIFY_VARIABLE",
+            variableId: INTERNAL_TRIGGER_VARIABLE_HEAT_LOSS_COUNTER_ID,
+            variableType: "number",
+            operation: "set",
+            value: { type: "number_literal", value: 0 },
+          },
+          {
+            type: "APPLY_STATUS",
+            status: { type: "status_id_literal", statusId: "contract_battle_chill_cooldown" },
+            target: { type: "controlled_operator" },
+            durationSeconds: { type: "number_literal", value: 3 },
+            stacks: { type: "number_literal", value: 1 },
+            useDefault: true,
+            maxStacks: { type: "number_literal", value: 1 },
+            permanent: false,
+            hidden: false,
+            stackingRule: "default",
+            refreshExistingStacks: true,
+            independentStacks: false,
+            statEntries: [],
+          },
+        ],
+        elseActions: [{
+          type: "MODIFY_VARIABLE",
+          variableId: INTERNAL_TRIGGER_VARIABLE_HEAT_LOSS_COUNTER_ID,
+          variableType: "number",
+          operation: "set",
+          value: { type: "number_literal", value: 1 },
+        }],
+      }],
     },
   },
   {
@@ -309,7 +396,7 @@ export const INTERNAL_COMBAT_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinitio
       name: "Team: Encumbered Init",
       enabled: true,
       event: {
-        type: "COMBAT_INITIALIZED",
+        type: "STAGE_BEGIN",
       },
       conditions: [],
       actions: [
@@ -344,6 +431,35 @@ export const INTERNAL_COMBAT_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinitio
           },
           permanent: true,
           hidden: false,
+          stackingRule: "replace",
+          refreshExistingStacks: true,
+          independentStacks: false,
+          statEntries: [],
+        },
+        {
+          type: "APPLY_STATUS",
+          status: {
+            type: "status_id_literal",
+            statusId: "team_encumbered_suppression",
+          },
+          target: {
+            type: "team",
+          },
+          durationSeconds: {
+            type: "number_literal",
+            value: 12,
+          },
+          stacks: {
+            type: "number_literal",
+            value: 1,
+          },
+          useDefault: true,
+          maxStacks: {
+            type: "number_literal",
+            value: 1,
+          },
+          permanent: false,
+          hidden: true,
           stackingRule: "replace",
           refreshExistingStacks: true,
           independentStacks: false,
@@ -520,6 +636,16 @@ export const INTERNAL_COMBAT_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinitio
                       right: { type: "status_id_literal", statusId: "endministrator_originium_crystal" },
                     },
                   ],
+                },
+                {
+                  kind: "comparator",
+                  id: "internal_controlled_healing_crowd_control_level",
+                  left: {
+                    type: "enemy_crowd_control_level",
+                    enemy: { type: "alias_enemy", alias: "event_enemy_target" },
+                  },
+                  comparator: "lte",
+                  right: { type: "number_literal", value: 1 },
                 },
               ],
             },

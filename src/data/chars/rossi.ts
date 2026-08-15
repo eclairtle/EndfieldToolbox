@@ -535,6 +535,7 @@ const ROSSI_EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const ROSSI_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["CRIT_THRESHOLD_REACHED", "ARTS_INFLICTION_APPLIED", "ENEMY_DEBUFF_APPLIED"],
   onEvent: (ctx) => {
     if (ctx.event.type === "CRIT_THRESHOLD_REACHED") {
       const hasSeethingBlood2 = ctx.state.isSelfUniqueTalentEnabled(ROSSI_SEETHING_BLOOD_2_KEY);

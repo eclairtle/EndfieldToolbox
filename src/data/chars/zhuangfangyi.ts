@@ -246,6 +246,7 @@ const ZHUANGFANGYI_EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const ZHUANGFANGYI_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["COMBAT_INITIALIZED", "BATTLE_SKILL_HIT", "BATTLE_SKILL_CAST"],
   onEvent: (ctx) => {
     if (
       ctx.event.type === "COMBAT_INITIALIZED"

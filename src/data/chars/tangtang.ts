@@ -26,8 +26,9 @@ const TANGTANG_ULTIMATE_STATUS_PERIODS = 8;
 const TANGTANG_ULTIMATE_STATUS_MAX_PERIODS = 7;
 
 const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["DIVE_ATTACK_HIT", "ARTS_INFLICTION_APPLIED", "ARTS_REACTION_APPLIED", "ARTS_BURST_HIT"],
   onEvent: (ctx) => {
-    if (ctx.event.type === "DIVE_ATTACK_HIT" && ctx.event.slot === ctx.self.slot) {
+    if (ctx.event.type === "DIVE_ATTACK_HIT") {
       if (!ctx.state.hasStatus({ statusId: TANGTANG_ULTIMATE_STATUS_ID, target: "field" })) {
         return;
       }
@@ -115,6 +116,19 @@ const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
     if (ctx.event.type === "ARTS_INFLICTION_APPLIED" && ctx.event.consumedElement === "Cryo") {
       ctx.state.triggerSelfCombo({
         sourceEventType: "ARTS_INFLICTION_APPLIED",
+        label: "Tangtang Combo Triggered",
+      });
+      return;
+    }
+
+    if (
+      ctx.event.type === "ARTS_REACTION_APPLIED"
+      && ctx.event.label === "Solidification Applied"
+      && ctx.event.forcedReaction !== true
+      && ctx.event.slot === ctx.self.slot
+    ) {
+      ctx.state.triggerSelfCombo({
+        sourceEventType: "ARTS_REACTION_APPLIED",
         label: "Tangtang Combo Triggered",
       });
       return;
@@ -306,6 +320,9 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
       {
         name: "Create Waterspout",
         multiplier: flat12(0),
+        // This is a control hit that creates one AoE waterspout. If evaluated
+        // once per enemy, each target incorrectly creates another waterspout.
+        targets: "targeted_enemy",
         offsetFrames: flat12(44),
         effects: [
           {
@@ -318,6 +335,14 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
             registerAtInitialTime: true,
           },
         ],
+      },
+      {
+        name: "Apply Waterspout Effects",
+        multiplier: flat12(0),
+        targets: "all_enemies",
+        // Resolve after the base waterspout is created, but before any
+        // Whirlpool stacks are consumed to create additional waterspouts.
+        offsetFrames: flat12(44.5),
         postEffects: [
           { type: "APPLY_ARTS_INFLICTION", element: "Cryo", stacks: 1 },
           {
@@ -351,6 +376,9 @@ const TANGTANG_COMMANDS: CommandDefinition[] = [
       {
         name: "Additional Waterspout x2",
         multiplier: flat12(0),
+        // Each occurrence consumes one Whirlpool and creates one waterspout;
+        // it must not repeat independently for every active enemy.
+        targets: "targeted_enemy",
         spReturned: flat12(20),
         times: 2,
         repeatIntervalFrames: flat12(1),

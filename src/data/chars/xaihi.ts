@@ -12,8 +12,10 @@ const XAIHI_TALENT_EXECUTE_PROCESS_2 = "xaihi_execute_process_2";
 const XAIHI_TALENT_FREEZE_PROTOCOL = "xaihi_freeze_protocol";
 const XAIHI_EXECUTE_PROCESS_DEBUFF_ID = "xaihi_execute_process_cryo_taken";
 const XAIHI_FREEZE_PROTOCOL_LABEL = "Freeze Protocol";
+const XAIHI_MAPPING_NODE_BOUNCE_GUARD = "xaihi_mapping_node_bounce";
 
 const XAIHI_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["BASIC_ATTACK_FINAL_STRIKE_HIT", "COMBO_SKILL_HIT", "ULTIMATE_CAST"],
   onEvent: (ctx) => {
     if (ctx.event.type === "BASIC_ATTACK_FINAL_STRIKE_HIT") {
       const beforeCount = ctx.state.getTeamStatusStackCount(XAIHI_AUXILIARY_CRYSTAL_TEAM_STATUS_ID);
@@ -60,35 +62,62 @@ const XAIHI_COMBAT_HOOKS: CharacterCombatHooks = {
       const enemySlotIds = affectedEnemySlotIds.length > 0
         ? affectedEnemySlotIds
         : [ctx.state.getPrimaryEnemySlotId()].filter((enemySlotId): enemySlotId is string => enemySlotId != null);
-      const canApplyExecuteProcess = enemySlotIds.some((enemySlotId) =>
+      const executeProcessEnemySlotIds = enemySlotIds.filter((enemySlotId) =>
         ctx.state.getEnemyArtsInfliction(enemySlotId)?.element === "Cryo"
         || ctx.state.hasStatus({ statusId: "solidification", target: "enemy", enemySlotId })
       );
-      if (!canApplyExecuteProcess) {
-        return;
-      }
       const cryoTakenPct = ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_EXECUTE_PROCESS_2)
         ? 0.10
         : ctx.state.isSelfUniqueTalentEnabled(XAIHI_TALENT_EXECUTE_PROCESS_1)
           ? 0.07
           : 0;
       if (cryoTakenPct > 0) {
-        ctx.state.applyEffects({
-          effects: [
-            {
-              type: "APPLY_BUFF",
-              target: "enemy",
-              buffId: XAIHI_EXECUTE_PROCESS_DEBUFF_ID,
-              label: "Execute Process",
-              durationSeconds: 5,
-              timeScale: "game",
-              effects: {
-                CRYO_DMG_TAKEN_PCT: cryoTakenPct,
+        for (const enemySlotId of executeProcessEnemySlotIds) {
+          ctx.state.applyEffectsToEnemySlot({
+            enemySlotId,
+            effects: [
+              {
+                type: "APPLY_BUFF",
+                target: "enemy",
+                buffId: XAIHI_EXECUTE_PROCESS_DEBUFF_ID,
+                label: "Execute Process",
+                durationSeconds: 5,
+                timeScale: "game",
+                effects: {
+                  CRYO_DMG_TAKEN_PCT: cryoTakenPct,
+                },
               },
-            },
-          ],
-          stepId: `${ctx.event.stepId ?? "event"}:xaihi_execute_process`,
-        });
+            ],
+            stepId: `${ctx.event.stepId ?? "event"}:xaihi_execute_process:${enemySlotId}`,
+          });
+        }
+      }
+
+      if (
+        ctx.state.isSelfPotentialActive(3)
+        && ctx.state.markTriggerOnce(`${XAIHI_MAPPING_NODE_BOUNCE_GUARD}:${ctx.event.stepId ?? "event"}`)
+      ) {
+        const primaryEnemySlotId = enemySlotIds[0];
+        const activeEnemySlotIds = ctx.state.getActiveEnemySlotIds();
+        if (primaryEnemySlotId != null && activeEnemySlotIds.length > 1) {
+          const primaryIndex = activeEnemySlotIds.indexOf(primaryEnemySlotId);
+          const nextEnemySlotId = primaryIndex >= 0
+            ? activeEnemySlotIds[(primaryIndex + 1) % activeEnemySlotIds.length]
+            : activeEnemySlotIds.find((enemySlotId) => enemySlotId !== primaryEnemySlotId);
+          if (nextEnemySlotId != null && nextEnemySlotId !== primaryEnemySlotId) {
+            ctx.state.applyEffectsToEnemySlot({
+              enemySlotId: nextEnemySlotId,
+              effects: [{
+                type: "EXECUTE_HIT",
+                commandId: "xaihi_combo_skill",
+                hitIndex: 0,
+                commandName: "Stress Testing (Mapping Node)",
+              }],
+              stepId: ctx.event.stepId,
+              effectTree: ctx.event.effectTree,
+            });
+          }
+        }
       }
     }
 
@@ -248,6 +277,7 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
       {
         name: "Auxiliary Crystal Deploy",
         multiplier: flat12(0),
+        damageType: "Healing",
         offsetFrames: flat12(32),
         effects: [
           {
@@ -269,6 +299,7 @@ const XAIHI_COMMANDS: CommandDefinition[] = [
     skill: "comboSkill",
     attackType: "COMBO_SKILL",
     damageType: "Cryo",
+    targets: "targeted_enemy",
     durationFrames: flat12(49.8),
     timeFreezeSeconds: flat12(38 / 60),
     comboCooldownSeconds: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7],

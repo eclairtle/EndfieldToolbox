@@ -54,6 +54,7 @@ export const KHRAVENGGER: WeaponBase = {
     { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Detonate: Bonechilling", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["ARTS_INFLICTION_APPLIED", "COMBO_SKILL_HIT"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -134,6 +135,7 @@ export const EXEMPLAR: WeaponBase = {
       "Max stacks for effects of the same name: 3. Duration of each stack is counted separately. Effect only triggers once every 0.1s.",
     ].join("\n");
   },
+  combatEventTypes: ["BATTLE_SKILL_HIT", "ULTIMATE_HIT"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (

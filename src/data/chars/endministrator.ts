@@ -199,6 +199,7 @@ function getEndminSelfAtkBuffByTalent(args: {
 }
 
 const ENDMINISTRATOR_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["COMBO_SKILL_HIT", "ENEMY_DEBUFF_APPLIED", "PHYSICAL_REACTION_APPLIED"],
   onEvent: (ctx) => {
     const teammateSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     const isTeammateComboSkillHit =

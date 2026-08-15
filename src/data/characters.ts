@@ -306,6 +306,7 @@ import { POGRANICHNIK } from "./chars/pogranichnik";
 import { ZHUANGFANGYI } from "./chars/zhuangfangyi";
 import { MIFU } from "./chars/mifu";
 import { CAMILLE } from "./chars/camille";
+import { ARCANE } from "./chars/arcane";
 
 
 export const CHARACTERS: CharacterBase[] = [
@@ -320,4 +321,5 @@ export const CHARACTERS: CharacterBase[] = [
   ZHUANGFANGYI,
   MIFU,
   CAMILLE,
+  ARCANE,
 ];

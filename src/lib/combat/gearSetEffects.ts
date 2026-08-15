@@ -8,6 +8,26 @@ export type ActiveGearSetInfo = GearSetBonus & {
   staticModifiers?: Partial<ModifierStats>;
 };
 
+const GEAR_SET_EVENT_TYPES: Record<string, readonly RotationCombatEvent["type"][]> = {
+  "Hot Work": ["COMBUSTION_APPLIED", "CORROSION_APPLIED"],
+  Catastrophe: ["COMBAT_INITIALIZED", "BATTLE_SKILL_CAST"],
+  "Eternal Xiranite": ["ACTOR_BUFF_APPLIED", "ENEMY_DEBUFF_APPLIED"],
+  "MI Security": ["CRIT_THRESHOLD_REACHED"],
+  Bonekrusha: ["COMBO_SKILL_CAST", "BATTLE_SKILL_CAST"],
+  "Type 50 Yinglung": ["BATTLE_SKILL_CAST", "COMBO_SKILL_CAST"],
+  "Grizzled Edge": ["PHYSICAL_REACTION_APPLIED"],
+  Xiranflow: ["ARTS_REACTION_CONSUMED"],
+  "Pulser Labs": ["ARTS_REACTION_APPLIED"],
+  "Tide Surge": ["ARTS_INFLICTION_APPLIED"],
+  Qingbo: ["COMBO_SKILL_CAST"],
+  "Æthertech": ["ENEMY_DEBUFF_APPLIED"],
+  Swordmancer: ["PHYSICAL_REACTION_APPLIED"],
+};
+
+export function hasGearSetEventListener(setName: string | undefined, eventType: RotationCombatEvent["type"]): boolean {
+  return !!setName && (GEAR_SET_EVENT_TYPES[setName]?.includes(eventType) ?? false);
+}
+
 const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
   "Hot Work": {
     ...GEAR_SET_BONUSES["Hot Work"]!,
@@ -85,6 +105,13 @@ const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
     ...GEAR_SET_BONUSES["Grizzled Edge"]!,
     staticModifiers: {
       ATK_PCT: 0.08,
+    },
+  },
+  "AIC Fieldwork": {
+    ...GEAR_SET_BONUSES["AIC Fieldwork"]!,
+    staticModifiers: {
+      ALL_DMG_PCT: 0.2,
+      ULT_GAIN_PCT: 0.1,
     },
   },
 };

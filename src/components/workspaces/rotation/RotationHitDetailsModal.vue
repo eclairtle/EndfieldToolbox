@@ -52,6 +52,10 @@ function localizeDamageType(label: string) {
       return label;
   }
 }
+
+function isDefaultMultiplier(value: number | null | undefined, baseline = 1) {
+  return Math.abs((value ?? baseline) - baseline) <= 1e-9;
+}
 </script>
 
 <template>
@@ -94,21 +98,22 @@ function localizeDamageType(label: string) {
           <div class="mt-1 space-y-1">
             <div>{{ t("hitDetails.finalAtk") }}: {{ selectedHitDetails.ctx.finalAtk.toFixed(2) }}</div>
             <div>{{ t("hitDetails.dmgBonus") }}: +{{ (selectedHitDetails.totalDamageBonus * 100).toFixed(1) }}%</div>
-            <div>{{ t("hitDetails.contractModifier") }}: ×{{ selectedHitDetails.contractDamageMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.contractDamageMultiplier)">{{ t("hitDetails.contractModifier") }}: ×{{ selectedHitDetails.contractDamageMultiplier.toFixed(4) }}</div>
             <div v-if="Math.abs(selectedHitDetails.contractFlatModifier) > 1e-9">{{ t("hitDetails.contractFlatModifier") }}: {{ formatDamage(selectedHitDetails.contractFlatModifier) }}</div>
-            <div>{{ t("hitDetails.dmgAmp") }}: ×{{ selectedHitDetails.dmgAmpMultiplier.toFixed(4) }}</div>
-            <div>{{ t("hitDetails.dmgTaken") }}: ×{{ selectedHitDetails.damageTakenMultiplier.toFixed(4) }}</div>
-            <div>{{ t("hitDetails.resistance") }}: {{ (selectedHitDetails.effectiveResistance * 100).toFixed(1) }}% (×{{ selectedHitDetails.resistanceMultiplier.toFixed(4) }})</div>
-            <div>{{ t("hitDetails.susceptibility") }}: ×{{ selectedHitDetails.susceptibilityMultiplier.toFixed(4) }}</div>
-            <div>{{ t("hitDetails.defense") }}: ×{{ selectedHitDetails.defenseMultiplier.toFixed(4) }}</div>
-            <div>{{ t("hitDetails.staggeredBonus") }}: ×{{ selectedHitDetails.staggeredMultiplier.toFixed(4) }}</div>
-            <div>{{ t("hitDetails.finisherBonus") }}: ×{{ selectedHitDetails.finisherBonusMultiplier.toFixed(4) }}</div>
-            <div>{{ t("hitDetails.totalEnemyBonus") }}: ×{{ selectedHitDetails.totalEnemyMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.dmgAmpMultiplier)">{{ t("hitDetails.dmgAmp") }}: ×{{ selectedHitDetails.dmgAmpMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.damageTakenMultiplier)">{{ t("hitDetails.dmgTaken") }}: ×{{ selectedHitDetails.damageTakenMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.superArmorMultiplier)">{{ t("hitDetails.superArmor") }}: ×{{ selectedHitDetails.superArmorMultiplier.toFixed(4) }}</div>
+            <div v-if="Math.abs(selectedHitDetails.effectiveResistance) > 1e-9 || !isDefaultMultiplier(selectedHitDetails.resistanceMultiplier)">{{ t("hitDetails.resistance") }}: {{ (selectedHitDetails.effectiveResistance * 100).toFixed(1) }}% (×{{ selectedHitDetails.resistanceMultiplier.toFixed(4) }})</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.susceptibilityMultiplier)">{{ t("hitDetails.susceptibility") }}: ×{{ selectedHitDetails.susceptibilityMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.defenseMultiplier)">{{ t("hitDetails.defense") }}: ×{{ selectedHitDetails.defenseMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.staggeredMultiplier)">{{ t("hitDetails.staggeredBonus") }}: ×{{ selectedHitDetails.staggeredMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.finisherBonusMultiplier)">{{ t("hitDetails.finisherBonus") }}: ×{{ selectedHitDetails.finisherBonusMultiplier.toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.totalEnemyMultiplier)">{{ t("hitDetails.totalEnemyBonus") }}: ×{{ selectedHitDetails.totalEnemyMultiplier.toFixed(4) }}</div>
             <div v-if="selectedHitDetails.isReaction">{{ t("hitDetails.baseReactionMult") }}: {{ ((selectedHitDetails.ctx.reactionBaseMultiplier ?? selectedHitDetails.hit.multiplier) * 100).toFixed(1) }}%</div>
-            <div v-if="selectedHitDetails.isReaction">{{ t("hitDetails.levelMult") }}: ×{{ selectedHitDetails.levelMultiplier.toFixed(4) }} (Lv {{ selectedHitDetails.ctx.applierLevel ?? 1 }})</div>
-            <div v-if="selectedHitDetails.isReaction">{{ t("hitDetails.artsIntensity") }}: {{ selectedHitDetails.artsIntensity.toFixed(1) }} (×{{ selectedHitDetails.artsIntensityMultiplier.toFixed(4) }})</div>
-            <div>{{ t("hitDetails.link") }}: ×{{ (1 + selectedHitDetails.ctx.linkMultiplier).toFixed(4) }}</div>
-            <div>{{ t("hitDetails.avgCritMult") }}: ×{{ selectedHitDetails.critAverageMultiplier.toFixed(4) }}</div>
+            <div v-if="selectedHitDetails.isReaction && !isDefaultMultiplier(selectedHitDetails.levelMultiplier)">{{ t("hitDetails.levelMult") }}: ×{{ selectedHitDetails.levelMultiplier.toFixed(4) }} (Lv {{ selectedHitDetails.ctx.applierLevel ?? 1 }})</div>
+            <div v-if="selectedHitDetails.isReaction && (!isDefaultMultiplier(selectedHitDetails.artsIntensityMultiplier) || Math.abs(selectedHitDetails.artsIntensity) > 1e-9)">{{ t("hitDetails.artsIntensity") }}: {{ selectedHitDetails.artsIntensity.toFixed(1) }} (×{{ selectedHitDetails.artsIntensityMultiplier.toFixed(4) }})</div>
+            <div v-if="!isDefaultMultiplier(1 + selectedHitDetails.ctx.linkMultiplier)">{{ t("hitDetails.link") }}: ×{{ (1 + selectedHitDetails.ctx.linkMultiplier).toFixed(4) }}</div>
+            <div v-if="!isDefaultMultiplier(selectedHitDetails.critAverageMultiplier)">{{ t("hitDetails.avgCritMult") }}: ×{{ selectedHitDetails.critAverageMultiplier.toFixed(4) }}</div>
           </div>
         </div>
       </div>

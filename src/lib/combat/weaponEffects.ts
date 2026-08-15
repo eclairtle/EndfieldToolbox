@@ -46,3 +46,9 @@ export function getWeaponUniqueSkillDescription(
 export function runWeaponEventListener(ctx: WeaponListenerContext) {
   getWeaponById(ctx.wearer.weaponId)?.onCombatEvent?.(ctx);
 }
+
+export function hasWeaponEventListener(weaponId: string, eventType: WeaponListenerContext["event"]["type"]): boolean {
+  const weapon = getWeaponById(weaponId);
+  return typeof weapon?.onCombatEvent === "function"
+    && (!weapon.combatEventTypes || weapon.combatEventTypes.includes(eventType));
+}

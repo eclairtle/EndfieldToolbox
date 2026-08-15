@@ -49,6 +49,48 @@ export const SWORDMANCER: GearBase[] = [
     ],
   },
   {
+    "id": "item_equip_t4_suit_phy01_body_03",
+    "name": "Swordmancer Heavy Armor T1",
+    "slot": "ARMOR",
+    "set": "Swordmancer",
+    "defFlat": 56,
+    "subs": [
+      {
+        "stat": "AGI",
+        "value": 87
+      },
+      {
+        "stat": "STR",
+        "value": 58
+      },
+      {
+        "stat": "PHYSICAL_DMG_PCT",
+        "value": 0.115
+      }
+    ],
+  },
+  {
+    "id": "item_equip_t4_suit_phy01_body_04",
+    "name": "Swordmancer Fiber Armor",
+    "slot": "ARMOR",
+    "set": "Swordmancer",
+    "defFlat": 56,
+    "subs": [
+      {
+        "stat": "STR",
+        "value": 87
+      },
+      {
+        "stat": "WIL",
+        "value": 58
+      },
+      {
+        "stat": "PHYSICAL_DMG_PCT",
+        "value": 0.115
+      }
+    ],
+  },
+  {
     "id": "item_equip_t4_suit_phy01_edc_01",
     "name": "Swordmancer NAV Beacon",
     "slot": "KIT",
@@ -108,6 +150,27 @@ export const SWORDMANCER: GearBase[] = [
     ],
   },
   {
+    "id": "item_equip_t4_suit_phy01_edc_04",
+    "name": "Swordmancer Dagger",
+    "slot": "KIT",
+    "set": "Swordmancer",
+    "defFlat": 21,
+    "subs": [
+      {
+        "stat": "AGI",
+        "value": 32
+      },
+      {
+        "stat": "STR",
+        "value": 21
+      },
+      {
+        "stat": "ULTIMATE_DMG_PCT",
+        "value": 0.5175
+      }
+    ],
+  },
+  {
     "id": "item_equip_t4_suit_phy01_hand_01",
     "name": "Swordmancer TAC Gloves",
     "slot": "GLOVES",
@@ -146,6 +209,27 @@ export const SWORDMANCER: GearBase[] = [
       {
         "stat": "ULTIMATE_DMG_PCT",
         "value": 0.4312
+      }
+    ],
+  },
+  {
+    "id": "item_equip_t4_suit_phy01_hand_03",
+    "name": "Swordmancer TAC Gauntlets T1",
+    "slot": "GLOVES",
+    "set": "Swordmancer",
+    "defFlat": 42,
+    "subs": [
+      {
+        "stat": "STR",
+        "value": 65
+      },
+      {
+        "stat": "WIL",
+        "value": 43
+      },
+      {
+        "stat": "ARTS_INTENSITY",
+        "value": 34.5
       }
     ],
   }

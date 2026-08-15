@@ -3,7 +3,8 @@ import { computed, ref } from "vue";
 import { isGearUpgradable, type GearBase } from "@/data/gears";
 import type { GearInstance, GearSubLevel } from "@/lib/build/gearInstances";
 import { effectiveGearSubLevel, scaledGearSubValue, formatGearSubValue } from "@/lib/build/gearScaling";
-import type { AttrKey, CharacterStatKey, ModifierStatKey } from "@/lib/build/stats";
+import type { ModifierStatKey } from "@/lib/build/stats";
+import type { GearSubstatKey } from "@/data/gears";
 import { getGearImagePath } from "@/lib/assets/imagePaths";
 import { useLocale } from "@/i18n/useLocale";
 import { getGearDisplayNameByGear, getGearSetDisplayName } from "@/i18n/domain/displayNames";
@@ -76,8 +77,12 @@ function modifierLabel(stat: ModifierStatKey) {
   return localized.startsWith("modifiers.") ? stat : localized;
 }
 
-function subLabel(stat: AttrKey | CharacterStatKey | ModifierStatKey): string {
+function subLabel(stat: GearSubstatKey): string {
   switch (stat) {
+    case "MAIN_ATTR_FLAT":
+      return "Main Attribute";
+    case "SECONDARY_ATTR_FLAT":
+      return "Secondary Attribute";
     case "STR":
     case "AGI":
     case "INT":

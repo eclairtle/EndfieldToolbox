@@ -23,11 +23,14 @@ import { ETERNAL_XIRANITE, ETERNAL_XIRANITE_SET_BONUS } from "@/data/gearSets/et
 import { XIRANFLOW, XIRANFLOW_SET_BONUS } from "@/data/gearSets/xiranflow";
 import { QINGBO, QINGBO_SET_BONUS } from "@/data/gearSets/qingbo";
 import { GRIZZLED_EDGE, GRIZZLED_EDGE_SET_BONUS } from "@/data/gearSets/grizzled_edge";
+import { AIC_FIELDWORK, AIC_FIELDWORK_SET_BONUS } from "@/data/gearSets/aic_fieldwork";
 
 export type GearSlot = "ARMOR" | "GLOVES" | "KIT";
 
+export type GearSubstatKey = AttrKey | CharacterStatKey | ModifierStatKey | "MAIN_ATTR_FLAT" | "SECONDARY_ATTR_FLAT";
+
 export type GearSubstatBase = {
-  stat: AttrKey | CharacterStatKey | ModifierStatKey;
+  stat: GearSubstatKey;
   value: number; // base lv0 value
 };
 
@@ -70,6 +73,7 @@ export const GEAR_SET_BONUSES: Record<string, GearSetBonus> = {
   Xiranflow: XIRANFLOW_SET_BONUS,
   Qingbo: QINGBO_SET_BONUS,
   "Grizzled Edge": GRIZZLED_EDGE_SET_BONUS,
+  "AIC Fieldwork": AIC_FIELDWORK_SET_BONUS,
 };
 
 export const GEARS: GearBase[] = [
@@ -96,6 +100,7 @@ export const GEARS: GearBase[] = [
   ...XIRANFLOW,
   ...QINGBO,
   ...GRIZZLED_EDGE,
+  ...AIC_FIELDWORK,
 ];
 
 export function isGearUpgradable(gear: GearBase): boolean {

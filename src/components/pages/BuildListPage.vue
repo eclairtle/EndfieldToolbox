@@ -23,6 +23,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "open", buildId: string): void;
   (e: "create"): void;
+  (e: "import", build: unknown): void;
   (e: "copy", buildId: string): void;
   (e: "editMetadata", payload: { buildId: string; locale: BuildLocale; name: string; description: string }): void;
   (e: "delete", buildId: string): void;
@@ -35,6 +36,9 @@ const editingBuildId = ref<string | null>(null);
 const nameDraft = ref("");
 const descriptionDraft = ref("");
 const pendingDeleteBuildId = ref<string | null>(null);
+const importDialogOpen = ref(false);
+const importScript = ref("");
+const importError = ref("");
 const { t, locale } = useLocale();
 const MAX_BUILDS_PER_USER = 6;
 const buildCountLabel = computed(() => `${props.userBuilds.length} / ${MAX_BUILDS_PER_USER}`);
@@ -109,6 +113,43 @@ function confirmDelete() {
 function isUserBuild(buildId: string) {
   return props.userBuilds.some((build) => build.id === buildId);
 }
+
+function openImportDialog() {
+  if (!canCreateBuild.value) {
+    return;
+  }
+  importScript.value = "";
+  importError.value = "";
+  importDialogOpen.value = true;
+}
+
+function closeImportDialog() {
+  importDialogOpen.value = false;
+  importScript.value = "";
+  importError.value = "";
+}
+
+function submitImport() {
+  try {
+    const parsed = JSON.parse(importScript.value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("invalid build");
+    }
+    const candidate = parsed as {
+      currentBuildState?: { slots?: unknown[] };
+      buildState?: { slots?: unknown[] };
+      rotationState?: { schemes?: unknown[] };
+    };
+    const slots = candidate.currentBuildState?.slots ?? candidate.buildState?.slots;
+    if (!Array.isArray(slots) || slots.length !== 4 || !Array.isArray(candidate.rotationState?.schemes) || candidate.rotationState.schemes.length === 0) {
+      throw new Error("invalid build");
+    }
+    emit("import", parsed);
+    closeImportDialog();
+  } catch {
+    importError.value = t("buildList.importInvalid");
+  }
+}
 </script>
 
 <template>
@@ -121,6 +162,14 @@ function isUserBuild(buildId: string) {
           <span class="rounded-md border border-[#dddddd] bg-[#f7f7f7] px-2 py-0.5 text-xs text-[#666]">{{ buildCountLabel }}</span>
         </div>
       </div>
+      <button
+        type="button"
+        class="rounded-lg border border-[#cfcfcf] bg-white px-4 py-2 text-sm font-medium text-[#333] hover:bg-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-45"
+        :disabled="!canCreateBuild"
+        @click="openImportDialog"
+      >
+        {{ t("buildList.importBuild") }}
+      </button>
     </div>
 
     <div class="space-y-3">
@@ -138,7 +187,7 @@ function isUserBuild(buildId: string) {
         @click="emit('open', build.id)"
       >
         <div class="mb-3 flex items-start justify-between gap-3">
-          <div class="min-w-0 flex-1">
+          <div class="min-w-0 flex-1 select-text" @click.stop>
             <h3 class="truncate text-lg font-semibold text-[#1b1b1b]">
               {{ getLocalizedBuildName(build) }}
             </h3>
@@ -219,7 +268,7 @@ function isUserBuild(buildId: string) {
           </div>
         </div>
 
-        <div class="mt-2 rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2">
+        <div class="mt-2 rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2 select-text" @click.stop>
           <div class="text-[11px] uppercase tracking-[0.12em] text-[#7a7a7a]">{{ t("buildList.descriptionLabel") }}</div>
           <div class="mt-1 h-[7.5rem] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-6 text-[#1b1b1b]">
             {{ getLocalizedBuildDescription(build) || "—" }}
@@ -253,7 +302,7 @@ function isUserBuild(buildId: string) {
           @click="emit('open', build.id)"
         >
           <div class="mb-3 flex items-start justify-between gap-3">
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1 select-text" @click.stop>
               <h3 class="truncate text-lg font-semibold text-[#1b1b1b]">
                 {{ getLocalizedBuildName(build) }}
               </h3>
@@ -318,7 +367,7 @@ function isUserBuild(buildId: string) {
             </div>
           </div>
 
-          <div class="mt-2 rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2">
+          <div class="mt-2 rounded-lg border border-[#e8e8e8] bg-[#f9f9f9] px-3 py-2 select-text" @click.stop>
             <div class="text-[11px] uppercase tracking-[0.12em] text-[#7a7a7a]">{{ t("buildList.descriptionLabel") }}</div>
             <div class="mt-1 h-[7.5rem] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-6 text-[#1b1b1b]">
               {{ getLocalizedBuildDescription(build) || "—" }}
@@ -327,6 +376,33 @@ function isUserBuild(buildId: string) {
         </article>
       </div>
     </div>
+    </div>
+
+    <div
+      v-if="importDialogOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      @click="closeImportDialog"
+    >
+      <div class="w-full max-w-3xl rounded-xl border border-[#d9d9d9] bg-white p-5 shadow-lg" @click.stop>
+        <div class="text-base font-semibold text-[#1b1b1b]">{{ t("buildList.importBuildTitle") }}</div>
+        <p class="mt-2 text-sm text-[#666]">{{ t("buildList.importBuildBody") }}</p>
+        <textarea
+          v-model="importScript"
+          rows="18"
+          class="mt-4 w-full resize-y rounded-md border border-[#cccccc] bg-[#f8f8f8] px-3 py-2 font-mono text-xs text-[#1b1b1b] outline-none focus:border-[#999]"
+          :placeholder="t('buildList.importBuildPlaceholder')"
+          autofocus
+        />
+        <p v-if="importError" class="mt-2 text-sm text-[#a32929]">{{ importError }}</p>
+        <div class="mt-4 flex items-center justify-end gap-2">
+          <button type="button" class="rounded border border-[#d1d1d1] bg-white px-3 py-1.5 text-sm text-[#444] hover:bg-[#f3f3f3]" @click="closeImportDialog">
+            {{ t("ui.cancel") }}
+          </button>
+          <button type="button" class="rounded border border-[#b8c22d] bg-[#d9e447] px-3 py-1.5 text-sm font-medium text-[#232323] hover:bg-[#ced93d]" @click="submitImport">
+            {{ t("buildList.importBuild") }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <div

@@ -5,6 +5,7 @@ const COMMON_ENEMY_IDS = [
   "acid_originium_slug_alpha",
   "aethillu",
   "aggeloi_ram",
+  "aggeloi_ram_cc",
   "aggeloi_ram_alpha",
   "aggeloi_sting",
   "aggeloi_sting_alpha",
@@ -25,6 +26,7 @@ const COMMON_ENEMY_IDS = [
   "hazefyre_claw",
   "hazefyre_tuskbeast",
   "hedron",
+  "hedron_cc",
   "hedron_delta",
   "highway_reaver",
   "indigenous_pincerbeast",
@@ -34,13 +36,25 @@ const COMMON_ENEMY_IDS = [
   "road_plunderer",
   "rockhowler",
   "sweeping_wind",
-  "tidewalker",
-  "tidewalker_delta",
   "waterlamp",
   "wild_tuskbeast",
 ] as const;
 
 const ADVANCED_ENEMY_IDS = [
+  "aggeloi_heavy_ram",
+  "aggeloi_heavy_ram_alpha",
+  "aggeloi_heavy_sting",
+  "aggeloi_heavy_sting_alpha",
+  "bonekrusher_arsonist",
+  "bonekrusher_pyromancer",
+  "cloud_stalker",
+  "imbued_quillbeast",
+  "nimbus_razor",
+  "quillbeast",
+  "tunneling_nidwyrm",
+] as const;
+
+const ELITE_ENEMY_IDS = [
   "aggeloi_effigy",
   "aggeloi_sentinel",
   "armored_manglerbeast",
@@ -55,9 +69,11 @@ const ADVANCED_ENEMY_IDS = [
   "hazefyre_axe_armorbeast",
   "hill_smasher",
   "spotted_rakerbeast",
+  "tidewalker",
+  "tidewalker_delta",
 ] as const;
 
-const ELITE_ENEMY_IDS = [
+const BOSS_ENEMY_IDS = [
   "ereignis",
   "marble_aggelomoirai",
   "marble_aggelomoirai_core",
@@ -70,20 +86,6 @@ const ELITE_ENEMY_IDS = [
 ] as const;
 
 const ALPHA_ENEMY_IDS = [
-  "aggeloi_heavy_ram",
-  "aggeloi_heavy_ram_alpha",
-  "aggeloi_heavy_sting",
-  "aggeloi_heavy_sting_alpha",
-  "bonekrusher_arsonist",
-  "bonekrusher_pyromancer",
-  "cloud_stalker",
-  "imbued_quillbeast",
-  "nimbus_razor",
-  "quillbeast",
-  "tunneling_nidwyrm",
-] as const;
-
-const BOSS_ENEMY_IDS = [
   "craghowler",
   "skydrummer",
   "tidalklast",

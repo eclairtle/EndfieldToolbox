@@ -30,6 +30,7 @@ function getArclightWildlandTrekkerTriggerCount(ctx: {
 }
 
 const ARCLIGHT_COMBAT_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["COMBO_SKILL_CAST", "ARTS_REACTION_APPLIED", "ARTS_REACTION_CONSUMED"],
   onEvent: (ctx) => {
     if (
       ctx.event.type === "COMBO_SKILL_CAST"

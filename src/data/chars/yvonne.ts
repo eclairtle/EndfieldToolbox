@@ -67,6 +67,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    targets: "targeted_enemy",
     hiddenInLibrary: true,
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 1,
@@ -84,6 +85,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    targets: "targeted_enemy",
     hiddenInLibrary: true,
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 2,
@@ -102,6 +104,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    targets: "targeted_enemy",
     hiddenInLibrary: true,
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 3,
@@ -121,6 +124,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    targets: "targeted_enemy",
     hiddenInLibrary: true,
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 4,
@@ -138,6 +142,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "basic",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    targets: "all_enemies",
     hiddenInLibrary: true,
     basicAttackVariant: "final_strike",
     sequenceSegmentIndex: 5,
@@ -230,6 +235,8 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    variant: "enhanced_basic_attack",
+    targets: "targeted_enemy",
     hiddenInLibrary: true,
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 1,
@@ -257,7 +264,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
             stacks: 1,
             maxStacks: 10,
             refreshExistingStacks: true,
-            durationSeconds: 1.5,
+            durationSeconds: 2.5,
             timeScale: "game",
           },
           {
@@ -270,7 +277,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
             },
             requiresSelfBuffId: "yvonne_ultimate_crit_stack",
             requiresSelfBuffStacksAtLeast: 10,
-            durationSeconds: 1.5,
+            durationSeconds: 2.5,
             timeScale: "game",
           },
         ],
@@ -283,6 +290,8 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    variant: "enhanced_basic_attack",
+    targets: "targeted_enemy",
     hiddenInLibrary: true,
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 2,
@@ -310,7 +319,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
             stacks: 1,
             maxStacks: 10,
             refreshExistingStacks: true,
-            durationSeconds: 1.5,
+            durationSeconds: 2.5,
             timeScale: "game",
           },
           {
@@ -323,7 +332,7 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
             },
             requiresSelfBuffId: "yvonne_ultimate_crit_stack",
             requiresSelfBuffStacksAtLeast: 10,
-            durationSeconds: 1.5,
+            durationSeconds: 2.5,
             timeScale: "game",
           },
         ],
@@ -336,6 +345,8 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     skill: "ultimate",
     attackType: "BASIC_ATTACK",
     damageType: "Cryo",
+    variant: "enhanced_basic_attack",
+    targets: "all_enemies",
     hiddenInLibrary: true,
     basicAttackVariant: "sequence_segment",
     sequenceSegmentIndex: 3,
@@ -344,7 +355,13 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
     spCost: flat12(0),
     splitMultiplier: false,
     hits: [
-      { name: "Enhanced Final Strike", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), requiresControlledOperator: true, offsetFrames: flat12(55.8) },
+      {
+        name: "Enhanced Final Strike",
+        countsAsFinalStrike: true,
+        multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]),
+        requiresControlledOperator: true,
+        offsetFrames: flat12(55.8),
+      },
       {
         name: "Additional ATK DMG",
         multiplier: pct([267, 294, 320, 347, 374, 400, 427, 454, 480, 514, 554, 600]),
@@ -407,16 +424,16 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
         multiplier: pct([45, 49, 54, 58, 62, 67, 71, 76, 80, 86, 93, 100]),
         registerOffsetFrames: flat12(37),
         repeatRegisterOffsetWithInterval: false,
-        offsetFrames: flat12(82),
+        offsetFrames: flat12(70),
         times: 3,
-        repeatIntervalFrames: flat12(45),
+        repeatIntervalFrames: flat12(33),
       },
       {
         name: "Explosion",
         multiplier: pct([89, 98, 107, 116, 125, 134, 142, 151, 160, 171, 185, 200]),
         stagger: flat12(10),
         registerOffsetFrames: flat12(37),
-        offsetFrames: flat12(197),
+        offsetFrames: flat12(167),
         effects: [
           {
             type: "APPLY_REACTION",
@@ -448,12 +465,11 @@ const YVONNE_COMMANDS: CommandDefinition[] = [
       },
     ],
     hits: [
-      { name: "Enhanced Final Strike", multiplier: pct([133, 147, 160, 173, 186, 200, 213, 226, 240, 256, 276, 300]), stagger: flat12(20), offsetFrames: flat12(121.8) },
       {
-        name: "Additional Attack",
-        multiplier: pct([267, 294, 320, 347, 374, 400, 427, 454, 480, 514, 554, 600]),
+        name: "Apply Cryoblasting Pistolier",
+        multiplier: flat12(0),
         offsetFrames: flat12(127.2),
-        postEffects: [
+        effects: [
           {
             type: "APPLY_BUFF",
             target: "self",
@@ -597,7 +613,7 @@ export const YVONNE: CharacterBase = {
         return {
           ...command,
           hits: command.hits.map((hit) => {
-            if (hit.name?.startsWith("Energy Release")) {
+            if (hit.name === "Energy Release x3") {
               return {
                 ...hit,
                 times: hit.times + 2,
@@ -606,6 +622,7 @@ export const YVONNE: CharacterBase = {
             if (hit.name === "Explosion") {
               return {
                 ...hit,
+                offsetFrames: hit.offsetFrames + 60,
                 energyReturn: hit.energyReturn + 15,
               };
             }
@@ -640,29 +657,24 @@ export const YVONNE: CharacterBase = {
       if (command.id === "yvonne_ultimate" && potentialLevel >= 5) {
         return {
           ...command,
-          hits: command.hits.map((hit, index) => {
-            if (index !== 0) {
-              return hit;
-            }
-            return {
-              ...hit,
-              effects: [
-                ...hit.effects,
-                {
-                  type: "APPLY_BUFF",
-                  target: "self",
-                  buffId: "yvonne_potential_5",
-                  label: "Yvonne Potential 5",
-                  durationSeconds: 7,
-                  timeScale: "game",
-                  effects: {
-                    ATK_PCT: 0.1,
-                    CRIT_DMG_PCT: 0.3,
-                  },
+          hits: command.hits.map((hit) => ({
+            ...hit,
+            effects: [
+              ...hit.effects,
+              {
+                type: "APPLY_BUFF",
+                target: "self",
+                buffId: "yvonne_potential_5",
+                label: "Yvonne Potential 5",
+                durationSeconds: 7,
+                timeScale: "game",
+                effects: {
+                  ATK_PCT: 0.1,
+                  CRIT_DMG_PCT: 0.3,
                 },
-              ],
-            };
-          }),
+              },
+            ],
+          })),
         };
       }
 

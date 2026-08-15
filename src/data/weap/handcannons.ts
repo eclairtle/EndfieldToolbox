@@ -61,6 +61,7 @@ export const ARTSY_TYRANNICAL: WeaponBase = {
     { id: "CRIT_UP", name: "Critical Rate Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Fracture: Artzy Exaggeration", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["CRIT_THRESHOLD_REACHED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -141,6 +142,7 @@ export const CLANNIBAL: WeaponBase = {
       "Each elemental effect applies separately and does not stack with itself. Effect only triggers once every 25s.",
     ].join("\n");
   },
+  combatEventTypes: ["ARTS_REACTION_CONSUMED"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (sourceSlot !== ctx.wearer.slot || ctx.event.type !== "ARTS_REACTION_CONSUMED") {
@@ -188,6 +190,7 @@ export const BRIGANDS_CALLING: WeaponBase = {
     { id: "ATK_UP", name: "Attack Boost [L]", rank: 3, implemented: true },
     { id: "UNIQUE", name: "Detonate: Brigand's Bane", rank: 1, implemented: true },
   ],
+  combatEventTypes: ["BATTLE_SKILL_CAST", "ULTIMATE_CAST", "ENEMY_DEBUFF_APPLIED"],
   getUniqueStaticModifiers: (uniqueSkillLevel) => {
     const y = skillY(uniqueSkillLevel);
     return {
@@ -263,6 +266,7 @@ export const RATIONAL_FAREWELL: WeaponBase = {
       "Effects of the same name cannot stack.",
     ].join("\n");
   },
+  combatEventTypes: ["ARTS_BURST_APPLIED", "COMBUSTION_APPLIED"],
   onCombatEvent: (ctx) => {
     const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
     if (

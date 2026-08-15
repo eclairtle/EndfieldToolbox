@@ -327,6 +327,7 @@ const CAMILLE_COMMANDS: CommandDefinition[] = [
 ];
 
 const CAMILLE_HOOKS: CharacterCombatHooks = {
+  eventTypes: ["ENEMY_DEFEATED"],
   onEvent: (ctx) => {
     if (ctx.event.type !== "ENEMY_DEFEATED" || !ctx.event.enemySlotId) {
       return;
@@ -388,6 +389,7 @@ const CAMILLE_POTENTIAL_EFFECTS: Record<number, CharacterPotentialEffect> = {
 export const CAMILLE: CharacterBase = {
   id: "CAMILLE",
   name: "Camille",
+  imagePath: "/avatars/CAMILLE/CAMILLE.webp",
   rarity: 6,
   element: "Heat",
   class: "Vanguard",
