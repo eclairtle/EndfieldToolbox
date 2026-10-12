@@ -44,6 +44,8 @@ export type RotationSimulationInvalidation =
         | "enemy_base_changed"
         | "consumables_changed"
         | "contracts_changed"
+        // Stage-owned triggers can change state from combat initialization, so no later checkpoint is valid.
+        | "internal_triggers_changed"
         | "custom_triggers_changed"
         | "trigger_variables_changed";
       earliestTime: null;
@@ -227,9 +229,11 @@ function makeGlobalSignature(args: RotationSimulationArgs): string {
     enemyFinisherMultiplier: args.enemyFinisherMultiplier ?? null,
     enemyFinisherSpGain: args.enemyFinisherSpGain ?? null,
     enemyHpBaseOverrides: args.enemyHpBaseOverrides ?? {},
+    enemyStaggerOverrides: args.enemyStaggerOverrides ?? {},
     battleStartConsumableIdsBySlot: args.battleStartConsumableIdsBySlot ?? [],
     battleStartControlledOperatorSlot: args.battleStartControlledOperatorSlot ?? 0,
     contingencyContracts: args.contingencyContracts ?? [],
+    internalCombatTriggerDefinitionIds: (args.internalCombatTriggerDefinitions ?? []).map((entry) => entry.trigger.id),
     customTriggers: args.customTriggers ?? [],
     customTriggerVariables: args.customTriggerVariables ?? [],
     initialState: args.initialState ?? null,
@@ -251,17 +255,31 @@ function getEarliestRotationStepDiffTime(
   previousSteps: RotationStep[],
   nextSteps: RotationStep[],
 ): number | null {
-  const maxLength = Math.max(previousSteps.length, nextSteps.length);
-  for (let index = 0; index < maxLength; index += 1) {
-    const previous = previousSteps[index] ?? null;
-    const next = nextSteps[index] ?? null;
-    if (stableStringify(previous) === stableStringify(next)) {
-      continue;
-    }
-    const previousTime = previous?.startTime ?? Number.POSITIVE_INFINITY;
-    const nextTime = next?.startTime ?? Number.POSITIVE_INFINITY;
-    const earliest = Math.min(previousTime, nextTime);
-    return Number.isFinite(earliest) ? earliest : 0;
+  const previousById = new Map(previousSteps.map((step) => [step.id, step]));
+  const nextById = new Map(nextSteps.map((step) => [step.id, step]));
+  let earliest = Number.POSITIVE_INFINITY;
+  for (const stepId of new Set([...previousById.keys(), ...nextById.keys()])) {
+    const previous = previousById.get(stepId) ?? null;
+    const next = nextById.get(stepId) ?? null;
+    if (stableStringify(previous) === stableStringify(next)) continue;
+    earliest = Math.min(
+      earliest,
+      previous?.startTime ?? Number.POSITIVE_INFINITY,
+      next?.startTime ?? Number.POSITIVE_INFINITY,
+    );
+  }
+  if (Number.isFinite(earliest)) return earliest;
+
+  // Ordering can affect same-timestamp command resolution even when the step
+  // payloads themselves are unchanged.
+  const previousOrder = previousSteps.map((step) => step.id);
+  const nextOrder = nextSteps.map((step) => step.id);
+  if (stableStringify(previousOrder) !== stableStringify(nextOrder)) {
+    return Math.min(
+      ...previousSteps.map((step) => step.startTime ?? Number.POSITIVE_INFINITY),
+      ...nextSteps.map((step) => step.startTime ?? Number.POSITIVE_INFINITY),
+      0,
+    );
   }
   return null;
 }
@@ -580,6 +598,7 @@ function analyzeInvalidation(
           enemyStaggerRecoverySeconds: previousArgs.enemyStaggerRecoverySeconds,
           enemyFinisherMultiplier: previousArgs.enemyFinisherMultiplier ?? null,
           enemyFinisherSpGain: previousArgs.enemyFinisherSpGain ?? null,
+          enemyStaggerOverrides: previousArgs.enemyStaggerOverrides ?? {},
         },
         next: {
           enemyId: nextArgs.enemyId,
@@ -591,10 +610,16 @@ function analyzeInvalidation(
           enemyStaggerRecoverySeconds: nextArgs.enemyStaggerRecoverySeconds,
           enemyFinisherMultiplier: nextArgs.enemyFinisherMultiplier ?? null,
           enemyFinisherSpGain: nextArgs.enemyFinisherSpGain ?? null,
+          enemyStaggerOverrides: nextArgs.enemyStaggerOverrides ?? {},
         },
       },
       { reason: "consumables_changed", previous: previousArgs.battleStartConsumableIdsBySlot ?? [], next: nextArgs.battleStartConsumableIdsBySlot ?? [] },
       { reason: "contracts_changed", previous: previousArgs.contingencyContracts ?? [], next: nextArgs.contingencyContracts ?? [] },
+      {
+        reason: "internal_triggers_changed",
+        previous: (previousArgs.internalCombatTriggerDefinitions ?? []).map((entry) => entry.trigger.id),
+        next: (nextArgs.internalCombatTriggerDefinitions ?? []).map((entry) => entry.trigger.id),
+      },
       { reason: "custom_triggers_changed", previous: previousArgs.customTriggers ?? [], next: nextArgs.customTriggers ?? [] },
       { reason: "trigger_variables_changed", previous: previousArgs.customTriggerVariables ?? [], next: nextArgs.customTriggerVariables ?? [] },
     ];
@@ -687,7 +712,7 @@ export function createRotationSimulationCache(options?: {
       && (previousEntry.result.simulationCheckpoints?.length ?? 0) > 0
     ) {
       const checkpoint = [...(previousEntry.result.simulationCheckpoints ?? [])]
-        .filter((entry) => entry.time <= invalidation.earliestTime + 0.0001)
+        .filter((entry) => entry.time < invalidation.earliestTime - 0.0001)
         .sort((left, right) => right.time - left.time)[0];
       if (checkpoint) {
         reusedThroughCheckpointTime = checkpoint.time;

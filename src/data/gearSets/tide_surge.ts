@@ -89,5 +89,37 @@ export const TIDE_SURGE: GearBase[] = [
         "value": 0.1916
       }
     ],
+  },
+  {
+    id: "item_equip_t4_suit_burst01_body_02",
+    name: "Tide Fall Light Armor T1",
+    slot: "ARMOR",
+    set: "Tide Surge",
+    defFlat: 56,
+    subs: [{ stat: "INT", value: 87 }, { stat: "WIL", value: 58 }, { stat: "ULT_GAIN_PCT", value: 0.1232142857142857 }],
+  },
+  {
+    id: "item_equip_t4_suit_burst01_body_03",
+    name: "Wave Swell Heavy Armor",
+    slot: "ARMOR",
+    set: "Tide Surge",
+    defFlat: 56,
+    subs: [{ stat: "STR", value: 87 }, { stat: "WIL", value: 58 }, { stat: "CRYO_ELECTRIC_DMG_PCT", value: 0.115 }],
+  },
+  {
+    id: "item_equip_t4_suit_burst01_hand_02",
+    name: "Deepsink Gloves",
+    slot: "GLOVES",
+    set: "Tide Surge",
+    defFlat: 42,
+    subs: [{ stat: "INT", value: 65 }, { stat: "WIL", value: 43 }, { stat: "SKILL_DMG_PCT", value: 0.23 }],
+  },
+  {
+    id: "item_equip_t4_suit_burst01_edc_03",
+    name: "Turbid Cutting Torch T1",
+    slot: "KIT",
+    set: "Tide Surge",
+    defFlat: 21,
+    subs: [{ stat: "INT", value: 32 }, { stat: "WIL", value: 21 }, { stat: "HEAT_NATURE_DMG_PCT", value: 0.23 }],
   }
 ];

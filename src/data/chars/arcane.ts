@@ -8,6 +8,15 @@ const ARRAY = "arcane_gloompurger_array";
 const CLUSTERS = "arcane_clusterstrike_stacks";
 const ARCANA_READY = "arcane_gloompurge_arcana_ready";
 const IMPRISONMENT = "arcane_imprisonment";
+const TACTICAL_PLANNING_AMP = "arcane_tactical_planning_amp";
+const ARRAY_AMP_CONTROLLER = "arcane_array_amp_controller";
+const ARCANA_READY_AMP_CONTROLLER = "arcane_ready_amp_controller";
+const ARCANA_AMP_MIN_TIMER = "arcane_arcana_amp_min_timer";
+const ARCANA_AMP_IDLE_TIMER = "arcane_arcana_amp_idle_timer";
+const TACTICAL_PLANNING_I = "arcane_tactical_planning_1";
+const TACTICAL_PLANNING_II = "arcane_tactical_planning_2";
+const WEAPON_HONING_I = "arcane_weapon_honing_1";
+const WEAPON_HONING_II = "arcane_weapon_honing_2";
 
 const BATTLE_INT = "arcane_battle_skill_int";
 const BATTLE_WILL = "arcane_battle_skill_will";
@@ -17,6 +26,21 @@ const ULT_INT = "arcane_ultimate_int";
 const ULT_WILL = "arcane_ultimate_will";
 const ARCANA_INT = "arcane_gloompurge_arcana_int";
 const ARCANA_WILL = "arcane_gloompurge_arcana_will";
+const WILL_COMBO_INFLICTION_MARKERS = {
+  Heat: "arcane_will_combo_heat_infliction",
+  Cryo: "arcane_will_combo_cryo_infliction",
+  Electric: "arcane_will_combo_electric_infliction",
+  Nature: "arcane_will_combo_nature_infliction",
+} as const;
+const WILL_COMBO_INFLICTION_MARKER_IDS = Object.values(WILL_COMBO_INFLICTION_MARKERS);
+
+function clearWillComboInflictionMarkers() {
+  return WILL_COMBO_INFLICTION_MARKER_IDS.map((statusId) => ({
+    type: "REMOVE_STATUS" as const,
+    target: "self" as const,
+    statusId,
+  }));
+}
 
 const basicMults = [
   [19, 21, 22, 24, 26, 28, 30, 32, 34, 36, 39, 42],
@@ -106,7 +130,8 @@ const COMMANDS: CommandDefinition[] = [
   })),
   {
     id: COMBO_INT, name: "Combo Skill · Intellect", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Nature",
-    durationFrames: flat12(60), spCost: flat12(0), comboCooldownSeconds: flat12(14), comboWindowDurationSeconds: flat12(5),
+    durationFrames: flat12(60), timeFreezeSeconds: flat12(30 / 60), spCost: flat12(0), comboCooldownSeconds: [14, 14, 14, 14, 14, 14, 14, 14, 13, 13, 13, 12], comboWindowDurationSeconds: flat12(5),
+    transforms: [{ toCommandId: COMBO_WILL, requiresBuffId: WILL_FORM }],
     hits: [{ multiplier: pct(comboMult), offsetFrames: flat12(30), stagger: flat12(5), energyReturn: flat12(10), effects: [
       ...imprisonmentEffects(4),
       { type: "APPLY_BUFF", target: "enemy", buffId: "arcane_combo_susceptibility", label: "Nature/Cryo Susceptibility", durationSeconds: 4, effects: { NATURE_SUS_PCT: 0.04, CRYO_SUS_PCT: 0.04 } },
@@ -114,7 +139,7 @@ const COMMANDS: CommandDefinition[] = [
   },
   {
     id: COMBO_WILL, name: "Combo Skill · Will", skill: "comboSkill", attackType: "COMBO_SKILL", damageType: "Nature",
-    hiddenInLibrary: true, durationFrames: flat12(60), spCost: flat12(0), comboCooldownSeconds: flat12(20), comboWindowDurationSeconds: flat12(5),
+    hiddenInLibrary: true, durationFrames: flat12(60), timeFreezeSeconds: flat12(36 / 60), spCost: flat12(0), comboCooldownSeconds: [20, 20, 20, 20, 20, 20, 20, 20, 19, 19, 19, 18], comboWindowDurationSeconds: flat12(5),
     hits: [{ multiplier: pct(comboMult), offsetFrames: flat12(36), stagger: flat12(5), energyReturn: flat12(10), effects: [
       ...imprisonmentEffects(6),
       { type: "APPLY_BUFF", target: "enemy", buffId: "arcane_combo_susceptibility", label: "Nature/Cryo Susceptibility", durationSeconds: 6, effects: { NATURE_SUS_PCT: 0.08, CRYO_SUS_PCT: 0.08 } },
@@ -123,26 +148,28 @@ const COMMANDS: CommandDefinition[] = [
   {
     id: "arcane_ultimate", name: "Ultimate", skill: "ultimate", attackType: "ULTIMATE", damageType: "Nature",
     durationFrames: flat12(145.02), spCost: flat12(0), energyCost: flat12(100), hits: [],
+    cutscene: true, timeFreezeSeconds: flat12(94.98 / 60),
     transforms: [
-      { toCommandId: ULT_INT, requiresBuffId: INT_FORM }, { toCommandId: ULT_WILL, requiresBuffId: WILL_FORM },
       { toCommandId: ARCANA_INT, requiresBuffIdsAll: [ARCANA_READY, INT_FORM] },
       { toCommandId: ARCANA_WILL, requiresBuffIdsAll: [ARCANA_READY, WILL_FORM] },
+      { toCommandId: ULT_INT, requiresBuffId: INT_FORM }, { toCommandId: ULT_WILL, requiresBuffId: WILL_FORM },
     ],
   },
   ...([ULT_INT, ULT_WILL] as const).map((id) => ({
     id, name: id === ULT_INT ? "Ultimate · Intellect" : "Ultimate · Will", skill: "ultimate" as const,
     attackType: "ULTIMATE" as const, damageType: "Nature" as const, hiddenInLibrary: true,
     durationFrames: flat12(145.02), spCost: flat12(0), energyCost: flat12(100),
+    cutscene: true, timeFreezeSeconds: flat12(94.98 / 60),
     hits: [{ multiplier: pct(ultMult), offsetFrames: flat12(94.98), stagger: flat12(10), effects: [
-      { type: "APPLY_STATUS" as const, target: "self" as const, statusId: ARRAY, label: "Gloompurger Array", durationSeconds: 20 },
-      { type: "APPLY_STATUS" as const, target: "self" as const, statusId: CLUSTERS, label: "Clusterstrike", durationSeconds: 20, stacks: 2, maxStacks: 2 },
       { type: "APPLY_REACTION" as const, reaction: "Corrosion" as const, durationSeconds: 15, forceApply: true },
     ] }],
   })),
   ...([[ARCANA_INT, arcanaIntMult], [ARCANA_WILL, arcanaWillMult]] as const).map(([id, mult]) => ({
     id, name: id === ARCANA_INT ? "Gloompurge Arcana · Intellect" : "Gloompurge Arcana · Will",
     skill: "ultimate" as const, attackType: "ULTIMATE" as const, damageType: "Nature" as const, hiddenInLibrary: true,
+    enhanced: true,
     durationFrames: flat12(145.02), spCost: flat12(0), energyCost: flat12(0),
+    cutscene: true, timeFreezeSeconds: flat12(94.98 / 60),
     hits: [{ multiplier: pct(mult), offsetFrames: flat12(94.98), stagger: flat12(10), effects: [
       { type: "REMOVE_STATUS" as const, target: "self" as const, statusId: ARCANA_READY },
       { type: "REMOVE_STATUS" as const, target: "self" as const, statusId: ARRAY },
@@ -171,7 +198,7 @@ const EXECUTE_HITS: ExecuteHitDefinition[] = [
 ];
 
 const HOOKS: CharacterCombatHooks = {
-  eventTypes: ["SNAPSHOT_INITIALIZED", "COMBAT_INITIALIZED", "ARTS_INFLICTION_APPLIED", "BATTLE_SKILL_HIT", "BASIC_ATTACK_FINAL_STRIKE_HIT", "FINISHER_HIT"],
+  eventTypes: ["SNAPSHOT_INITIALIZED", "COMBAT_INITIALIZED", "ARTS_INFLICTION_APPLIED", "BATTLE_SKILL_HIT", "BASIC_ATTACK_FINAL_STRIKE_HIT", "FINISHER_HIT", "ULTIMATE_HIT"],
   onEvent: (ctx) => {
     if (ctx.event.type === "SNAPSHOT_INITIALIZED" || ctx.event.type === "COMBAT_INITIALIZED") {
       const intForm = ctx.state.getSelfAttr("INT") >= ctx.state.getSelfAttr("WIL");
@@ -182,7 +209,103 @@ const HOOKS: CharacterCombatHooks = {
       const intForm = ctx.state.getSelfAttr("INT") >= ctx.state.getSelfAttr("WIL");
       const infliction = ctx.state.getEnemyArtsInfliction(ctx.event.enemySlotId);
       const qualifies = !intForm || ctx.event.consumedElement === "Nature" || (infliction?.stacks ?? 0) >= 2;
-      if (qualifies) ctx.state.triggerSelfCombo({ comboCommandId: intForm ? COMBO_INT : COMBO_WILL, sourceEventType: ctx.event.type, label: `Arcane ${intForm ? "Intellect" : "Will"} Combo Triggered` });
+      if (qualifies) {
+        if (!intForm && ctx.event.consumedElement) {
+          ctx.state.applyEffects({
+            stepId: `${ctx.event.stepId ?? "event"}:arcane_will_combo_marker`,
+            effectTree: ctx.event.effectTree,
+            effects: [
+              ...clearWillComboInflictionMarkers(),
+              {
+                type: "APPLY_STATUS",
+                target: "self",
+                statusId: WILL_COMBO_INFLICTION_MARKERS[ctx.event.consumedElement],
+                label: "Will Combo Infliction",
+                hidden: true,
+                durationSeconds: 10,
+                timeScale: "real",
+              },
+            ],
+          });
+        }
+        ctx.state.triggerSelfCombo({ comboCommandId: intForm ? COMBO_INT : COMBO_WILL, sourceEventType: ctx.event.type, label: `Arcane ${intForm ? "Intellect" : "Will"} Combo Triggered` });
+      }
+      return;
+    }
+    if (
+      ctx.event.type === "ULTIMATE_HIT"
+      && ctx.event.slot === ctx.self.slot
+      && [ULT_INT, ULT_WILL, ARCANA_INT, ARCANA_WILL].includes(ctx.event.commandId ?? "")
+    ) {
+      const intForm = ctx.state.getSelfAttr("INT") >= ctx.state.getSelfAttr("WIL");
+      const isBaseGloompurge = ctx.event.commandId === ULT_INT || ctx.event.commandId === ULT_WILL;
+      if (isBaseGloompurge && !ctx.state.hasSelfBuff(ARRAY)) {
+        ctx.state.applySelfBuff({ buffId: ARRAY, label: "Gloompurge Array", durationSeconds: 20 });
+        ctx.state.applySelfBuff({ buffId: "no_energy_gain", label: "No Energy Gain", durationSeconds: 20, hidden: true });
+        ctx.state.applyEffects({ effects: [{
+          type: "APPLY_STATUS",
+          target: "self",
+          statusId: ARRAY_AMP_CONTROLLER,
+          label: "Array Amp Controller",
+          durationSeconds: 20,
+          hidden: true,
+          expireEffects: [{ type: "REMOVE_STATUS", target: "self", statusId: TACTICAL_PLANNING_AMP }],
+          removeEffects: [{ type: "REMOVE_STATUS", target: "self", statusId: TACTICAL_PLANNING_AMP }],
+        }] });
+        ctx.state.applySelfBuff({
+          buffId: CLUSTERS,
+          label: "Clusterstrike",
+          durationSeconds: 20,
+          stackGroup: CLUSTERS,
+          maxStacks: 2,
+          refreshExistingStacks: false,
+        });
+        ctx.state.applySelfBuff({
+          buffId: CLUSTERS,
+          label: "Clusterstrike",
+          durationSeconds: 20,
+          stackGroup: CLUSTERS,
+          maxStacks: 2,
+          refreshExistingStacks: false,
+        });
+      }
+      if (ctx.state.isSelfUniqueTalentEnabled(TACTICAL_PLANNING_II)) {
+        if (intForm && isBaseGloompurge) {
+          const amp = 0.24 + (ctx.state.isSelfPotentialActive(5) ? 0.16 : 0);
+          ctx.state.applySelfBuff({
+            buffId: TACTICAL_PLANNING_AMP,
+            label: "Tactical Planning: Amp",
+            durationSeconds: 0,
+            infiniteDuration: true,
+            effects: { DMG_AMP_PCT: amp },
+          });
+        } else {
+          const talentSusceptibility = Math.min(12.8, ctx.state.getSelfAttr("WIL") * 0.02) / 100;
+          const potentialSusceptibility = ctx.state.isSelfPotentialActive(5) ? 0.07 : 0;
+          const enemySlotIds = ctx.event.affectedEnemySlotIds?.length
+            ? ctx.event.affectedEnemySlotIds
+            : ctx.event.enemySlotId ? [ctx.event.enemySlotId] : [];
+          for (const enemySlotId of enemySlotIds) {
+            ctx.state.applyEffectsToEnemySlot({
+              enemySlotId,
+              effects: [{
+                type: "APPLY_BUFF",
+                target: "enemy",
+                buffId: "arcane_tactical_planning_susceptibility",
+                label: "Tactical Planning: Nature/Cryo Susceptibility",
+                durationSeconds: 10,
+                effects: {
+                  NATURE_SUS_PCT: talentSusceptibility + potentialSusceptibility,
+                  CRYO_SUS_PCT: talentSusceptibility + potentialSusceptibility,
+                },
+              }],
+            });
+          }
+        }
+      }
+      if (ctx.state.isSelfPotentialActive(5) && ctx.event.commandId === ARCANA_WILL) {
+        ctx.state.shortenSelfComboCooldownByRatio(0.3);
+      }
       return;
     }
     if (ctx.event.type === "BATTLE_SKILL_HIT" && ctx.event.slot === ctx.self.slot && ctx.event.commandId === BATTLE_INT && ctx.state.hasStatus({ statusId: IMPRISONMENT, target: "enemy", enemySlotId: ctx.event.enemySlotId })) {
@@ -193,22 +316,150 @@ const HOOKS: CharacterCombatHooks = {
         { type: "EXECUTE_HIT", hitRefId: "arcane_imprisonment_detonation" },
         ...[0, 1, 2, 3, 4].map((i) => ({ type: "EXECUTE_HIT" as const, hitRefId: `arcane_imprisonment_laser_${i + 1}` })),
         { type: "REMOVE_STATUS", target: "enemy", statusId: IMPRISONMENT },
-        { type: "REMOVE_STATUS", target: "enemy", statusId: "arcane_combo_susceptibility" },
-        { type: "APPLY_BUFF", target: "enemy", buffId: "arcane_combo_susceptibility_detonate", label: "Nature/Cryo Susceptibility", durationSeconds: 2, effects: { NATURE_SUS_PCT: 0.04, CRYO_SUS_PCT: 0.04 } },
+        { type: "APPLY_BUFF", target: "enemy", buffId: "arcane_combo_susceptibility_detonate", label: "Nature/Cryo Susceptibility", durationSeconds: 2, effects: {
+          NATURE_SUS_PCT: 0.04,
+          CRYO_SUS_PCT: 0.04,
+        } },
       ] });
       return;
     }
     if ((ctx.event.type === "BASIC_ATTACK_FINAL_STRIKE_HIT" || ctx.event.type === "FINISHER_HIT") && ctx.state.hasSelfBuff(ARRAY)) {
       const stacks = ctx.state.getSelfBuffStackCount(CLUSTERS);
       if (stacks <= 0) return;
-      ctx.state.applyEffects({ effects: [0, 1, 2, 3].map((i) => ({ type: "EXECUTE_HIT", hitRefId: `arcane_clusterstrike_${i + 1}` })) });
-      ctx.state.applyEffects({ effects: [{ type: "REMOVE_STATUS", target: "self", statusId: CLUSTERS }] });
+      const enemySlotId = ctx.event.enemySlotId;
+      if (!enemySlotId) return;
+      ctx.state.applyEffectsToEnemySlot({ enemySlotId, effects: [0, 1, 2, 3].map((i) => ({ type: "EXECUTE_HIT", hitRefId: `arcane_clusterstrike_${i + 1}` })) });
+      ctx.state.removeSelfBuff(CLUSTERS);
       if (stacks > 1) {
-        ctx.state.applySelfBuff({ buffId: CLUSTERS, label: "Clusterstrike", durationSeconds: ctx.state.getSelfBuffRemainingSeconds(ARRAY), maxStacks: 2 });
+        ctx.state.applySelfBuff({
+          buffId: CLUSTERS,
+          label: "Clusterstrike",
+          durationSeconds: ctx.state.getSelfBuffRemainingSeconds(ARRAY),
+          stackGroup: CLUSTERS,
+          maxStacks: 2,
+          refreshExistingStacks: false,
+        });
       } else {
-        ctx.state.applySelfBuff({ buffId: ARCANA_READY, label: "Gloompurge Arcana", durationSeconds: ctx.state.getSelfBuffRemainingSeconds(ARRAY) });
+        ctx.state.removeSelfBuff(ARRAY);
+        ctx.state.applyEffects({ effects: [{ type: "REMOVE_STATUS", target: "self", statusId: ARRAY_AMP_CONTROLLER }] });
+        const arcanaCommandId = ctx.state.getSelfAttr("INT") >= ctx.state.getSelfAttr("WIL") ? ARCANA_INT : ARCANA_WILL;
+        ctx.state.applySelfBuff({ buffId: ARCANA_READY, label: "Gloompurge Arcana", durationSeconds: 10, readyCommandId: arcanaCommandId });
+        ctx.state.applySelfBuff({ buffId: "no_energy_gain", label: "No Energy Gain", durationSeconds: 10, hidden: true });
+        ctx.state.applyEffects({ effects: [{
+          type: "APPLY_STATUS",
+          target: "self",
+          statusId: ARCANA_READY_AMP_CONTROLLER,
+          label: "Arcana Ready Amp Controller",
+          durationSeconds: 10,
+          hidden: true,
+          expireEffects: [{ type: "REMOVE_STATUS", target: "self", statusId: TACTICAL_PLANNING_AMP }],
+        }] });
+        if (ctx.state.isSelfUniqueTalentEnabled(TACTICAL_PLANNING_II) && ctx.state.getSelfAttr("INT") >= ctx.state.getSelfAttr("WIL")) {
+          ctx.state.applySelfBuff({
+            buffId: TACTICAL_PLANNING_AMP,
+            label: "Tactical Planning: Amp",
+            durationSeconds: 0,
+            infiniteDuration: true,
+            effects: { DMG_AMP_PCT: 0.24 + (ctx.state.isSelfPotentialActive(5) ? 0.16 : 0) },
+          });
+        }
       }
     }
+  },
+  onActionStart: (ctx) => {
+    if (ctx.source.slot !== ctx.self.slot || ctx.source.attackType === "GENERIC") return;
+    if (ctx.source.commandId === ULT_INT) {
+      ctx.state.applySelfBuff({ buffId: ARRAY, label: "Gloompurge Array", durationSeconds: 20 });
+      ctx.state.applySelfBuff({ buffId: "no_energy_gain", label: "No Energy Gain", durationSeconds: 20, hidden: true });
+      ctx.state.applyEffects({ effects: [{
+        type: "APPLY_STATUS",
+        target: "self",
+        statusId: ARRAY_AMP_CONTROLLER,
+        label: "Array Amp Controller",
+        durationSeconds: 20,
+        hidden: true,
+        expireEffects: [{ type: "REMOVE_STATUS", target: "self", statusId: TACTICAL_PLANNING_AMP }],
+        removeEffects: [{ type: "REMOVE_STATUS", target: "self", statusId: TACTICAL_PLANNING_AMP }],
+      }] });
+      ctx.state.applySelfBuff({
+        buffId: CLUSTERS,
+        label: "Clusterstrike",
+        durationSeconds: 20,
+        stackGroup: CLUSTERS,
+        maxStacks: 2,
+        refreshExistingStacks: false,
+      });
+      ctx.state.applySelfBuff({
+        buffId: CLUSTERS,
+        label: "Clusterstrike",
+        durationSeconds: 20,
+        stackGroup: CLUSTERS,
+        maxStacks: 2,
+        refreshExistingStacks: false,
+      });
+      if (ctx.state.isSelfUniqueTalentEnabled(TACTICAL_PLANNING_II)) {
+        ctx.state.applySelfBuff({
+          buffId: TACTICAL_PLANNING_AMP,
+          label: "Tactical Planning: Amp",
+          durationSeconds: 0,
+          infiniteDuration: true,
+          effects: { DMG_AMP_PCT: 0.24 + (ctx.state.isSelfPotentialActive(5) ? 0.16 : 0) },
+        });
+      }
+    }
+    if (ctx.source.commandId === ARCANA_INT || ctx.source.commandId === ARCANA_WILL) {
+      ctx.state.removeSelfBuff(ARCANA_READY);
+      ctx.state.removeSelfBuff(ARRAY);
+      ctx.state.removeSelfBuff(CLUSTERS);
+      ctx.state.removeSelfBuff("no_energy_gain");
+      ctx.state.applyEffects({ effects: [{ type: "REMOVE_STATUS", target: "self", statusId: ARCANA_READY_AMP_CONTROLLER }] });
+    }
+    if (ctx.source.commandId === ARCANA_INT && ctx.state.isSelfUniqueTalentEnabled(TACTICAL_PLANNING_II)) {
+      ctx.state.applySelfBuff({ buffId: ARCANA_AMP_MIN_TIMER, label: "Arcana Amp Minimum Timer", durationSeconds: 1.2, hidden: true });
+      ctx.state.applySelfBuff({ buffId: ARCANA_AMP_IDLE_TIMER, label: "Arcana Amp Idle Timer", durationSeconds: 3.2, hidden: true });
+      ctx.state.applySelfBuff({
+        buffId: TACTICAL_PLANNING_AMP,
+        label: "Tactical Planning: Amp",
+        durationSeconds: 3.2,
+        effects: { DMG_AMP_PCT: 0.24 + (ctx.state.isSelfPotentialActive(5) ? 0.16 : 0) },
+      });
+      return;
+    }
+    if (ctx.source.commandId === ARCANA_WILL) return;
+    if (!ctx.state.hasSelfBuff(ARCANA_AMP_IDLE_TIMER)) return;
+    ctx.state.removeSelfBuff(ARCANA_AMP_IDLE_TIMER);
+    const minimumRemaining = ctx.state.getSelfBuffRemainingSeconds(ARCANA_AMP_MIN_TIMER);
+    if (minimumRemaining <= 0) {
+      ctx.state.removeSelfBuff(TACTICAL_PLANNING_AMP);
+      return;
+    }
+    ctx.state.applySelfBuff({
+      buffId: TACTICAL_PLANNING_AMP,
+      label: "Tactical Planning: Amp",
+      durationSeconds: minimumRemaining,
+      effects: { DMG_AMP_PCT: 0.24 + (ctx.state.isSelfPotentialActive(5) ? 0.16 : 0) },
+    });
+  },
+  onResolvedHit: (ctx) => {
+    if (ctx.source.slot !== ctx.self.slot || ctx.source.commandId !== COMBO_WILL || !ctx.flags.dealsDamage) return;
+    const marker = (Object.entries(WILL_COMBO_INFLICTION_MARKERS) as Array<[
+      keyof typeof WILL_COMBO_INFLICTION_MARKERS,
+      string,
+    ]>).find(([, statusId]) => ctx.state.hasStatus({ statusId, target: "self" }));
+    if (!marker) return;
+    for (const enemySlotId of ctx.affectedEnemySlotIds) {
+      ctx.state.applyEffectsToEnemySlot({
+        enemySlotId,
+        stepId: `${ctx.stepId}:arcane_will_combo_infliction`,
+        effectTree: ctx.effectTree,
+        effects: [{ type: "APPLY_ARTS_INFLICTION", element: marker[0], stacks: 1 }],
+      });
+    }
+    ctx.state.applyEffects({
+      stepId: `${ctx.stepId}:arcane_will_combo_marker_consume`,
+      effectTree: ctx.effectTree,
+      effects: clearWillComboInflictionMarkers(),
+    });
   },
 };
 
@@ -235,18 +486,70 @@ const POTENTIALS: Record<number, CharacterPotentialEffect> = {
 export const ARCANE: CharacterBase = {
   id: "ARCANE", name: "Arcane", imagePath: "/avatars/ARCANE/ARCANE.webp", rarity: 6, element: "Nature", class: "Caster",
   scaling: { INT: 0.005, WIL: 0.002 }, mainAttr: "INT", secondaryAttr: "WIL", weaponType: "ARTS_UNIT",
+  genericTalentBonuses: [
+    { INT: 8, WIL: 8 },
+    { INT: 10, WIL: 10 },
+    { INT: 10, WIL: 10 },
+    { INT: 15, WIL: 15 },
+  ],
   skillIconPaths: { battleSkill: "/avatars/ARCANE/battle_skill.webp", comboSkill: "/avatars/ARCANE/combo_skill.webp", ultimate: "/avatars/ARCANE/ultimate.webp" },
   levels: {
     STR: milestones([9, 26, 45, 64, 82, 91]), AGI: milestones([9, 27, 46, 65, 84, 93]),
     INT: milestones([21, 54, 89, 124, 159, 176]), WIL: milestones([14, 37, 61, 85, 109, 121]),
     ATK: linear(30, 312, true), HP: linear(500, 5495, true),
   },
+  uniqueTalentDefs: {
+    [TACTICAL_PLANNING_I]: {
+      name: "Tactical Planning I",
+      defaultEnabled: true,
+      condition: { minEliteStage: 0 },
+    },
+    [TACTICAL_PLANNING_II]: {
+      name: "Tactical Planning II",
+      defaultEnabled: true,
+      condition: { minEliteStage: 2, requiresUniqueTalentsEnabled: [TACTICAL_PLANNING_I] },
+    },
+    [WEAPON_HONING_I]: { name: "Weapon Honing I", defaultEnabled: true, condition: { minEliteStage: 1 } },
+    [WEAPON_HONING_II]: {
+      name: "Weapon Honing II",
+      defaultEnabled: true,
+      condition: { minEliteStage: 3, requiresUniqueTalentsEnabled: [WEAPON_HONING_I] },
+    },
+  },
   commands: COMMANDS, executeHits: EXECUTE_HITS, combatHooks: HOOKS, potentialEffects: POTENTIALS,
   mutateResolvedCommands: (commands, ctx) => commands.map((command) => {
     let next = command;
-    if ((ctx.buildState.potentialLevel ?? 0) >= 1 && command.attackType === "COMBO_SKILL") next = { ...next, hits: next.hits.map((hit) => ({ ...hit, multiplier: hit.multiplier * 1.3 })) };
+    if ((ctx.buildState.potentialLevel ?? 0) >= 1 && command.attackType === "COMBO_SKILL") {
+      next = {
+        ...next,
+        hits: next.hits.map((hit) => ({
+          ...hit,
+          multiplier: hit.multiplier * 1.3,
+          effects: hit.effects.map((effect) => {
+            if (command.id !== COMBO_WILL || effect.type !== "APPLY_BUFF" || effect.buffId !== "arcane_combo_susceptibility") return effect;
+            return {
+              ...effect,
+              effects: {
+                ...effect.effects,
+                NATURE_SUS_PCT: (effect.effects?.NATURE_SUS_PCT ?? 0) + 0.06,
+                CRYO_SUS_PCT: (effect.effects?.CRYO_SUS_PCT ?? 0) + 0.06,
+              },
+            };
+          }),
+        })),
+      };
+    }
     if ((ctx.buildState.potentialLevel ?? 0) >= 4 && command.attackType === "ULTIMATE" && !command.id.includes("gloompurge_arcana")) next = { ...next, energyCost: next.energyCost * 0.85 };
     if ((ctx.buildState.potentialLevel ?? 0) >= 5 && command.id === ARCANA_INT) next = { ...next, hits: next.hits.map((hit) => ({ ...hit, multiplier: hit.multiplier * 1.3 })) };
     return next;
   }),
+  mutateResolvedExecuteHits: (executeHits, ctx) => {
+    if ((ctx.buildState.potentialLevel ?? 0) < 1) return executeHits;
+    return Object.fromEntries(Object.entries(executeHits).map(([hitId, hit]) => [
+      hitId,
+      hit.skill === "comboSkill" || hitId.startsWith("arcane_imprisonment_laser_")
+        ? { ...hit, hit: { ...hit.hit, multiplier: hit.hit.multiplier * 1.3 } }
+        : hit,
+    ]));
+  },
 };

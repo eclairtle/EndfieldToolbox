@@ -183,7 +183,7 @@ const AVYWENNA_COMMANDS: CommandDefinition[] = [
     damageType: "Electric",
     durationFrames: flat12(54),
     timeFreezeSeconds: flat12(36 / 60),
-    comboCooldownSeconds: flat12(13),
+    comboCooldownSeconds: [13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 12],
     comboCooldownTimeScale: "real",
     spCost: flat12(0),
     hits: [{

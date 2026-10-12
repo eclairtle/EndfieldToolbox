@@ -169,5 +169,29 @@ export const HOT_WORK: GearBase[] = [
         "value": 0.192
       }
     ],
+  },
+  {
+    id: "item_equip_t4_suit_fire_natr01_edc_04",
+    name: "Hot Work Insulation Slab",
+    slot: "KIT",
+    set: "Hot Work",
+    defFlat: 21,
+    subs: [
+      { stat: "INT", value: 32 },
+      { stat: "WIL", value: 21 },
+      { stat: "SKILL_DMG_PCT", value: 0.276 },
+    ],
+  },
+  {
+    id: "item_equip_t4_suit_fire_natr01_hand_04",
+    name: "Hot Work Hands PPE",
+    slot: "GLOVES",
+    set: "Hot Work",
+    defFlat: 42,
+    subs: [
+      { stat: "INT", value: 65 },
+      { stat: "WIL", value: 43 },
+      { stat: "HEAT_NATURE_DMG_PCT", value: 0.19166666666666668 },
+    ],
   }
 ];

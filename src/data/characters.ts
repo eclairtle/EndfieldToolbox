@@ -152,6 +152,7 @@ export type CharacterBase = {
   scaling: AttributeScaling;
   mainAttr: AttrKey;
   secondaryAttr: AttrKey;
+  genericTalentBonuses?: ReadonlyArray<Partial<Record<AttrKey, number>>>;
   levels: LevelStatTable;
   weaponType: WeaponType;
   commands?: CommandDefinition[];
@@ -307,6 +308,8 @@ import { ZHUANGFANGYI } from "./chars/zhuangfangyi";
 import { MIFU } from "./chars/mifu";
 import { CAMILLE } from "./chars/camille";
 import { ARCANE } from "./chars/arcane";
+import { LIINO } from "./chars/liino";
+import { TYPHOEUS } from "./chars/typhoeus";
 
 
 export const CHARACTERS: CharacterBase[] = [
@@ -322,4 +325,6 @@ export const CHARACTERS: CharacterBase[] = [
   MIFU,
   CAMILLE,
   ARCANE,
+  LIINO,
+  TYPHOEUS,
 ];

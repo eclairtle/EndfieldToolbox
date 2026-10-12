@@ -9,6 +9,8 @@ import { getGearSetDescription, getGearSetDisplayName } from "@/i18n/domain/disp
 const props = defineProps<{
   characterName: string;
   weaponName: string;
+  mainAttribute: "STR" | "AGI" | "INT" | "WIL";
+  secondaryAttribute: "STR" | "AGI" | "INT" | "WIL";
   out: FinalStats;
   baselineOut?: FinalStats | null;
   activeVariantIndex: number;
@@ -39,10 +41,17 @@ const emit = defineEmits<{
 
 const statOrder = ["STR", "AGI", "INT", "WIL", "ATK", "HP", "DEF"] as const;
 const isCompareMode = computed(() => Boolean(props.baselineOut));
-const { t } = useLocale();
+const { t, locale } = useLocale();
 
 function statLabel(stat: (typeof statOrder)[number]) {
-  return t(`stats.${stat}` as const);
+  const label = t(`stats.${stat}` as const);
+  if (stat === props.mainAttribute) {
+    return `${label}(${locale.value === "zh-CN" ? "主能力" : "Main"})`;
+  }
+  if (stat === props.secondaryAttribute) {
+    return `${label}(${locale.value === "zh-CN" ? "副能力" : "Secondary"})`;
+  }
+  return label;
 }
 
 function modifierLabel(key: ModifierStatKey) {
@@ -66,6 +75,10 @@ function formatModifierValue(key: ModifierStatKey, value: number) {
 
 function isAttributeStat(stat: (typeof statOrder)[number]) {
   return stat === "STR" || stat === "AGI" || stat === "INT" || stat === "WIL";
+}
+
+function formatStatCardValue(stat: (typeof statOrder)[number], value: number) {
+  return isAttributeStat(stat) ? Math.round(value) : value;
 }
 
 const visibleModifierRows = computed(() => {
@@ -196,19 +209,19 @@ const visibleModifierRows = computed(() => {
               <div
                 v-if="isCompareMode && baselineOut"
                 class="mt-2 text-sm font-semibold tabular-nums"
-                :class="baselineOut.statsCard[k] > out.statsCard[k] ? 'text-[#1b7f2a]' : baselineOut.statsCard[k] < out.statsCard[k] ? 'text-[#b42323]' : 'text-[#1b1b1b]'"
+                :class="formatStatCardValue(k, baselineOut.statsCard[k]) > formatStatCardValue(k, out.statsCard[k]) ? 'text-[#1b7f2a]' : formatStatCardValue(k, baselineOut.statsCard[k]) < formatStatCardValue(k, out.statsCard[k]) ? 'text-[#b42323]' : 'text-[#1b1b1b]'"
               >
                 {{
-                  out.statsCard[k] === baselineOut.statsCard[k]
-                    ? out.statsCard[k]
-                    : `${out.statsCard[k]} → ${baselineOut.statsCard[k]}`
+                  formatStatCardValue(k, out.statsCard[k]) === formatStatCardValue(k, baselineOut.statsCard[k])
+                    ? formatStatCardValue(k, out.statsCard[k])
+                    : `${formatStatCardValue(k, out.statsCard[k])} → ${formatStatCardValue(k, baselineOut.statsCard[k])}`
                 }}
               </div>
               <div
                 v-else
                 class="mt-2 text-2xl font-semibold tabular-nums"
               >
-                {{ out.statsCard[k] }}
+                {{ formatStatCardValue(k, out.statsCard[k]) }}
               </div>
 
               <div

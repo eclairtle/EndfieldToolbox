@@ -114,6 +114,7 @@ export type CombatResolvedHitHookContext = {
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
       hidden?: boolean;
+      readyCommandId?: string;
       stackGroup?: string;
       maxStacks?: number;
       refreshExistingStacks?: boolean;
@@ -126,6 +127,7 @@ export type CombatResolvedHitHookContext = {
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
       hidden?: boolean;
+      readyCommandId?: string;
       stackGroup?: string;
       maxStacks?: number;
       refreshExistingStacks?: boolean;
@@ -233,11 +235,28 @@ export type CombatActionStartHookContext = {
     characterName: string;
     commandId: string;
     commandName: string;
-    attackType: "BASIC_ATTACK" | "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "TALENT" | "GENERIC";
+    attackType: "BASIC_ATTACK" | "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "TALENT" | "REACTION" | "GENERIC";
   };
   state: {
     isSelfUniqueTalentEnabled(key: string): boolean;
     isSelfPotentialActive(level: number): boolean;
+    hasSelfBuff(buffId: string): boolean;
+    getSelfBuffRemainingSeconds(buffId: string): number;
+    applySelfBuff(args: {
+      buffId: string;
+      label: string;
+      durationSeconds: number;
+      infiniteDuration?: boolean;
+      timeScale?: TimeScale;
+      effects?: Partial<ModifierStats>;
+      hidden?: boolean;
+      readyCommandId?: string;
+      stackGroup?: string;
+      maxStacks?: number;
+      refreshExistingStacks?: boolean;
+    }): void;
+    removeSelfBuff(buffId: string): void;
+    applyEffects(args: { effects: CommandHitEffectDefinition[]; stepId?: string; effectTree?: CombatEffectTree }): void;
     resetSelfComboCooldown(): void;
     shortenSelfComboCooldownByRatio(ratio: number): void;
     pauseTeamComboCooldowns(args: { durationSeconds: number }): void;
@@ -264,12 +283,14 @@ export type CombatEventHookContext = {
     commandAttackType?: "BASIC_ATTACK" | "BATTLE_SKILL" | "COMBO_SKILL" | "ULTIMATE" | "TALENT" | "REACTION" | "GENERIC";
     amount?: number;
     consumedElement?: "Heat" | "Cryo" | "Electric" | "Nature";
+    element?: "Heat" | "Cryo" | "Electric" | "Nature";
     consumedStacks?: number;
     enemyHpRatio?: number;
     enemyHadOriginiumCrystal?: boolean;
     enemyHadPhysicalSusceptibility?: boolean;
     enemyWasStaggered?: boolean;
     forcedReaction?: boolean;
+    triggersReaction?: boolean;
   };
   state: {
     getPrimaryEnemySlotId(): EnemySlotId | null;
@@ -297,10 +318,12 @@ export type CombatEventHookContext = {
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
       hidden?: boolean;
+      readyCommandId?: string;
       stackGroup?: string;
       maxStacks?: number;
       refreshExistingStacks?: boolean;
     }): void;
+    removeSelfBuff(buffId: string): void;
     applyOtherTeammatesBuff(args: {
       buffId: string;
       label: string;

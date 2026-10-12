@@ -1286,7 +1286,7 @@ export function getSuppressionDebuffStatFromEvent(
   if (event.type === "ENEMY_DEBUFF_APPLIED" && event.label === "Vulnerability Applied") {
     return "PHYSICAL_DMG_PCT";
   }
-  if (event.type !== "ARTS_INFLICTION_APPLIED") {
+  if (event.type !== "ARTS_INFLICTION_APPLIED" || event.triggersReaction === true) {
     return null;
   }
   switch (event.consumedElement) {

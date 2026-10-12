@@ -80,9 +80,9 @@ function modifierLabel(stat: ModifierStatKey) {
 function subLabel(stat: GearSubstatKey): string {
   switch (stat) {
     case "MAIN_ATTR_FLAT":
-      return "Main Attribute";
+      return t("stats.MAIN_ATTR_FLAT");
     case "SECONDARY_ATTR_FLAT":
-      return "Secondary Attribute";
+      return t("stats.SECONDARY_ATTR_FLAT");
     case "STR":
     case "AGI":
     case "INT":

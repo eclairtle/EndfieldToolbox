@@ -17,6 +17,15 @@ export type CharacterTalentKey = typeof CHARACTER_TALENT_KEYS[number];
 
 export type CharacterTalentToggles = Record<CharacterTalentKey, boolean>;
 
+export function getCharacterTalentBonuses(
+  char: CharacterBase,
+  index: number,
+): Partial<Record<keyof Attrs, number>> {
+  return char.genericTalentBonuses?.[index] ?? {
+    [char.mainAttr]: getCharacterTalentBonus(index),
+  };
+}
+
 export function applyGenericCharacterTalents(args: {
   char: CharacterBase;
   attrs: Attrs;
@@ -42,8 +51,11 @@ export function applyGenericCharacterTalents(args: {
 
     if (!unlocked || !enabled) continue;
 
-    const bonus = getCharacterTalentBonus(i);
-    attrs[args.char.mainAttr] += bonus;
+    const bonuses = getCharacterTalentBonuses(args.char, i);
+    for (const [attribute, bonus] of Object.entries(bonuses)) {
+      const key = attribute as keyof Attrs;
+      attrs[key] += bonus ?? 0;
+    }
   }
 
   return attrs;

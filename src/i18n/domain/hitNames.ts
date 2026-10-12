@@ -169,10 +169,18 @@ const CHARACTER_HIT_LABELS_ZH: Record<string, Record<string, string>> = {
     "Battle Skill Seq 2 Hit 4": "战技第二段第4击",
     "Multi Hit x25": "25连击",
   },
+  arcane: {
+    Imprisonment: "囹圄",
+    "Imprisonment Detonation": "囹圄爆炸",
+    Clusterstrike: "集束打击",
+    "Tactical Double": "战术分身",
+  },
 };
 
 function localizeZhHitName(baseLabel: string, characterId?: string) {
-  const characterSpecific = characterId ? CHARACTER_HIT_LABELS_ZH[characterId]?.[baseLabel] : undefined;
+  const characterSpecific = characterId
+    ? CHARACTER_HIT_LABELS_ZH[characterId.toLowerCase()]?.[baseLabel]
+    : undefined;
   if (characterSpecific) {
     return characterSpecific;
   }

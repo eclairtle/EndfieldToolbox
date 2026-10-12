@@ -22,6 +22,8 @@ const GEAR_SET_EVENT_TYPES: Record<string, readonly RotationCombatEvent["type"][
   Qingbo: ["COMBO_SKILL_CAST"],
   "Æthertech": ["ENEMY_DEBUFF_APPLIED"],
   Swordmancer: ["PHYSICAL_REACTION_APPLIED"],
+  "Deep Rampart": ["ARTS_BURST_TRIGGERED"],
+  LYNX: ["HEALING_HIT_EXECUTED"],
 };
 
 export function hasGearSetEventListener(setName: string | undefined, eventType: RotationCombatEvent["type"]): boolean {
@@ -111,7 +113,20 @@ const ACTIVE_GEAR_SET_EFFECTS: Record<string, ActiveGearSetInfo> = {
     ...GEAR_SET_BONUSES["AIC Fieldwork"]!,
     staticModifiers: {
       ALL_DMG_PCT: 0.2,
+      DMG_TAKEN_PCT: -0.1,
       ULT_GAIN_PCT: 0.1,
+    },
+  },
+  "Deep Rampart": {
+    ...GEAR_SET_BONUSES["Deep Rampart"]!,
+    staticModifiers: {
+      ARTS_DMG_PCT: 0.16,
+    },
+  },
+  LYNX: {
+    ...GEAR_SET_BONUSES.LYNX!,
+    staticModifiers: {
+      HEALING_PCT: 0.2,
     },
   },
 };
@@ -162,6 +177,13 @@ export type GearSetListenerContext = {
       maxStacks?: number;
       refreshExistingStacks?: boolean;
       eventType?: "ACTOR_BUFF_APPLIED" | "WEAPON_BUFF_APPLIED";
+    }): void;
+    applyTargetBuff(args: {
+      targetSlot: CharacterCombatSnapshot["slot"];
+      buffId: string;
+      label: string;
+      durationSeconds: number;
+      effects: Partial<ModifierStats>;
     }): void;
     grantReturnedSp(args: {
       amount: number;
@@ -227,6 +249,55 @@ export function runGearSetEventListener(ctx: GearSetListenerContext) {
     return;
   }
   const sourceSlot = ctx.event.sourceSlot ?? ctx.event.slot;
+
+  if (activeSetName === "Deep Rampart") {
+    if (
+      sourceSlot !== ctx.wearer.slot
+      || ctx.event.type !== "ARTS_BURST_TRIGGERED"
+      || (ctx.event.element !== "Nature" && ctx.event.element !== "Cryo")
+      || ctx.helpers.hasSelfBuff("set_deep_rampart_trigger_cooldown")
+    ) {
+      return;
+    }
+
+    ctx.helpers.applySelfBuff({
+      buffId: "set_deep_rampart_trigger_cooldown",
+      label: "Deep Rampart Cooldown",
+      hidden: true,
+      durationSeconds: 0.1,
+      effects: {},
+    });
+    ctx.helpers.applySelfBuff({
+      buffId: "set_deep_rampart_arts_intensity",
+      label: "Deep Rampart",
+      durationSeconds: 20,
+      effects: { ARTS_INTENSITY: 16 },
+      stackGroup: "set_deep_rampart_arts_intensity",
+      maxStacks: 3,
+      refreshExistingStacks: false,
+    });
+    return;
+  }
+
+  if (activeSetName === "LYNX") {
+    if (
+      sourceSlot !== ctx.wearer.slot
+      || ctx.event.type !== "HEALING_HIT_EXECUTED"
+      || ctx.event.slot == null
+    ) {
+      return;
+    }
+
+    const isOverhealing = (ctx.event.healingAmount ?? 0) > (ctx.event.healedAmount ?? 0);
+    ctx.helpers.applyTargetBuff({
+      targetSlot: ctx.event.slot,
+      buffId: "set_lynx_damage_reduction",
+      label: "LYNX",
+      durationSeconds: 10,
+      effects: { DMG_TAKEN_PCT: isOverhealing ? -0.3 : -0.15 },
+    });
+    return;
+  }
 
   if (activeSetName === "Hot Work") {
     if (sourceSlot !== ctx.wearer.slot) {

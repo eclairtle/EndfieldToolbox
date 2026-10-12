@@ -54,6 +54,7 @@ export const MODIFIER_STAT_KEYS = [
   "HP_PCT",
   "FLAT_ATK",
   "FLAT_HP",
+  "ENEMY_DEF_FLAT",
   "ARTS_INTENSITY",
 
   "PHYSICAL_DMG_PCT",
@@ -166,6 +167,7 @@ export function makeBaseModifierStats(): ModifierStats {
     HP_PCT: 0,
     FLAT_ATK: 0,
     FLAT_HP: 0,
+    ENEMY_DEF_FLAT: 0,
     ARTS_INTENSITY: 0,
 
     PHYSICAL_DMG_PCT: 0,

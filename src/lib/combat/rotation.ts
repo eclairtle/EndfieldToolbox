@@ -40,6 +40,16 @@ export type RotationStep = {
   buildSwapMap?: [number, number, number, number];
 };
 
+export type EnemyRotationStep = {
+  id: string;
+  enemySlotId: EnemySlotId;
+  commandId: string;
+  startTime: number;
+  interrupted?: boolean;
+  interruptedSpGain?: number;
+  interruptedStagger?: number;
+};
+
 export type RotationGroup = {
   id: string;
   name: string;
@@ -61,6 +71,7 @@ export type CritRiggingRule = {
 
 export type Rotation = {
   steps: RotationStep[];
+  enemySteps?: EnemyRotationStep[];
   groups?: RotationGroup[];
   critRiggingRules?: CritRiggingRule[];
 };
@@ -208,6 +219,7 @@ export type ActorActiveBuffState = {
   label: string;
   slot: PartySlot;
   hidden?: boolean;
+  readyCommandId?: string;
   timeScale: "real" | "game";
   appliedAt: number;
   appliedAtGameTime: number;
@@ -365,6 +377,7 @@ export type RotationSimulationCheckpointPendingArtsBurst = {
   stepId: string;
   sourceCommandId?: string;
   sourceCommandName?: string;
+  baseMultiplier?: number;
 };
 
 export type RotationSimulationCheckpointPendingExecuteHit = {
@@ -670,6 +683,7 @@ export type RotationCombatEventType =
   | "DIVE_ATTACK_HIT"
   | "FINISHER_HIT"
   | "STAGGER_NODE_REACHED"
+  | "STAGGER_POINTS_INFLICTED"
   | "ENEMY_STAGGERED"
   | "ENEMY_DEFEATED"
   | "HEAT_INFLICTION_APPLIED"
@@ -686,6 +700,7 @@ export type RotationCombatEventType =
   | "COMBO_TRIGGERED"
   | "SP_GENERATED"
   | "SP_RETURNED"
+  | "ULTIMATE_ENERGY_MODIFIED"
   | "TEAM_LINK_GAINED"
   | "WEAPON_BUFF_APPLIED"
   | "ACTOR_BUFF_APPLIED"
@@ -699,6 +714,7 @@ export type RotationCombatEventType =
   | "PHYSICAL_REACTION_APPLIED"
   | "ORIGINIUM_CRYSTAL_APPLIED"
   | "ARTS_INFLICTION_APPLIED"
+  | "ARTS_BURST_TRIGGERED"
   | "ARTS_BURST_APPLIED"
   | "ARTS_BURST_HIT"
   | "STATUS_UPDATED"
@@ -749,16 +765,21 @@ export type RotationCombatEvent = {
   damageType?: ElementType;
   expectedCritCount?: number;
   consumedElement?: "Heat" | "Cryo" | "Electric" | "Nature";
+  element?: "Heat" | "Cryo" | "Electric" | "Nature";
   consumedStacks?: number;
   healedAmount?: number;
+  healingAmount?: number;
   enemyHpRatio?: number;
   enemyHadVulnerability?: boolean;
   enemyHadPhysicalSusceptibility?: boolean;
   enemyWasStaggered?: boolean;
   enemyHadOriginiumCrystal?: boolean;
   forcedReaction?: boolean;
+  triggersReaction?: boolean;
   iteratorEnemySlotId?: EnemySlotId;
   iteratorOperatorSlot?: PartySlot;
+  resourceOperation?: "add" | "set";
+  resourceMode?: "flat" | "percent";
 };
 
 export type ComboTriggerWindow = {

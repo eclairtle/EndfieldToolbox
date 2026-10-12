@@ -317,7 +317,7 @@ const ARDELIA_COMMANDS: CommandDefinition[] = [
     damageType: "Nature",
     durationFrames: flat12(42),
     timeFreezeSeconds: flat12(37 / 60),
-    comboCooldownSeconds: flat12(18),
+    comboCooldownSeconds: [18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17],
     comboCooldownTimeScale: "real",
     spCost: flat12(0),
     hits: [

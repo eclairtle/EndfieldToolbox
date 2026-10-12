@@ -83,10 +83,50 @@ export const TYPE_42_SOLEMN_PHALANX: WeaponBase = {
   skills: [
     { id: "INT_UP", name: "Intellect Boost [L]", rank: 3, implemented: true },
     { id: "ULT_GAIN_UP", name: "Ultimate Gain Efficiency Boost [L]", rank: 3, implemented: true },
-    { id: "UNIQUE", name: "Detonate: Debilitating Assault", rank: 1, implemented: false },
+    { id: "UNIQUE", name: "Detonate: Debilitating Assault", rank: 1, implemented: true },
   ],
   getUniqueStaticModifiers: (level) => ({ ATK_PCT: scale(0.16, level) }),
-  getUniqueSkillDescription: (level) => `ATK +${pct(scale(0.16, level))}. Conditional effects compare the wielder's pre-combat Intellect and Will; this branch is not yet simulated.`,
+  getUniqueSkillDescription: (level) => [
+    `ATK +${pct(scale(0.16, level))}.`,
+    `Wielder's Intellect ≥ Will: applying Arts Infliction with their own skill grants Arts DMG Dealt +${pct(scale(0.2, level))} for 20s; applying Arts Susceptibility with their own skill grants ATK +${pct(scale(0.2, level))} for 20s.`,
+    `Wielder's Will > Intellect: applying an Arts Burst or Arts Susceptibility with their own skill makes the target enemy take ${pct(scale(0.06, level))} more Arts DMG for 25s.`,
+    "Effects of the same name cannot stack. The attribute comparison uses the wielder's build-sheet attributes.",
+  ].join("\n"),
+  combatEventTypes: ["ARTS_INFLICTION_APPLIED", "ARTS_BURST_APPLIED", "ENEMY_DEBUFF_APPLIED"],
+  onCombatEvent: (ctx) => {
+    if (!sourceIsWearer(ctx)) return;
+    const isOwnSkill = ctx.event.commandAttackType != null
+      && ctx.event.commandAttackType !== "REACTION"
+      && ctx.event.commandAttackType !== "GENERIC";
+    if (!isOwnSkill) return;
+
+    const isArtsSusceptibility = ctx.event.type === "ENEMY_DEBUFF_APPLIED"
+      && ["ARTS_SUS_PCT", "HEAT_SUS_PCT", "CRYO_SUS_PCT", "ELECTRIC_SUS_PCT", "NATURE_SUS_PCT", "AETHER_SUS_PCT"]
+        .includes(ctx.event.debuffStat ?? "");
+    const y = ctx.wearer.weaponSkillLevels[2] ?? 1;
+
+    if (ctx.wearer.attrs.INT >= ctx.wearer.attrs.WIL) {
+      if (ctx.event.type === "ARTS_INFLICTION_APPLIED") {
+        ctx.helpers.applySelfBuff({
+          buffId: "weapon_type_42_arts_damage", label: "Debilitating Assault: Arts DMG", durationSeconds: 20,
+          effects: { ARTS_DMG_PCT: scale(0.2, y) }, eventType: "WEAPON_BUFF_APPLIED",
+        });
+      } else if (isArtsSusceptibility) {
+        ctx.helpers.applySelfBuff({
+          buffId: "weapon_type_42_attack", label: "Debilitating Assault: ATK", durationSeconds: 20,
+          effects: { ATK_PCT: scale(0.2, y) }, eventType: "WEAPON_BUFF_APPLIED",
+        });
+      }
+      return;
+    }
+
+    if (ctx.event.type === "ARTS_BURST_APPLIED" || isArtsSusceptibility) {
+      ctx.helpers.applyEnemyBuff({
+        buffId: "weapon_type_42_arts_damage_taken", label: "Debilitating Assault: Arts DMG Taken",
+        effects: { ARTS_DMG_TAKEN_PCT: scale(0.06, y) }, durationSeconds: 25,
+      });
+    }
+  },
 };
 
 export const JUNCTION_POINT: WeaponBase = {
@@ -178,7 +218,87 @@ export const FARSIGHT: WeaponBase = {
   },
 };
 
+export const SUFFERINGS_END: WeaponBase = {
+  id: "sufferings_end", name: "Suffering's End", rarity: 6,
+  imagePath: "/weapons/funnel/wpn_funnel_0020.webp", weaponType: "ARTS_UNIT", baseAtkTable: ATK_TABLE_50_490,
+  skills: [
+    { id: "AGI_UP", name: "Agility [L]", rank: 3, implemented: true },
+    { id: "NATURE_DMG_UP", name: "Nature DMG [L]", rank: 3, implemented: true },
+    { id: "UNIQUE", name: "Detonate: Dawn of the Long Night", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (level) => ({ ARTS_INTENSITY: scale(15, level) }),
+  getUniqueSkillDescription: (level) => [
+    `Arts Intensity +${Math.round(scale(15, level))}.`,
+    `When the wielder applies an Arts Burst, Nature DMG Dealt +${pct(scale(0.02, level))} for 25s, up to 4 independently timed stacks. This can trigger once every 0.1s.`,
+    `At 4 stacks, Nature DMG Dealt is increased by an additional ${pct(scale(0.06, level))}. This effect cannot stack.`,
+  ].join("\n"),
+  combatEventTypes: ["ARTS_BURST_APPLIED"],
+  onCombatEvent: (ctx) => {
+    if (!sourceIsWearer(ctx) || !ctx.helpers.tryActivateCooldown({ key: "weapon_sufferings_end_burst", durationSeconds: 0.1 })) return;
+    const y = ctx.wearer.weaponSkillLevels[2] ?? 1;
+    const stackId = "weapon_sufferings_end_nature";
+    ctx.helpers.applySelfBuff({
+      buffId: stackId, label: "Dawn of the Long Night", durationSeconds: 25,
+      effects: { NATURE_DMG_PCT: scale(0.02, y) }, stackGroup: stackId, maxStacks: 4,
+      refreshExistingStacks: false, eventType: "WEAPON_BUFF_APPLIED",
+    });
+    if (ctx.helpers.getSelfBuffStackCount(stackId) >= 4) {
+      ctx.helpers.applySelfBuff({
+        buffId: "weapon_sufferings_end_max_stack", label: "Dawn of the Long Night: Max Stacks",
+        durationSeconds: 25, effects: { NATURE_DMG_PCT: scale(0.06, y) },
+        eventType: "WEAPON_BUFF_APPLIED",
+      });
+    }
+  },
+};
+
+export const UMBRA_OF_FRIGID_EVENTIDE: WeaponBase = {
+  id: "umbra_of_frigid_eventide", name: "Umbra of Frigid Eventide", rarity: 6,
+  imagePath: "/weapons/funnel/wpn_funnel_0019.webp", weaponType: "ARTS_UNIT", baseAtkTable: ATK_TABLE_51_505,
+  skills: [
+    { id: "AGI_UP", name: "Agility [L]", rank: 3, implemented: true },
+    { id: "ATK_UP", name: "ATK [L]", rank: 3, implemented: true },
+    { id: "UNIQUE", name: "Detonate: Hunter Instinct", rank: 1, implemented: true },
+  ],
+  getUniqueStaticModifiers: (level) => ({ ARTS_DMG_PCT: scale(0.16, level) }),
+  getUniqueSkillDescription: (level) => [
+    `Arts DMG Dealt +${pct(scale(0.16, level))}.`,
+    `After the wielder casts a battle skill, Arts Intensity +${Math.round(scale(35, level))} and gain 4 stacks of Windform for 15s. This effect cannot stack.`,
+    `Applying an Arts Burst consumes 1 Windform to grant Arts DMG Dealt +${pct(scale(0.04, level))} for 30s, up to 4 independently timed stacks. This can trigger once every 0.1s.`,
+  ].join("\n"),
+  combatEventTypes: ["BATTLE_SKILL_CAST", "ARTS_BURST_APPLIED"],
+  onCombatEvent: (ctx) => {
+    if (!sourceIsWearer(ctx)) return;
+    const y = ctx.wearer.weaponSkillLevels[2] ?? 1;
+    const windformId = "weapon_umbra_windform";
+    if (ctx.event.type === "BATTLE_SKILL_CAST") {
+      ctx.helpers.removeSelfBuff(windformId);
+      ctx.helpers.applySelfBuff({
+        buffId: "weapon_umbra_intensity", label: "Hunter Instinct", durationSeconds: 15,
+        effects: { ARTS_INTENSITY: scale(35, y) }, eventType: "WEAPON_BUFF_APPLIED",
+      });
+      for (let stack = 0; stack < 4; stack += 1) {
+        ctx.helpers.applySelfBuff({
+          buffId: windformId, label: "Windform", durationSeconds: 15, effects: {},
+          stackGroup: windformId, maxStacks: 4, refreshExistingStacks: false,
+          eventType: "WEAPON_BUFF_APPLIED",
+        });
+      }
+      return;
+    }
+    if (ctx.helpers.getSelfBuffStackCount(windformId) <= 0
+      || !ctx.helpers.tryActivateCooldown({ key: "weapon_umbra_burst", durationSeconds: 0.1 })) return;
+    ctx.helpers.consumeSelfBuffStacks(windformId, 1);
+    ctx.helpers.applySelfBuff({
+      buffId: "weapon_umbra_arts_damage", label: "Hunter Instinct: Arts DMG", durationSeconds: 30,
+      effects: { ARTS_DMG_PCT: scale(0.04, y) }, stackGroup: "weapon_umbra_arts_damage",
+      maxStacks: 4, refreshExistingStacks: false, eventType: "WEAPON_BUFF_APPLIED",
+    });
+  },
+};
+
 export const VERSION_14_WEAPONS: WeaponBase[] = [
   BEACON_OF_DUTY, PHANTOM_PAIN, AMARANTHINE_TASSEL, TYPE_42_SOLEMN_PHALANX,
   JUNCTION_POINT, BEDAZZLING_NIGHT_DEBUT, BLESSING_OF_LUSTROUS_CARMINE, GOLDEN_AGE, FARSIGHT,
+  SUFFERINGS_END, UMBRA_OF_FRIGID_EVENTIDE,
 ];

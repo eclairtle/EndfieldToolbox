@@ -37,4 +37,22 @@ export const AIC_FIELDWORK: GearBase[] = [
   make("item_equip_t4_parts_wuling00_edc_03", "AIC Fieldwork Flashlight", "KIT", 18, [
     { stat: "SECONDARY_ATTR_FLAT", value: 27 }, { stat: "MAIN_ATTR_FLAT", value: 18 }, { stat: "SECONDARY_ATTR_PCT", value: 0.17701525022677778 },
   ]),
+  make("item_equip_t4_parts_wuling00_body_04", "AIC Fieldwork Assault Armor", "ARMOR", 48, [
+    { stat: "MAIN_ATTR_FLAT", value: 74 }, { stat: "SECONDARY_ATTR_FLAT", value: 49 }, { stat: "ARTS_INTENSITY", value: 17.7 },
+  ]),
+  make("item_equip_t4_parts_wuling00_body_05", "AIC Fieldwork Medic Armor", "ARMOR", 48, [
+    { stat: "MAIN_ATTR_FLAT", value: 74 }, { stat: "SECONDARY_ATTR_FLAT", value: 49 }, { stat: "HEALING_PCT", value: 0.0885 },
+  ]),
+  make("item_equip_t4_parts_wuling00_hand_04", "AIC Fieldwork Assault Gloves", "GLOVES", 36, [
+    { stat: "MAIN_ATTR_FLAT", value: 55 }, { stat: "SECONDARY_ATTR_FLAT", value: 37 }, { stat: "ARTS_INTENSITY", value: 29.5 },
+  ]),
+  make("item_equip_t4_parts_wuling00_hand_05", "AIC Fieldwork Medic Gloves", "GLOVES", 36, [
+    { stat: "MAIN_ATTR_FLAT", value: 55 }, { stat: "SECONDARY_ATTR_FLAT", value: 37 }, { stat: "HEALING_PCT", value: 0.1475 },
+  ]),
+  make("item_equip_t4_parts_wuling00_edc_04", "AIC Fieldwork Assault Push Knife", "KIT", 18, [
+    { stat: "MAIN_ATTR_FLAT", value: 27 }, { stat: "SECONDARY_ATTR_FLAT", value: 18 }, { stat: "ARTS_INTENSITY", value: 35.4 },
+  ]),
+  make("item_equip_t4_parts_wuling00_edc_05", "AIC Fieldwork Power Bank", "KIT", 18, [
+    { stat: "MAIN_ATTR_FLAT", value: 27 }, { stat: "SECONDARY_ATTR_FLAT", value: 18 }, { stat: "HEALING_PCT", value: 0.177 },
+  ]),
 ];

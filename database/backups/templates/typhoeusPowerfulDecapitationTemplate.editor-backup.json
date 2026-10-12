@@ -1,0 +1,3615 @@
+{
+  "id": "build_h4t5rvsi",
+  "name": "Build 2",
+  "description": "",
+  "nameByLocale": {
+    "en": "Powerful Decapitation w/ Typhoeus",
+    "zh-CN": "斩首蓄势提丰"
+  },
+  "descriptionByLocale": {
+    "en": "【0+1提弗洛斯 50秒神秘好轴 斩首蓄势·残酷【战争回想】】 https://www.bilibili.com/video/BV1eBhm66Eti/?share_source=copy_web&vd_source=3aa65236128b3cede3ee3dd7346e3267",
+    "zh-CN": "【0+1提弗洛斯 50秒神秘好轴 斩首蓄势·残酷【战争回想】】 https://www.bilibili.com/video/BV1eBhm66Eti/?share_source=copy_web&vd_source=3aa65236128b3cede3ee3dd7346e3267"
+  },
+  "currentBuildState": {
+    "slots": [
+      {
+        "id": "slot_1",
+        "label": "Character 1",
+        "selectedCharId": "TYPHOEUS",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "typhoeus_hunters_mark_1": true,
+          "typhoeus_hunters_mark_2": true,
+          "typhoeus_hunters_mark_3": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 9
+        },
+        "selectedWeaponId": "umbra_of_frigid_eventide",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_spellburst_body_01",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_spellburst_hand_01",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            2,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_spellburst_edc_01",
+          "subLevels": [
+            3,
+            1,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "MIFU": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            }
+          ],
+          "TYPHOEUS": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "MIFU::khravengger": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "TYPHOEUS::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "TYPHOEUS::umbra_of_frigid_eventide": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_2",
+        "label": "Character 2",
+        "selectedCharId": "ARCANE",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "arcane_tactical_planning_1": true,
+          "arcane_tactical_planning_2": true,
+          "arcane_weapon_honing_1": true,
+          "arcane_weapon_honing_2": true
+        },
+        "characterSkillLevels": {
+          "basic": 9,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 9
+        },
+        "selectedWeaponId": "type_42_solemn_phalanx",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_usp02_body_03",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_usp02_hand_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "ARCANE": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "ARCANE::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ARCANE::type_42_solemn_phalanx": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_3",
+        "label": "Character 3",
+        "selectedCharId": "ardelia",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "ardelia_friendly_presence_1": true,
+          "ardelia_friendly_presence_2": true,
+          "ardelia_friendly_presence_3": true,
+          "ardelia_mountainpeak_surfer": true
+        },
+        "characterSkillLevels": {
+          "basic": 9,
+          "battleSkill": 12,
+          "comboSkill": 11,
+          "ultimate": 9
+        },
+        "selectedWeaponId": "dreams_of_the_starry_beach",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_burst01_body_01",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_usp02_hand_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_usp02_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_usp02_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "ardelia": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "ardelia::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ardelia::dreams_of_the_starry_beach": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_4",
+        "label": "Character 4",
+        "selectedCharId": "LIINO",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {},
+        "characterSkillLevels": {
+          "basic": 9,
+          "battleSkill": 12,
+          "comboSkill": 11,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "bedazzling_night_debut",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_usp02_body_03",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_heal01_hand_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "LIINO": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "LIINO::jet": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "LIINO::bedazzling_night_debut": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      }
+    ],
+    "activeSlotIndex": 1,
+    "activeVariantIndex": 0
+  },
+  "plannedBuildState": {
+    "slots": [
+      {
+        "id": "slot_1",
+        "label": "Character 1",
+        "selectedCharId": "TYPHOEUS",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "typhoeus_hunters_mark_1": true,
+          "typhoeus_hunters_mark_2": true,
+          "typhoeus_hunters_mark_3": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 9
+        },
+        "selectedWeaponId": "umbra_of_frigid_eventide",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_spellburst_body_01",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_spellburst_hand_01",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            2,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_spellburst_edc_01",
+          "subLevels": [
+            3,
+            1,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "MIFU": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "mifu_talent_1_1": true,
+                "mifu_talent_1_2": true,
+                "mifu_talent_2_1": true,
+                "mifu_talent_2_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "khravengger",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": {
+                "gearId": "item_equip_t4_suit_crush_fracture_hand_02",
+                "subLevels": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "kit1": null,
+              "kit2": null
+            }
+          ],
+          "TYPHOEUS": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "typhoeus_hunters_mark_1": true,
+                "typhoeus_hunters_mark_2": true,
+                "typhoeus_hunters_mark_3": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "umbra_of_frigid_eventide",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_spellburst_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_spellburst_hand_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_spellburst_edc_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "MIFU::khravengger": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "TYPHOEUS::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "TYPHOEUS::umbra_of_frigid_eventide": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_2",
+        "label": "Character 2",
+        "selectedCharId": "ARCANE",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "arcane_tactical_planning_1": true,
+          "arcane_tactical_planning_2": true,
+          "arcane_weapon_honing_1": true,
+          "arcane_weapon_honing_2": true
+        },
+        "characterSkillLevels": {
+          "basic": 9,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 9
+        },
+        "selectedWeaponId": "type_42_solemn_phalanx",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_usp02_body_03",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_usp02_hand_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "ARCANE": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "arcane_tactical_planning_1": true,
+                "arcane_tactical_planning_2": true,
+                "arcane_weapon_honing_1": true,
+                "arcane_weapon_honing_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 12,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_04",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "ARCANE::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ARCANE::type_42_solemn_phalanx": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_3",
+        "label": "Character 3",
+        "selectedCharId": "ardelia",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "ardelia_friendly_presence_1": true,
+          "ardelia_friendly_presence_2": true,
+          "ardelia_friendly_presence_3": true,
+          "ardelia_mountainpeak_surfer": true
+        },
+        "characterSkillLevels": {
+          "basic": 9,
+          "battleSkill": 12,
+          "comboSkill": 11,
+          "ultimate": 9
+        },
+        "selectedWeaponId": "dreams_of_the_starry_beach",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_burst01_body_01",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_usp02_hand_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_usp02_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_usp02_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "ardelia": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "ardelia_friendly_presence_1": true,
+                "ardelia_friendly_presence_2": true,
+                "ardelia_friendly_presence_3": true,
+                "ardelia_mountainpeak_surfer": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "dreams_of_the_starry_beach",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_burst01_body_01",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_usp02_hand_02",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_usp02_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "ardelia::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ardelia::dreams_of_the_starry_beach": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_4",
+        "label": "Character 4",
+        "selectedCharId": "LIINO",
+        "characterAscension": 4,
+        "characterPotential": 0,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {},
+        "characterSkillLevels": {
+          "basic": 9,
+          "battleSkill": 12,
+          "comboSkill": 11,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "bedazzling_night_debut",
+        "weaponAscension": 4,
+        "weaponPotential": 0,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          4
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_usp02_body_03",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_heal01_hand_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "LIINO": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 12,
+                "comboSkill": 9,
+                "ultimate": 12
+              },
+              "selectedWeaponId": "bedazzling_night_debut",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": {
+                "gearId": "item_equip_t4_suit_usp02_body_03",
+                "subLevels": [
+                  3,
+                  3
+                ]
+              },
+              "gloves": {
+                "gearId": "item_equip_t4_suit_heal01_hand_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit1": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              },
+              "kit2": {
+                "gearId": "item_equip_t4_suit_heal01_edc_03",
+                "subLevels": [
+                  3,
+                  3,
+                  3
+                ]
+              }
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "LIINO::jet": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "LIINO::bedazzling_night_debut": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      }
+    ],
+    "activeSlotIndex": 1,
+    "activeVariantIndex": 0
+  },
+  "rotationState": {
+    "schemes": [
+      {
+        "id": "rotation_mrbp0xh9",
+        "name": "Rotation 1",
+        "description": "",
+        "nameByLocale": {},
+        "descriptionByLocale": {},
+        "rotation": {
+          "steps": [
+            {
+              "id": "step_cp5985yc",
+              "slot": 3,
+              "commandId": "liino_battle_skill",
+              "startTime": -1.1
+            },
+            {
+              "id": "step_tu6oq0zj",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_1",
+              "startTime": 0
+            },
+            {
+              "id": "step_nwbuwpc4",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_2",
+              "startTime": 0.30000000000000004
+            },
+            {
+              "id": "step_4dk9wrov",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_3",
+              "startTime": 0.7000000000000001
+            },
+            {
+              "id": "step_sb83wfon",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_4",
+              "startTime": 1.4000000000000001
+            },
+            {
+              "id": "step_mfleadcm",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_5",
+              "startTime": 2.3000000000000003
+            },
+            {
+              "id": "step_zank868p",
+              "slot": 2,
+              "commandId": "ardelia_combo_skill",
+              "startTime": 3.6
+            },
+            {
+              "id": "step_5atndtnv",
+              "slot": 3,
+              "commandId": "liino_combo_skill",
+              "startTime": 6.1
+            },
+            {
+              "id": "step_zzaivkyv",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_1",
+              "startTime": 4.4
+            },
+            {
+              "id": "step_u8umntsj",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_2",
+              "startTime": 4.800000000000001
+            },
+            {
+              "id": "step_exvvau0b",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_3",
+              "startTime": 5.2
+            },
+            {
+              "id": "step_rqpsuuba",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_4",
+              "startTime": 5.9
+            },
+            {
+              "id": "step_bfmuq5p7",
+              "slot": 2,
+              "commandId": "ardelia_battle_skill",
+              "startTime": 6.3
+            },
+            {
+              "id": "step_vzcb5yqa",
+              "slot": 0,
+              "commandId": "typhoeus_battle_skill",
+              "startTime": 6.8
+            },
+            {
+              "id": "step_40jkbcno",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 7.7
+            },
+            {
+              "id": "step_l9a4o2bg",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 8.333
+            },
+            {
+              "id": "step_gk1ftftq",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 9
+            },
+            {
+              "id": "step_o3fuxd8d",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 9.633
+            },
+            {
+              "id": "step_oie94b7d",
+              "slot": 0,
+              "commandId": "typhoeus_combo_skill",
+              "startTime": 10.2
+            },
+            {
+              "id": "step_7t3y7t8f",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 13.533
+            },
+            {
+              "id": "step_awvhc7vz",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 14.166
+            },
+            {
+              "id": "step_5vp3qyuu",
+              "slot": 1,
+              "commandId": "arcane_battle_skill_will",
+              "startTime": 11.4
+            },
+            {
+              "id": "step_w4pwwvt1",
+              "slot": 1,
+              "commandId": "arcane_combo_skill_will",
+              "startTime": 12.1
+            },
+            {
+              "id": "step_halnwh1l",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 14.799
+            },
+            {
+              "id": "step_m453bg0e",
+              "slot": 0,
+              "commandId": "typhoeus_aerial_final_strike_resolved",
+              "startTime": 15.432
+            },
+            {
+              "id": "step_a43jv9zm",
+              "slot": 0,
+              "commandId": "typhoeus_basic_finisher",
+              "startTime": 16.6
+            },
+            {
+              "id": "step_20jlai1r",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_1",
+              "startTime": 18.5
+            },
+            {
+              "id": "step_20j42izj",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_2",
+              "startTime": 18.9
+            },
+            {
+              "id": "step_rb9y97mp",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_3",
+              "startTime": 19.4
+            },
+            {
+              "id": "step_yclirrb6",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_4",
+              "startTime": 20.117
+            },
+            {
+              "id": "step_bzfmx07y",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_5",
+              "startTime": 21.017
+            },
+            {
+              "id": "step_q6f1on5s",
+              "slot": 2,
+              "commandId": "ardelia_combo_skill",
+              "startTime": 21.900000000000002
+            },
+            {
+              "id": "step_15gwydbm",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_1",
+              "startTime": 23
+            },
+            {
+              "id": "step_g9ngjx87",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_2",
+              "startTime": 23.4
+            },
+            {
+              "id": "step_v2lgqmnu",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_3",
+              "startTime": 23.833
+            },
+            {
+              "id": "step_8ht4en57",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_4",
+              "startTime": 24.55
+            },
+            {
+              "id": "step_j13i7glu",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_5",
+              "startTime": 25.45
+            },
+            {
+              "id": "step_to9b3v9u",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 12.9
+            },
+            {
+              "id": "step_6g3n06ad",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_1",
+              "startTime": 26.8
+            },
+            {
+              "id": "step_cgk7hk7x",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_2",
+              "startTime": 27.2
+            },
+            {
+              "id": "step_m054hvck",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_3",
+              "startTime": 27.633
+            },
+            {
+              "id": "step_bug8s9go",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_4",
+              "startTime": 28.35
+            },
+            {
+              "id": "step_rf2bsdt4",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_5",
+              "startTime": 29.25
+            },
+            {
+              "id": "step_nvtxlp9v",
+              "slot": 1,
+              "commandId": "arcane_battle_skill_will",
+              "startTime": 29.8
+            },
+            {
+              "id": "step_tre52ca9",
+              "slot": 1,
+              "commandId": "arcane_combo_skill_will",
+              "startTime": 31
+            },
+            {
+              "id": "step_qf1t8ygw",
+              "slot": 0,
+              "commandId": "typhoeus_combo_skill",
+              "startTime": 30.5
+            },
+            {
+              "id": "step_40491omj",
+              "slot": 1,
+              "commandId": "arcane_ultimate_will",
+              "startTime": 32
+            },
+            {
+              "id": "step_rs5wji3u",
+              "slot": 2,
+              "commandId": "ardelia_battle_skill",
+              "startTime": 31.8
+            },
+            {
+              "id": "step_jdfsmxi6",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_1",
+              "startTime": 31.900000000000002
+            },
+            {
+              "id": "step_wn8w3hw2",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_2",
+              "startTime": 32.300000000000004
+            },
+            {
+              "id": "step_2v1t67x9",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_3",
+              "startTime": 32.7
+            },
+            {
+              "id": "step_7l4615v3",
+              "slot": 0,
+              "commandId": "typhoeus_basic_sequence_4",
+              "startTime": 33.4
+            },
+            {
+              "id": "step_xjrb1ou9",
+              "slot": 3,
+              "commandId": "liino_combo_skill",
+              "startTime": 33.9
+            },
+            {
+              "id": "step_la0w1k3p",
+              "slot": 3,
+              "commandId": "liino_ultimate",
+              "startTime": 35.6
+            },
+            {
+              "id": "step_2lox2e3e",
+              "slot": 0,
+              "commandId": "typhoeus_battle_skill",
+              "startTime": 38.400000000000006
+            },
+            {
+              "id": "step_7otd6t6l",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 39.2
+            },
+            {
+              "id": "step_slk7vvk3",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 39.900000000000006
+            },
+            {
+              "id": "step_nz5wzcls",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 40.5
+            },
+            {
+              "id": "step_joedwjim",
+              "slot": 0,
+              "commandId": "typhoeus_power_shot",
+              "startTime": 41.2
+            },
+            {
+              "id": "step_vohlxt81",
+              "slot": 0,
+              "commandId": "typhoeus_aerial_final_strike_resolved",
+              "startTime": 41.800000000000004
+            },
+            {
+              "id": "step_ydlxn6b1",
+              "slot": 2,
+              "commandId": "ardelia_combo_skill",
+              "startTime": 42.400000000000006
+            },
+            {
+              "id": "step_swbd8w11",
+              "slot": 0,
+              "commandId": "typhoeus_basic_finisher",
+              "startTime": 43.800000000000004
+            }
+          ],
+          "enemySteps": [],
+          "groups": [],
+          "critRiggingRules": []
+        },
+        "simulationMode": "independent",
+        "teamSpConfig": {
+          "initialSp": 200,
+          "spRegenRate": 8,
+          "startingEnergyBySlot": [
+            100,
+            100,
+            100,
+            100
+          ],
+          "consumableBySlot": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "controlledOperatorSlot": 0
+        },
+        "activeContracts": [],
+        "triggers": [],
+        "triggerVariables": [],
+        "stageSettings": {
+          "mode": "preset",
+          "presetId": "powerful_decapitation",
+          "customStageId": "custom_stage_233eewkz",
+          "initialSp": 200,
+          "spRegenRate": 8,
+          "custom": {
+            "name": "Custom Stage",
+            "name_cn": "自定义关卡",
+            "contractsEnabled": false,
+            "lockInitialEnergy": false,
+            "initialEnergyPct": 100,
+            "disableConsumables": false,
+            "enemyHpMultipliers": {},
+            "enemyHpBaseOverrides": {},
+            "enemyStaggerOverrides": {}
+          }
+        }
+      }
+    ],
+    "activeSchemeId": "rotation_mrbp0xh9",
+    "enemySlots": [
+      {
+        "slotId": "enemy_slot_1",
+        "enemyId": "bonekrusher_executioner",
+        "level": 90,
+        "spawnTimeEnabled": false,
+        "spawnTime": 0,
+        "noDeath": false
+      }
+    ],
+    "targetedEnemySlotId": "enemy_slot_1",
+    "selectedEnemyId": "bonekrusher_executioner",
+    "enemyLevel": 90
+  },
+  "stageSettings": {
+    "mode": "preset",
+    "presetId": "none",
+    "initialSp": 200,
+    "spRegenRate": 8,
+    "custom": {
+      "name": "Custom Stage",
+      "name_cn": "自定义关卡",
+      "contractsEnabled": false,
+      "lockInitialEnergy": false,
+      "initialEnergyPct": 100,
+      "disableConsumables": false,
+      "enemyHpMultipliers": {},
+      "enemyHpBaseOverrides": {},
+      "enemyStaggerOverrides": {}
+    }
+  },
+  "customStages": [
+    {
+      "id": "custom_stage_233eewkz",
+      "name": "Custom Stage 1",
+      "name_cn": "自定义关卡 1",
+      "contractsEnabled": false,
+      "lockInitialEnergy": false,
+      "initialEnergyPct": 100,
+      "disableConsumables": false,
+      "enemyHpMultipliers": {
+        "bonekrusher_executioner": 1.5
+      },
+      "enemyHpBaseOverrides": {
+        "bonekrusher_executioner": 1108
+      },
+      "enemyStaggerOverrides": {},
+      "initialSp": 200,
+      "spRegenRate": 8
+    }
+  ],
+  "scopedRotationUiState": {
+    "sp": {
+      "byScheme": {
+        "rotation_mrbp0xh9": {
+          "initialSp": 200,
+          "spRegenRate": 8,
+          "startingEnergyBySlot": [
+            100,
+            100,
+            100,
+            100
+          ],
+          "consumableBySlot": [
+            null,
+            null,
+            null,
+            null
+          ]
+        }
+      }
+    },
+    "contracts": {
+      "byScheme": {
+        "rotation_mrbp0xh9": []
+      }
+    }
+  },
+  "summary": {
+    "totalDamage": 1292796.1209332235,
+    "dps": 71822.00671851242,
+    "updatedAt": 1791838098675
+  },
+  "damageTallyTiming": {
+    "enabled": true,
+    "startTime": 0,
+    "endTime": 18
+  },
+  "compareSettings": {
+    "enabled": false,
+    "leftVariantIndex": 0,
+    "rightVariantIndex": 1
+  }
+}

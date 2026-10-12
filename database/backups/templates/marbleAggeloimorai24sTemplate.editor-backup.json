@@ -1,0 +1,1859 @@
+{
+  "id": "build_tplma24s",
+  "name": "Build 3",
+  "description": "",
+  "nameByLocale": {
+    "zh-CN": "庄决官表24秒白垩界卫",
+    "en": "24s Stage Timer Marble Aggeloimorai"
+  },
+  "descriptionByLocale": {
+    "zh-CN": "来源：【【全网最速】独断万古！庄诀24s白垩界卫】 https://www.bilibili.com/video/BV1P6KA6NENS/?share_source=copy_web&vd_source=3aa65236128b3cede3ee3dd7346e3267",
+    "en": "Source:【【全网最速】独断万古！庄诀24s白垩界卫】 https://www.bilibili.com/video/BV1P6KA6NENS/?share_source=copy_web&vd_source=3aa65236128b3cede3ee3dd7346e3267"
+  },
+  "currentBuildState": {
+    "slots": [
+      {
+        "id": "slot_1",
+        "label": "Character 1",
+        "selectedCharId": "zhuangfangyi",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "zhuangfangyi_force_of_nature_1": true,
+          "zhuangfangyi_force_of_nature_2": true,
+          "zhuangfangyi_ordained_by_heaven_1": true,
+          "zhuangfangyi_ordained_by_heaven_2": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "lone_barge",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_expend_spell01_body_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_expend_spell01_hand_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_expend_spell01_edc_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "ARCANE": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "ARCANE::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ARCANE::type_42_solemn_phalanx": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "zhuangfangyi::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_2",
+        "label": "Character 2",
+        "selectedCharId": "ARCANE",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {},
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "type_42_solemn_phalanx",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_fire_natr01_body_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_fire_natr01_hand_04",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_fire_natr01_edc_04",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {},
+        "weaponBuilds": {
+          "ARCANE::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_3",
+        "label": "Character 3",
+        "selectedCharId": "ardelia",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "ardelia_friendly_presence_1": true,
+          "ardelia_friendly_presence_2": true,
+          "ardelia_friendly_presence_3": true,
+          "ardelia_mountainpeak_surfer": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "dreams_of_the_starry_beach",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_combo_cd01_body_02",
+          "subLevels": [
+            0,
+            0,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t3_suit_usp01_hand_01",
+          "subLevels": [
+            0,
+            0,
+            0
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t3_suit_usp01_edc_03",
+          "subLevels": [
+            0,
+            0,
+            0
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t3_suit_usp01_edc_03",
+          "subLevels": [
+            0,
+            0,
+            0
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "gilberta": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "gilberta::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ardelia::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_4",
+        "label": "Character 4",
+        "selectedCharId": "xaihi",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "xaihi_execute_process_1": true,
+          "xaihi_execute_process_2": true,
+          "xaihi_freeze_protocol": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "stanza_of_memorials",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_usp02_body_04",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_parts_wuling00_hand_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {},
+        "weaponBuilds": {
+          "xaihi::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      }
+    ],
+    "activeSlotIndex": 3,
+    "activeVariantIndex": 0
+  },
+  "plannedBuildState": {
+    "slots": [
+      {
+        "id": "slot_1",
+        "label": "Character 1",
+        "selectedCharId": "zhuangfangyi",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "zhuangfangyi_force_of_nature_1": true,
+          "zhuangfangyi_force_of_nature_2": true,
+          "zhuangfangyi_ordained_by_heaven_1": true,
+          "zhuangfangyi_ordained_by_heaven_2": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "lone_barge",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_expend_spell01_body_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_expend_spell01_hand_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_expend_spell01_edc_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "ARCANE": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {},
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "type_42_solemn_phalanx",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "ARCANE::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ARCANE::type_42_solemn_phalanx": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "zhuangfangyi::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_2",
+        "label": "Character 2",
+        "selectedCharId": "ARCANE",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {},
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "type_42_solemn_phalanx",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_fire_natr01_body_02",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_suit_fire_natr01_hand_04",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_fire_natr01_edc_04",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_heal01_edc_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {},
+        "weaponBuilds": {
+          "ARCANE::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_3",
+        "label": "Character 3",
+        "selectedCharId": "ardelia",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "ardelia_friendly_presence_1": true,
+          "ardelia_friendly_presence_2": true,
+          "ardelia_friendly_presence_3": true,
+          "ardelia_mountainpeak_surfer": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "dreams_of_the_starry_beach",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_combo_cd01_body_02",
+          "subLevels": [
+            0,
+            0,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t3_suit_usp01_hand_01",
+          "subLevels": [
+            0,
+            0,
+            0
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t3_suit_usp01_edc_03",
+          "subLevels": [
+            0,
+            0,
+            0
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t3_suit_usp01_edc_03",
+          "subLevels": [
+            0,
+            0,
+            0
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {
+          "gilberta": [
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            },
+            {
+              "characterAscension": 4,
+              "characterPotential": 0,
+              "level": 90,
+              "characterTalentToggles": {
+                "TALENT_1": true,
+                "TALENT_2": true,
+                "TALENT_3": true,
+                "TALENT_4": true
+              },
+              "uniqueTalentToggles": {
+                "gilberta_messengers_song_1": true,
+                "gilberta_messengers_song_2": true,
+                "gilberta_belated_reply_1": true,
+                "gilberta_belated_reply_2": true
+              },
+              "characterSkillLevels": {
+                "basic": 9,
+                "battleSkill": 9,
+                "comboSkill": 9,
+                "ultimate": 9
+              },
+              "selectedWeaponId": "delivery_guaranteed",
+              "weaponAscension": 4,
+              "weaponPotential": 0,
+              "weaponLevel": 90,
+              "weaponSkillLevels": [
+                9,
+                9,
+                4
+              ],
+              "armor": null,
+              "gloves": null,
+              "kit1": null,
+              "kit2": null
+            }
+          ]
+        },
+        "weaponBuilds": {
+          "gilberta::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          },
+          "ardelia::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      },
+      {
+        "id": "slot_4",
+        "label": "Character 4",
+        "selectedCharId": "xaihi",
+        "characterAscension": 4,
+        "characterPotential": 5,
+        "level": 90,
+        "characterTalentToggles": {
+          "TALENT_1": true,
+          "TALENT_2": true,
+          "TALENT_3": true,
+          "TALENT_4": true
+        },
+        "uniqueTalentToggles": {
+          "xaihi_execute_process_1": true,
+          "xaihi_execute_process_2": true,
+          "xaihi_freeze_protocol": true
+        },
+        "characterSkillLevels": {
+          "basic": 12,
+          "battleSkill": 12,
+          "comboSkill": 12,
+          "ultimate": 12
+        },
+        "selectedWeaponId": "stanza_of_memorials",
+        "weaponAscension": 4,
+        "weaponPotential": 5,
+        "weaponLevel": 90,
+        "weaponSkillLevels": [
+          9,
+          9,
+          9
+        ],
+        "armor": {
+          "gearId": "item_equip_t4_suit_usp02_body_04",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "gloves": {
+          "gearId": "item_equip_t4_parts_wuling00_hand_03",
+          "subLevels": [
+            3,
+            3,
+            3
+          ]
+        },
+        "kit1": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "kit2": {
+          "gearId": "item_equip_t4_suit_usp02_edc_04",
+          "subLevels": [
+            3,
+            3
+          ]
+        },
+        "activeBuffs": [],
+        "characterBuilds": {},
+        "weaponBuilds": {
+          "xaihi::delivery_guaranteed": {
+            "weaponAscension": 4,
+            "weaponPotential": 0,
+            "weaponLevel": 90,
+            "weaponSkillLevels": [
+              9,
+              9,
+              4
+            ]
+          }
+        }
+      }
+    ],
+    "activeSlotIndex": 3,
+    "activeVariantIndex": 0
+  },
+  "rotationState": {
+    "schemes": [
+      {
+        "id": "rotation_npm5h84r",
+        "name": "Rotation 1",
+        "description": "",
+        "nameByLocale": {},
+        "descriptionByLocale": {},
+        "rotation": {
+          "steps": [
+            {
+              "id": "step_4pludr72",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate",
+              "startTime": -5.3
+            },
+            {
+              "id": "step_9m7fuu6j",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_battle_skill",
+              "startTime": 6,
+              "missed": false,
+              "missedEnemySlots": [
+                3,
+                4
+              ]
+            },
+            {
+              "id": "step_1nfqkgs6",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_battle_skill",
+              "startTime": 0.2,
+              "missed": false,
+              "missedEnemySlots": [
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "id": "step_regglroc",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_battle_skill",
+              "startTime": 8.9,
+              "missed": false,
+              "missedEnemySlots": [
+                4
+              ]
+            },
+            {
+              "id": "step_bx5a3j7i",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_1",
+              "startTime": 2.1
+            },
+            {
+              "id": "step_jiq7agth",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_2",
+              "startTime": 2.83
+            },
+            {
+              "id": "step_4mj3qyk3",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_3",
+              "startTime": 3.73,
+              "missed": false,
+              "missedEnemySlots": [
+                1,
+                3,
+                4
+              ]
+            },
+            {
+              "id": "step_ws4fxgyz",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_battle_skill",
+              "startTime": 11.6
+            },
+            {
+              "id": "step_rln2ce6m",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_1",
+              "startTime": 14
+            },
+            {
+              "id": "step_7spgrus4",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_2",
+              "startTime": 14.73
+            },
+            {
+              "id": "step_dzizngss",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_3",
+              "startTime": 15.63
+            },
+            {
+              "id": "step_inf4gkr9",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_1",
+              "startTime": 17.7
+            },
+            {
+              "id": "step_japn8dxk",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_2",
+              "startTime": 18.43
+            },
+            {
+              "id": "step_wfnr116b",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_3",
+              "startTime": 19.33
+            },
+            {
+              "id": "step_i5trxkq2",
+              "slot": 2,
+              "commandId": "ardelia_combo_skill",
+              "startTime": 20.2
+            },
+            {
+              "id": "step_625acvru",
+              "slot": 1,
+              "commandId": "__switch",
+              "startTime": 21.6
+            },
+            {
+              "id": "step_shjqi00a",
+              "slot": 1,
+              "commandId": "arcane_basic_finisher",
+              "startTime": 22.2
+            },
+            {
+              "id": "step_mxawagmt",
+              "slot": 1,
+              "commandId": "arcane_ultimate_int",
+              "startTime": 24.6
+            },
+            {
+              "id": "step_xz49ywvm",
+              "slot": 1,
+              "commandId": "arcane_basic_sequence_1",
+              "startTime": 27.2
+            },
+            {
+              "id": "step_htsbo634",
+              "slot": 1,
+              "commandId": "arcane_basic_sequence_2",
+              "startTime": 27.7
+            },
+            {
+              "id": "step_15gdg2ql",
+              "slot": 1,
+              "commandId": "arcane_basic_sequence_3",
+              "startTime": 28.15
+            },
+            {
+              "id": "step_rssdgrfo",
+              "slot": 1,
+              "commandId": "arcane_basic_sequence_4",
+              "startTime": 28.9
+            },
+            {
+              "id": "step_zibsrpeh",
+              "slot": 1,
+              "commandId": "arcane_basic_sequence_5",
+              "startTime": 30.7
+            },
+            {
+              "id": "step_m2trnycl",
+              "slot": 3,
+              "commandId": "xaihi_ultimate",
+              "startTime": 29.4
+            },
+            {
+              "id": "step_l3b4zbrx",
+              "slot": 0,
+              "commandId": "__switch",
+              "startTime": 31.8
+            },
+            {
+              "id": "step_8xxcbcrj",
+              "slot": 3,
+              "commandId": "xaihi_battle_skill",
+              "startTime": 26.2
+            },
+            {
+              "id": "step_ro8cuxmj",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_1",
+              "startTime": 22
+            },
+            {
+              "id": "step_yfenpnbt",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_2",
+              "startTime": 22.8
+            },
+            {
+              "id": "step_zwb21oor",
+              "slot": 0,
+              "commandId": "zhuangfangyi_ultimate_basic_sequence_3",
+              "startTime": 23.7
+            },
+            {
+              "id": "step_1klooyti",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_1",
+              "startTime": 32
+            },
+            {
+              "id": "step_c5tvdy0d",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_2",
+              "startTime": 32.5
+            },
+            {
+              "id": "step_voufwxly",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_1",
+              "startTime": 27.6
+            },
+            {
+              "id": "step_50ni1mfc",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_2",
+              "startTime": 28.1
+            },
+            {
+              "id": "step_qlhtb9zn",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_3",
+              "startTime": 28.6
+            },
+            {
+              "id": "step_8x1o27fh",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_4",
+              "startTime": 29.5
+            },
+            {
+              "id": "step_xj2in6j2",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_5",
+              "startTime": 30.1,
+              "missed": true
+            },
+            {
+              "id": "step_g099dmet",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_1",
+              "startTime": 33.5
+            },
+            {
+              "id": "step_axt094im",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_2",
+              "startTime": 34
+            },
+            {
+              "id": "step_mhk8igdx",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_3",
+              "startTime": 34.5
+            },
+            {
+              "id": "step_8kdob6iz",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_4",
+              "startTime": 35.4
+            },
+            {
+              "id": "step_dpezosbp",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_5",
+              "startTime": 36
+            },
+            {
+              "id": "step_tojz0bmr",
+              "slot": 2,
+              "commandId": "ardelia_combo_skill",
+              "startTime": 37.1
+            },
+            {
+              "id": "step_33xatms3",
+              "slot": 3,
+              "commandId": "xaihi_combo_skill",
+              "startTime": 37.1
+            },
+            {
+              "id": "step_5wxmq7bw",
+              "slot": 1,
+              "commandId": "arcane_battle_skill_int",
+              "startTime": 37.9
+            },
+            {
+              "id": "step_i4mjtwjq",
+              "slot": 1,
+              "commandId": "arcane_combo_skill_int",
+              "startTime": 38.7
+            },
+            {
+              "id": "step_yv41mdi1",
+              "slot": 1,
+              "commandId": "arcane_battle_skill_int",
+              "startTime": 39.8
+            },
+            {
+              "id": "step_edggieky",
+              "slot": 1,
+              "commandId": "arcane_gloompurge_arcana_int",
+              "startTime": 40.6
+            },
+            {
+              "id": "step_e734qdby",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_1",
+              "startTime": 38.300000000000004
+            },
+            {
+              "id": "step_y33lov07",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_2",
+              "startTime": 38.800000000000004
+            },
+            {
+              "id": "step_d3dpk0bb",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_3",
+              "startTime": 39.300000000000004
+            },
+            {
+              "id": "step_f8xma0un",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_4",
+              "startTime": 40.2
+            },
+            {
+              "id": "step_6nwull91",
+              "slot": 0,
+              "commandId": "zhuangfangyi_basic_sequence_5",
+              "startTime": 40.800000000000004
+            },
+            {
+              "id": "step_8x0k901b",
+              "slot": 2,
+              "commandId": "ardelia_battle_skill",
+              "startTime": 38.7
+            }
+          ],
+          "groups": [],
+          "critRiggingRules": [
+            {
+              "id": "crit_rig_rjwlxfxm",
+              "stepId": "step_edggieky",
+              "hitIndex": 0,
+              "repeatIndex": 0,
+              "mode": "force_crit",
+              "enabled": true
+            }
+          ],
+          "enemySteps": []
+        },
+        "simulationMode": "independent",
+        "teamSpConfig": {
+          "initialSp": 200,
+          "spRegenRate": 8,
+          "startingEnergyBySlot": [
+            100,
+            100,
+            100,
+            100
+          ],
+          "consumableBySlot": [
+            "item_corp3_animal_1",
+            "item_corp3_animal_1",
+            null,
+            null
+          ],
+          "controlledOperatorSlot": 0
+        },
+        "activeContracts": [],
+        "triggers": [
+          {
+            "id": "trigger_5z66bupl",
+            "name": "Appendages Cleared",
+            "enabled": true,
+            "event": {
+              "type": "ENEMY_DEFEATED"
+            },
+            "conditions": [
+              {
+                "kind": "comparator",
+                "id": "trigger_condition_yrcyoaml",
+                "left": {
+                  "type": "enemy_identity",
+                  "enemy": {
+                    "type": "alias_enemy",
+                    "alias": "event_enemy_target"
+                  }
+                },
+                "comparator": "equals",
+                "right": {
+                  "type": "enemy_id_literal",
+                  "enemyId": "marble_appendage"
+                }
+              },
+              {
+                "kind": "comparator",
+                "id": "trigger_condition_f8m47rj2",
+                "left": {
+                  "type": "enemy_state_count",
+                  "state": "active"
+                },
+                "comparator": "equals",
+                "right": {
+                  "type": "number_literal",
+                  "value": 0
+                }
+              }
+            ],
+            "actions": [
+              {
+                "type": "REPLACE_ENEMY",
+                "target": {
+                  "type": "enemy_in_slot",
+                  "slotNumber": {
+                    "type": "number_literal",
+                    "value": 1
+                  }
+                },
+                "enemyId": {
+                  "type": "enemy_id_literal",
+                  "enemyId": "marble_aggelomoirai_core"
+                },
+                "resetHp": {
+                  "type": "boolean_literal",
+                  "value": true
+                },
+                "level": {
+                  "type": "number_literal",
+                  "value": 90
+                },
+                "noDeath": {
+                  "type": "boolean_literal",
+                  "value": false
+                }
+              },
+              {
+                "type": "WAIT",
+                "durationSeconds": {
+                  "type": "number_literal",
+                  "value": 0.1
+                }
+              },
+              {
+                "type": "MODIFY_ENEMY",
+                "target": {
+                  "type": "enemy_in_slot",
+                  "slotNumber": {
+                    "type": "number_literal",
+                    "value": 1
+                  }
+                },
+                "hp": {
+                  "operation": "add",
+                  "mode": "flat",
+                  "value": {
+                    "type": "number_literal",
+                    "value": 0
+                  }
+                },
+                "stagger": {
+                  "operation": "set",
+                  "mode": "percent",
+                  "value": {
+                    "type": "number_literal",
+                    "value": 100
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "triggerVariables": [],
+        "stageSettings": {
+          "mode": "custom",
+          "presetId": "none",
+          "customStageId": "custom_stage_uhf4pjsl",
+          "initialSp": 200,
+          "spRegenRate": 8,
+          "custom": {
+            "name": "Custom Stage",
+            "name_cn": "自定义关卡",
+            "contractsEnabled": false,
+            "lockInitialEnergy": false,
+            "initialEnergyPct": 100,
+            "disableConsumables": false,
+            "enemyHpMultipliers": {},
+            "enemyHpBaseOverrides": {}
+          }
+        }
+      }
+    ],
+    "activeSchemeId": "rotation_npm5h84r",
+    "enemySlots": [
+      {
+        "slotId": "enemy_slot_1",
+        "enemyId": "marble_appendage",
+        "level": 90,
+        "spawnTimeEnabled": false,
+        "spawnTime": 0,
+        "noDeath": false
+      },
+      {
+        "slotId": "enemy_slot_2",
+        "enemyId": "marble_appendage",
+        "level": 90,
+        "spawnTimeEnabled": false,
+        "spawnTime": 0,
+        "noDeath": false
+      },
+      {
+        "slotId": "enemy_slot_3",
+        "enemyId": "marble_appendage",
+        "level": 90,
+        "spawnTimeEnabled": false,
+        "spawnTime": 0,
+        "noDeath": false
+      },
+      {
+        "slotId": "enemy_slot_4",
+        "enemyId": "marble_appendage",
+        "level": 90,
+        "spawnTimeEnabled": false,
+        "spawnTime": 0,
+        "noDeath": false
+      }
+    ],
+    "targetedEnemySlotId": "enemy_slot_1",
+    "selectedEnemyId": "marble_appendage",
+    "enemyLevel": 90
+  },
+  "stageSettings": {
+    "mode": "preset",
+    "presetId": "none",
+    "initialSp": 200,
+    "spRegenRate": 8,
+    "custom": {
+      "name": "Custom Stage",
+      "name_cn": "自定义关卡",
+      "contractsEnabled": false,
+      "lockInitialEnergy": false,
+      "initialEnergyPct": 100,
+      "disableConsumables": false,
+      "enemyHpMultipliers": {},
+      "enemyHpBaseOverrides": {}
+    }
+  },
+  "customStages": [
+    {
+      "id": "custom_stage_uhf4pjsl",
+      "name": "Marble Aggeloimorai",
+      "name_cn": "白垩界卫",
+      "contractsEnabled": false,
+      "lockInitialEnergy": true,
+      "initialEnergyPct": 100,
+      "disableConsumables": false,
+      "enemyHpMultipliers": {},
+      "enemyHpBaseOverrides": {},
+      "initialSp": 200,
+      "spRegenRate": 8
+    }
+  ],
+  "scopedRotationUiState": {
+    "sp": null,
+    "contracts": null
+  },
+  "summary": {
+    "totalDamage": 5333846.344288202,
+    "dps": 101823.99527114145,
+    "updatedAt": 1787246355840
+  },
+  "damageTallyTiming": {
+    "enabled": false,
+    "startTime": 0,
+    "endTime": 60
+  },
+  "compareSettings": {
+    "enabled": false,
+    "leftVariantIndex": 0,
+    "rightVariantIndex": 1
+  }
+}

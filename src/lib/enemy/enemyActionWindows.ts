@@ -78,6 +78,23 @@ const NEFARITH_COMMAND_DEFINITIONS: EnemyCommandDefinition[] = [
   },
 ];
 
+const MARBLE_AGGELOMOIRAI_COMMAND_DEFINITIONS: EnemyCommandDefinition[] = [
+  {
+    id: "phase_transition",
+    label: "Phase Transition",
+    durationSeconds: 0.5,
+    startEffects: [
+      { type: "RESET_STAGGER" },
+      { type: "INTERRUPT_ONGOING_COMMANDS" },
+      { type: "REINITIALIZE_COMBAT" },
+    ],
+    endEffects: [
+      { type: "TRANSFORM_ENEMY", enemyId: "marble_aggelomoirai", resetHp: true },
+    ],
+    interruptible: false,
+  },
+];
+
 export function getEnemyCommandDefinitions(enemyId: string): EnemyCommandDefinition[] {
   const baseDefinitions: EnemyCommandDefinition[] = [{ ...DUMMY_ATTACK_DEFINITION }, { ...SET_TARGET_DEFINITION }];
   if (enemyId === "rhodagn") {
@@ -89,6 +106,13 @@ export function getEnemyCommandDefinitions(enemyId: string): EnemyCommandDefinit
   }
   if (enemyId === "nefarith_bonekrusher") {
     return baseDefinitions.concat(NEFARITH_COMMAND_DEFINITIONS.map((definition) => ({
+      ...definition,
+      startEffects: definition.startEffects ? definition.startEffects.map((effect) => ({ ...effect })) : undefined,
+      endEffects: definition.endEffects ? definition.endEffects.map((effect) => ({ ...effect })) : undefined,
+    })));
+  }
+  if (enemyId === "marble_aggelomoirai_core") {
+    return baseDefinitions.concat(MARBLE_AGGELOMOIRAI_COMMAND_DEFINITIONS.map((definition) => ({
       ...definition,
       startEffects: definition.startEffects ? definition.startEffects.map((effect) => ({ ...effect })) : undefined,
       endEffects: definition.endEffects ? definition.endEffects.map((effect) => ({ ...effect })) : undefined,

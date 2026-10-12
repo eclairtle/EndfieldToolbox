@@ -73,6 +73,17 @@ const zhCNWeaponNameOverrides: Record<string, string> = {
   chivalric_virtues: "骑士精神",
   monaihe: "莫奈何",
   wild_wanderer: "迷失荒野",
+  phantom_pain: "幻想苦痛",
+  beacon_of_duty: "灯火使命",
+  amaranthine_tassel: "赤缨",
+  type_42_solemn_phalanx: "四二式·肃阵",
+  junction_point: "联结点",
+  bedazzling_night_debut: "曜夜的首演",
+  blessing_of_lustrous_carmine: "镀红祝福",
+  golden_age: "黄金时代",
+  farsight: "遥望",
+  sufferings_end: "苦难的尽头",
+  umbra_of_frigid_eventide: "寒夜幽影",
 };
 
 export const weaponNamesByLocale = {

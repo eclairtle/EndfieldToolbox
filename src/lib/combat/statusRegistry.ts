@@ -1,5 +1,5 @@
 import type { ElementType } from "@/data/characters";
-import type { TimeScale } from "@/lib/commands";
+import type { AttackType, CommandHitEffectDefinition, TimeScale } from "@/lib/commands";
 import type { UnifiedStatusKind } from "@/lib/combat/statusModel";
 
 export const TRIGGER_SUPPORTED_STATUS_IDS = [
@@ -9,6 +9,8 @@ export const TRIGGER_SUPPORTED_STATUS_IDS = [
   "team_encumbered_suppression",
   "contract_battle_chill_cooldown",
   "contract_regeneration",
+  "powerful_decapitation",
+  "battle_skill_barrier",
   "estella_cryo_infliction_immunity",
   "tangtang_olden_stare_crowd_control",
   "lift",
@@ -50,6 +52,12 @@ export type CombatStatusDefinition = {
   enemyApplicationModel?: CombatStatusApplicationModel;
   element?: Extract<ElementType, "Heat" | "Cryo" | "Electric" | "Nature">;
   blocksOperatorArtsInflictionElements?: Array<Extract<ElementType, "Heat" | "Cryo" | "Electric" | "Nature">>;
+  blocksIncomingAttackTypes?: AttackType[];
+  disableStatusIds?: string[];
+  periodIntervalSeconds?: number;
+  periodicRequiresEnemyNotCrowdControlled?: boolean;
+  periodicRequiresEnemyNotStaggered?: boolean;
+  periodicEffects?: CommandHitEffectDefinition[];
 };
 
 export const COMBAT_STATUS_DEFINITIONS: Record<SupportedCombatStatusId, CombatStatusDefinition> = {
@@ -111,6 +119,43 @@ export const COMBAT_STATUS_DEFINITIONS: Record<SupportedCombatStatusId, CombatSt
     allowPermanent: true,
     maxStacks: 1,
     enemyApplicationModel: "enemy_status",
+  },
+  powerful_decapitation: {
+    id: "powerful_decapitation",
+    label: { en: "Powerful Decapitation", zh: "斩首蓄势" },
+    defaultKind: "special_stack",
+    defaultTimeScale: "game",
+    defaultDurationSeconds: Number.POSITIVE_INFINITY,
+    defaultHidden: true,
+    allowPermanent: true,
+    maxStacks: 1,
+    enemyApplicationModel: "enemy_status",
+    periodIntervalSeconds: 2,
+    periodicRequiresEnemyNotCrowdControlled: true,
+    periodicRequiresEnemyNotStaggered: true,
+    periodicEffects: [{
+      type: "APPLY_STATUS",
+      target: "enemy",
+      statusId: "battle_skill_barrier",
+      label: "Battle Skill Barrier",
+      durationSeconds: 3,
+      timeScale: "game",
+      hidden: false,
+      blocksIncomingAttackTypes: ["BATTLE_SKILL"],
+      disableStatusIds: ["powerful_decapitation"],
+    }],
+  },
+  battle_skill_barrier: {
+    id: "battle_skill_barrier",
+    label: { en: "Battle Skill Barrier", zh: "战技屏障" },
+    defaultKind: "special_stack",
+    defaultTimeScale: "game",
+    defaultDurationSeconds: 3,
+    allowPermanent: false,
+    maxStacks: 1,
+    enemyApplicationModel: "enemy_status",
+    blocksIncomingAttackTypes: ["BATTLE_SKILL"],
+    disableStatusIds: ["powerful_decapitation"],
   },
   estella_cryo_infliction_immunity: {
     id: "estella_cryo_infliction_immunity",

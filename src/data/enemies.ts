@@ -25,7 +25,7 @@ export type EnemyResistances =
   Aether: number;};
 
 export type EnemyCombatListener = {
-  eventType: Extract<RotationCombatEventType, "ENEMY_DEFEATED" | "ENEMY_TRANSFORMED">;
+  eventType: Extract<RotationCombatEventType, "ENEMY_DEFEATED" | "ENEMY_TRANSFORMED" | "ENEMY_STAGGERED">;
   effects?: EnemyActionEffect[];
   actionWindow?: {
     commandId?: string;

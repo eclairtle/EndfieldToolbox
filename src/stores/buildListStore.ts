@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import {
   BUILD_LIST_STORAGE_KEY,
   BUILD_STORE_STORAGE_KEY,
@@ -20,7 +20,12 @@ import {
   type BuildStageSettings,
 } from "@/lib/stages/stageSettings";
 import { createDefaultRotationSchemesState } from "@/lib/combat/rotationSchemes";
-import defaultTemplateBuildsSeed from "@/data/defaultTemplateBuilds.json";
+import postgresqlTemplateBuildPreviews from "@/data/postgresqlTemplateBuildPreviews.json";
+import {
+  interpretPostgresqlBuildById,
+  interpretPostgresqlBuildPreviews,
+  type PostgresqlBuildPreview,
+} from "@/lib/persistence/postgresqlBuildSchema";
 
 export type BuildLocale = "en" | "zh-CN";
 export type LocalizedBuildText = Partial<Record<BuildLocale, string>>;
@@ -62,6 +67,10 @@ export type SavedBuild = {
     rightVariantIndex: number;
   };
 };
+
+export type BuildListPreview = PostgresqlBuildPreview;
+const COMMUNITY_API_BASE_URL = "http://localhost:8000";
+type BuildMetadataLike = Pick<SavedBuild, "name" | "description" | "nameByLocale" | "descriptionByLocale">;
 
 function makeBuildId() {
   return `build_${Math.random().toString(36).slice(2, 10)}`;
@@ -142,11 +151,11 @@ function getLocalizedBuildText(
   return legacyFallback.trim();
 }
 
-export function getSavedBuildLocalizedName(build: SavedBuild, locale: BuildLocale): string {
+export function getSavedBuildLocalizedName(build: BuildMetadataLike, locale: BuildLocale): string {
   return getLocalizedBuildText(build.nameByLocale, locale, build.name);
 }
 
-export function getSavedBuildLocalizedDescription(build: SavedBuild, locale: BuildLocale): string {
+export function getSavedBuildLocalizedDescription(build: BuildMetadataLike, locale: BuildLocale): string {
   return getLocalizedBuildText(build.descriptionByLocale, locale, build.description ?? "");
 }
 
@@ -956,37 +965,6 @@ function coerceRotationStateSnapshot(value: unknown): RotationSchemesState | nul
   return cloneJson(maybe as RotationSchemesState);
 }
 
-function mergeLegacyEnemyCommandsIntoRotationState(
-  rotationState: RotationSchemesState,
-  legacyEnemyCommandsState: unknown,
-): RotationSchemesState {
-  if (!legacyEnemyCommandsState || typeof legacyEnemyCommandsState !== "object") {
-    return rotationState;
-  }
-  const byScheme =
-    (legacyEnemyCommandsState as { byScheme?: Record<string, Record<string, unknown[]>> }).byScheme;
-  if (!byScheme || typeof byScheme !== "object") {
-    return rotationState;
-  }
-  const next = cloneJson(rotationState);
-  for (const scheme of next.schemes) {
-    if (!scheme.enemyCommandsByEnemy) {
-      scheme.enemyCommandsByEnemy = {};
-    }
-    const legacyByEnemy = byScheme[scheme.id];
-    if (!legacyByEnemy || typeof legacyByEnemy !== "object") {
-      continue;
-    }
-    for (const [enemyId, placements] of Object.entries(legacyByEnemy)) {
-      if (!Array.isArray(placements) || scheme.enemyCommandsByEnemy[enemyId]) {
-        continue;
-      }
-      scheme.enemyCommandsByEnemy[enemyId] = cloneJson(placements) as never;
-    }
-  }
-  return next;
-}
-
 function readScopedRotationStateFromStorage(buildId: string): RotationSchemesState | null {
   if (typeof window === "undefined") {
     return null;
@@ -1044,22 +1022,23 @@ function isBuildRuntimeBlank(build: SavedBuild): boolean {
 export const useBuildListStore = defineStore("buildListStore", () => {
   const MAX_BUILDS_PER_USER = 6;
   const userBuilds = ref<SavedBuild[]>([]);
-  const templateBuilds = ref<SavedBuild[]>([]);
-  const builds = computed(() => [...templateBuilds.value, ...userBuilds.value]);
+  const templateBuilds = ref<BuildListPreview[]>([]);
+  const communityBuilds = ref<BuildListPreview[]>([]);
+  const communityBuildsLoading = ref(false);
+  const communityBuildsError = ref("");
+  const loadedReadonlyBuild = shallowRef<SavedBuild | null>(null);
+  const builds = computed(() => [...templateBuilds.value, ...communityBuilds.value, ...userBuilds.value]);
   const activeBuildId = ref<string>("");
 
   function createSeededTemplateBuilds() {
-    const rawBuilds = Array.isArray(defaultTemplateBuildsSeed.builds) ? defaultTemplateBuildsSeed.builds : [];
-    const seededBuilds = rawBuilds.map((entry, index) =>
-      normalizeStoredBuild(entry as unknown as Partial<SavedBuild> & { buildState?: BuildStoreStateSnapshot }, index),
-    );
+    const databaseSeed = interpretPostgresqlBuildPreviews(postgresqlTemplateBuildPreviews);
+    const seededBuilds = databaseSeed.builds;
     const fallbackActiveBuildId = seededBuilds[0]?.id ?? "";
     const seededActiveBuildId =
-      typeof defaultTemplateBuildsSeed.activeBuildId === "string"
-      && seededBuilds.some((build) => build.id === defaultTemplateBuildsSeed.activeBuildId)
-        ? defaultTemplateBuildsSeed.activeBuildId
+      typeof databaseSeed.activeBuildId === "string"
+      && seededBuilds.some((build) => build.id === databaseSeed.activeBuildId)
+        ? databaseSeed.activeBuildId
         : fallbackActiveBuildId;
-    seedDefaultRotationUiStateForBuilds(seededBuilds);
     return {
       builds: seededBuilds,
       activeBuildId: seededActiveBuildId,
@@ -1079,15 +1058,9 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     const recoveredRotationState = readScopedRotationStateFromStorage(rawBuildId);
     const normalizedRotationState = migrateLegacyStageEnemyIds(
       raw.rotationState && Array.isArray(raw.rotationState.schemes) && raw.rotationState.schemes.length > 0
-        ? mergeLegacyEnemyCommandsIntoRotationState(
-            cloneJson(raw.rotationState),
-            (raw as { scopedRotationUiState?: { enemyCommands?: unknown } }).scopedRotationUiState?.enemyCommands,
-          )
+        ? cloneJson(raw.rotationState)
         : recoveredRotationState
-          ? mergeLegacyEnemyCommandsIntoRotationState(
-              cloneJson(recoveredRotationState),
-              (raw as { scopedRotationUiState?: { enemyCommands?: unknown } }).scopedRotationUiState?.enemyCommands,
-            )
+          ? cloneJson(recoveredRotationState)
         : fallback.rotationState,
     );
     return {
@@ -1226,15 +1199,63 @@ export const useBuildListStore = defineStore("buildListStore", () => {
 
   loadFromStorage();
 
+  async function loadCommunityBuilds(): Promise<void> {
+    if (communityBuildsLoading.value) return;
+    communityBuildsLoading.value = true;
+    communityBuildsError.value = "";
+    try {
+      const response = await fetch(`${COMMUNITY_API_BASE_URL}/builds?page=1&pageSize=20`);
+      if (!response.ok) throw new Error(`Community build request failed (${response.status})`);
+      const payload = await response.json() as { buildPreviews?: unknown[] };
+      communityBuilds.value = (Array.isArray(payload.buildPreviews) ? payload.buildPreviews : []).map((raw) => {
+        const row = raw && typeof raw === "object" ? raw as Record<string, any> : {};
+        const summary = row.summary && typeof row.summary === "object" ? row.summary : {};
+        const stage = row.stage && typeof row.stage === "object" ? row.stage : {};
+        return {
+          id: String(row.buildId ?? row.id ?? ""),
+          name: String(row.name ?? "Build"),
+          description: String(row.description ?? ""),
+          nameByLocale: normalizeLocalizedBuildText(row.nameByLocale),
+          descriptionByLocale: normalizeLocalizedBuildText(row.descriptionByLocale),
+          slots: Array.isArray(row.slots) ? cloneJson(row.slots) : [],
+          stage: {
+            kind: stage.kind === "custom" ? "custom" : "preset",
+            id: String(stage.id ?? "none"),
+            name: String(stage.name ?? "None"),
+            nameByLocale: normalizeLocalizedBuildText(stage.nameByLocale),
+          },
+          summary: {
+            totalDamage: typeof summary.totalDamage === "number" && Number.isFinite(summary.totalDamage) ? summary.totalDamage : null,
+            dps: typeof summary.dps === "number" && Number.isFinite(summary.dps) ? summary.dps : null,
+            updatedAt: typeof summary.updatedAt === "number" && Number.isFinite(summary.updatedAt) ? summary.updatedAt : null,
+          },
+        } satisfies BuildListPreview;
+      }).filter((build) => build.id && build.slots.length === 4);
+    } catch (error) {
+      communityBuilds.value = [];
+      communityBuildsError.value = error instanceof Error ? error.message : "Failed to load community builds";
+    } finally {
+      communityBuildsLoading.value = false;
+    }
+  }
+
+  void loadCommunityBuilds();
+
   watch([userBuilds, activeBuildId], saveToStorage, { deep: true });
 
-  const activeBuild = computed(() => builds.value.find((build) => build.id === activeBuildId.value) ?? null);
-  const activeBuildSource = computed<"template" | "user" | null>(() => {
+  const activeBuild = computed(() =>
+    userBuilds.value.find((build) => build.id === activeBuildId.value)
+    ?? (loadedReadonlyBuild.value?.id === activeBuildId.value ? loadedReadonlyBuild.value : null),
+  );
+  const activeBuildSource = computed<"template" | "community" | "user" | null>(() => {
     if (!activeBuildId.value) {
       return null;
     }
     if (templateBuilds.value.some((build) => build.id === activeBuildId.value)) {
       return "template";
+    }
+    if (communityBuilds.value.some((build) => build.id === activeBuildId.value)) {
+      return "community";
     }
     if (userBuilds.value.some((build) => build.id === activeBuildId.value)) {
       return "user";
@@ -1243,11 +1264,53 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   });
 
   function findBuildById(id: string): SavedBuild | null {
-    return builds.value.find((build) => build.id === id) ?? null;
+    const userBuild = userBuilds.value.find((build) => build.id === id);
+    if (userBuild) return userBuild;
+    if (loadedReadonlyBuild.value?.id === id) return loadedReadonlyBuild.value;
+    return null;
+  }
+
+  async function ensureBuildLoaded(id: string): Promise<SavedBuild | null> {
+    const existing = findBuildById(id);
+    if (existing) return existing;
+    const isTemplate = templateBuilds.value.some((build) => build.id === id);
+    const isCommunity = communityBuilds.value.some((build) => build.id === id);
+    if (!isTemplate && !isCommunity) return null;
+    let interpreted: SavedBuild | null = null;
+    if (isTemplate) {
+      const module = await import("@/data/postgresqlTemplateBuildDetails.json");
+      interpreted = interpretPostgresqlBuildById(module.default, id);
+    } else {
+      try {
+        const response = await fetch(`${COMMUNITY_API_BASE_URL}/builds/${encodeURIComponent(id)}`);
+        if (!response.ok) return null;
+        interpreted = interpretPostgresqlBuildById(await response.json(), id);
+      } catch (error) {
+        communityBuildsError.value = error instanceof Error ? error.message : "Failed to load community build";
+        return null;
+      }
+    }
+    if (!interpreted) return null;
+    const normalized = normalizeStoredBuild(interpreted, 0);
+    seedDefaultRotationUiStateForBuild(normalized);
+    loadedReadonlyBuild.value = normalized;
+    return normalized;
+  }
+
+  function hasBuild(id: string): boolean {
+    return builds.value.some((build) => build.id === id);
   }
 
   function isTemplateBuild(id: string): boolean {
     return templateBuilds.value.some((build) => build.id === id);
+  }
+
+  function isCommunityBuild(id: string): boolean {
+    return communityBuilds.value.some((build) => build.id === id);
+  }
+
+  function isReadonlyBuild(id: string): boolean {
+    return isTemplateBuild(id) || isCommunityBuild(id);
   }
 
   function isUserBuild(id: string): boolean {
@@ -1302,11 +1365,11 @@ export const useBuildListStore = defineStore("buildListStore", () => {
     return next.id;
   }
 
-  function copyBuild(sourceBuildId: string): string | null {
+  async function copyBuild(sourceBuildId: string): Promise<string | null> {
     if (userBuilds.value.length >= MAX_BUILDS_PER_USER) {
       return null;
     }
-    const source = findBuildById(sourceBuildId);
+    const source = await ensureBuildLoaded(sourceBuildId);
     if (!source) {
       return null;
     }
@@ -1377,7 +1440,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   }
 
   function setActiveBuild(id: string) {
-    if (builds.value.some((build) => build.id === id)) {
+    if (hasBuild(id)) {
       activeBuildId.value = id;
     }
   }
@@ -1480,6 +1543,7 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   function resetAll() {
     const seeded = createSeededTemplateBuilds();
     templateBuilds.value = seeded.builds;
+    loadedReadonlyBuild.value = null;
     userBuilds.value = [];
     activeBuildId.value = seeded.activeBuildId;
     saveToStorage();
@@ -1488,12 +1552,20 @@ export const useBuildListStore = defineStore("buildListStore", () => {
   return {
     userBuilds,
     templateBuilds,
+    communityBuilds,
+    communityBuildsLoading,
+    communityBuildsError,
     builds,
     activeBuildId,
     activeBuild,
     activeBuildSource,
     findBuildById,
+    ensureBuildLoaded,
+    hasBuild,
     isTemplateBuild,
+    isCommunityBuild,
+    isReadonlyBuild,
+    loadCommunityBuilds,
     isUserBuild,
     createBuild,
     importBuild,

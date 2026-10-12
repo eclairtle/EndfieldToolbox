@@ -144,6 +144,12 @@ export const apiSkillTextByLocale = {
         "basic": "I'LL BLOW YOUR MIND!",
         "battleSkill": "IMA WAVERIDAAH!",
         "ultimate": "DA CHIEF SEES YOU!"
+      },
+      "arcane": {
+        "comboSkill": "Yinglung Stance IV",
+        "basic": "Basic Attack Sequence",
+        "battleSkill": "Jadecrushing Grid",
+        "ultimate": "Gloompurge"
       }
     },
     "zh-CN": {
@@ -290,6 +296,12 @@ export const apiSkillTextByLocale = {
         "basic": "崩你脑壳！",
         "battleSkill": "踏潮卷浪！",
         "ultimate": "大当家盯着呢！"
+      },
+      "arcane": {
+        "comboSkill": "应龙四式",
+        "basic": "基础攻击",
+        "battleSkill": "摧玉网格",
+        "ultimate": "破晦"
       }
     }
   },
@@ -644,6 +656,11 @@ export const apiSkillTextByLocale = {
         "Suppression: Streaming Blitz",
         "Will Boost [L]",
         "Attack Boost [L]"
+      ],
+      "type_42_solemn_phalanx": [
+        "Detonate: Debilitating Assault",
+        "Intellect Boost [L]",
+        "Ultimate Gain Efficiency Boost [L]"
       ]
     },
     "zh-CN": {
@@ -726,6 +743,11 @@ export const apiSkillTextByLocale = {
         "压制·流霆",
         "意志提升·大",
         "攻击提升·大"
+      ],
+      "type_42_solemn_phalanx": [
+        "迸发·陷坚挫锐",
+        "智识提升·大",
+        "终结技充能效率提升·大"
       ]
     }
   },
@@ -810,6 +832,11 @@ export const apiSkillTextByLocale = {
         "Electric DMG Dealt +44.8%>.\nWhen the wielder's battle skill consumes> an Arts Reaction>, the wielder gains Battle Skill Electric DMG Dealt +56%> for 20s.\nMax stacks for effects of the same name: 2. Duration of each stack is counted separately. Effect only triggers once every 0.1s.\nAfter the wielder casts an ultimate, the wielder gains Battle Skill Electric DMG Dealt +112%> for 25s.\nEffects of the same name cannot stack.>",
         "Will +156>",
         "Attack +39%>"
+      ],
+      "type_42_solemn_phalanx": [
+        "ATK +44.8%>.\nWielder's Intellect ≥ Will: When the wielder applies Arts Infliction> with their own skill, the wielder gains Arts DMG Dealt +56%> for 20s; when the wielder applies Arts Susceptibility> with their own skill, the wielder gains ATK +56%> for 20s.\nWielder's Will > Intellect: When the wielder applies an Arts Burst> with their own skill, target enemy suffers Arts DMG Taken +16.8%> for 25s; when the wielder applies Arts Susceptibility> with their own skill, target enemy suffers Arts DMG Taken +16.8%> for 25s.\nEffects of the same name cannot stack. The attribute requirement only includes build-sheet attributes.>",
+        "Intellect +156>",
+        "Ultimate Gain Efficiency +46.4%>"
       ]
     },
     "zh-CN": {
@@ -892,6 +919,11 @@ export const apiSkillTextByLocale = {
         "电磁伤害+44.8%>。\n装备者通过战技消耗>法术异常>时，战技造成的电磁伤害+56%>，持续20秒。\n该效果最多叠加2层，每层单独计算持续时间，每0.1秒最多触发一次。\n装备者施放终结技后，战技造成的电磁伤害+112%>，持续25秒。\n该效果无法叠加。>",
         "意志+156>",
         "攻击力+39%>"
+      ],
+      "type_42_solemn_phalanx": [
+        "攻击力+44.8%>。\n装备者智识值≥意志值：装备者通过自身技能施加法术附着>时，造成的法术伤害+56%>，持续20秒；装备者通过自身技能施加法术脆弱>时，攻击力+56%>，持续20秒。\n装备者意志值>智识值：装备者通过自身技能施加法术爆发>时，使目标敌人受到的法术伤害+16.8%>，持续25秒；装备者通过自身技能施加法术脆弱>时，使目标敌人受到的法术伤害+16.8%>，持续25秒。\n同名效果无法叠加。上述能力值要求只受装备者等级提升、天赋、潜能、装备和武器提供的面板能力值影响。>",
+        "智识+156>",
+        "终结技充能效率+46.4%>"
       ]
     }
   }

@@ -320,7 +320,7 @@ const ESTELLA_COMMANDS: CommandDefinition[] = [
     damageType: "Physical",
     durationFrames: flat12(40),
     spCost: flat12(0),
-    comboCooldownSeconds: flat12(18),
+    comboCooldownSeconds: [18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17],
     comboTriggerId: ESTELLA_COMBO_TRIGGER_ID,
     hits: [
       {

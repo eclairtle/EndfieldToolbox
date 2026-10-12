@@ -26,7 +26,7 @@ const TANGTANG_ULTIMATE_STATUS_PERIODS = 8;
 const TANGTANG_ULTIMATE_STATUS_MAX_PERIODS = 7;
 
 const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
-  eventTypes: ["DIVE_ATTACK_HIT", "ARTS_INFLICTION_APPLIED", "ARTS_REACTION_APPLIED", "ARTS_BURST_HIT"],
+  eventTypes: ["DIVE_ATTACK_HIT", "ARTS_INFLICTION_APPLIED", "ARTS_BURST_HIT"],
   onEvent: (ctx) => {
     if (ctx.event.type === "DIVE_ATTACK_HIT") {
       if (!ctx.state.hasStatus({ statusId: TANGTANG_ULTIMATE_STATUS_ID, target: "field" })) {
@@ -113,22 +113,13 @@ const TANGTANG_COMBAT_HOOKS: CharacterCombatHooks = {
       return;
     }
 
-    if (ctx.event.type === "ARTS_INFLICTION_APPLIED" && ctx.event.consumedElement === "Cryo") {
-      ctx.state.triggerSelfCombo({
-        sourceEventType: "ARTS_INFLICTION_APPLIED",
-        label: "Tangtang Combo Triggered",
-      });
-      return;
-    }
-
     if (
-      ctx.event.type === "ARTS_REACTION_APPLIED"
-      && ctx.event.label === "Solidification Applied"
-      && ctx.event.forcedReaction !== true
-      && ctx.event.slot === ctx.self.slot
+      ctx.event.type === "ARTS_INFLICTION_APPLIED"
+      && ctx.event.consumedElement === "Cryo"
+      && (ctx.event.triggersReaction !== true || ctx.event.slot === ctx.self.slot)
     ) {
       ctx.state.triggerSelfCombo({
-        sourceEventType: "ARTS_REACTION_APPLIED",
+        sourceEventType: "ARTS_INFLICTION_APPLIED",
         label: "Tangtang Combo Triggered",
       });
       return;

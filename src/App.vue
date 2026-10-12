@@ -23,7 +23,6 @@ import type { Rotation, RotationSimulationResult } from "@/lib/combat/rotation";
 import type { CharacterCombatSnapshot } from "@/lib/combat/rotation";
 import {
   buildEnemyActionWindows,
-  getDefaultEnemyCommandPlacements,
   type EnemyCommandPlacement,
 } from "@/lib/enemy/enemyActionWindows";
 import { computeFinalStats, makeBaseModifierStats, MODIFIER_STAT_KEYS, type FinalStats, type ModifierStatKey } from "@/lib/build/stats";
@@ -91,6 +90,7 @@ const stageSettingsPopupOpen = ref(false);
 const stageOverrideEnemyId = ref("aggeloi_ram");
 const triggersPopupOpen = ref(false);
 const rotationStagePopupOpen = ref(false);
+const buildListPageRef = ref<InstanceType<typeof BuildListPage> | null>(null);
 
 const buildStore = useBuildStore();
 const buildListStore = useBuildListStore();
@@ -110,7 +110,16 @@ const {
   out,
   activeVariantIndex,
 } = storeToRefs(buildStore);
-const { userBuilds, templateBuilds, activeBuild, activeBuildId, activeBuildSource } = storeToRefs(buildListStore);
+const {
+  userBuilds,
+  templateBuilds,
+  communityBuilds,
+  communityBuildsLoading,
+  communityBuildsError,
+  activeBuild,
+  activeBuildId,
+  activeBuildSource,
+} = storeToRefs(buildListStore);
 const { t, locale, setLocale } = useLocale();
 const route = useRoute();
 const router = useRouter();
@@ -127,13 +136,25 @@ const rotationSimulationCache = createRotationSimulationCache();
 const buildSummarySimulationCaches = new Map<string, ReturnType<typeof createRotationSimulationCache>>();
 const builderSimulationRevision = ref(0);
 const simulationTransitionLoading = ref(false);
+const LONG_ROTATION_COMPLEXITY_THRESHOLD = 96;
+const longRotationNeedsRecalculation = ref(false);
+let cachedLongBuilderSimulation: RotationSimulationResult | null = null;
+let cachedLongBuilderSimulationBuildId = "";
 
-function waitForAnimationFrame(): Promise<void> {
+/**
+ * Vue flushing the overlay into the DOM is not enough: a single rAF callback
+ * still runs before paint, so starting synchronous simulation from it prevents
+ * the overlay from ever becoming visible. Waiting for the following frame
+ * guarantees that the browser had a paint opportunity in between.
+ */
+function waitForBrowserPaint(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(() => resolve());
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
     } else {
-      setTimeout(resolve, 0);
+      setTimeout(resolve, 16);
     }
   });
 }
@@ -168,6 +189,11 @@ const workspace = computed<"builder" | "rotation">({
   },
 });
 
+const mainPageTitle = computed(() => {
+  if (page.value === "build-list") return t("buildList.title");
+  return workspace.value === "rotation" ? t("ui.rotationSimulator") : t("ui.buildCustomizations");
+});
+
 const activeBuildStageSettings = computed<BuildStageSettings>({
   get: () => normalizeBuildStageSettings(activeBuild.value?.stageSettings ?? makeDefaultBuildStageSettings()),
   set: (value) => {
@@ -183,6 +209,7 @@ const stageEnemyHpBaseOverrides = computed(() => Object.fromEntries(
   ENEMIES.filter((enemy) => enemy.id !== "aggeloi_ram_cc" && enemy.id !== "hedron_cc")
     .map((enemy) => [enemy.id, resolveEnemyBaseForStage(enemy, resolvedStageSettings.value).baseHpLv1]),
 ));
+const stageEnemyStaggerOverrides = computed(() => resolvedStageSettings.value.enemyStaggerOverrides);
 const selectableStageEnemies = computed(() => ENEMIES.filter((enemy) => enemy.id !== "aggeloi_ram_cc" && enemy.id !== "hedron_cc"));
 function updateStageSettings(mutator: (draft: BuildStageSettings) => void) {
   const draft = cloneJson(activeBuildStageSettings.value);
@@ -216,18 +243,25 @@ function setCustomStageEnemyHp(enemyId: string, value: number) {
     draft.custom.enemyHpBaseOverrides[enemyId] = Math.max(1, Math.round(value || 1));
   });
 }
+function setCustomStageEnemyStagger(enemyId: string, value: number) {
+  updateStageSettings((draft) => {
+    draft.custom.enemyStaggerOverrides[enemyId] = Math.max(1, Math.round(value || 1));
+  });
+}
 function addCustomStageEnemyOverride() {
   const enemy = selectableStageEnemies.value.find((entry) => entry.id === stageOverrideEnemyId.value);
   if (!enemy) return;
   updateStageSettings((draft) => {
     draft.custom.enemyHpBaseOverrides[enemy.id] ??= enemy.baseHpLv1;
     draft.custom.enemyHpMultipliers[enemy.id] ??= 1;
+    draft.custom.enemyStaggerOverrides[enemy.id] ??= enemy.staggerGauge;
   });
 }
 function removeCustomStageEnemyOverride(enemyId: string) {
   updateStageSettings((draft) => {
     delete draft.custom.enemyHpBaseOverrides[enemyId];
     delete draft.custom.enemyHpMultipliers[enemyId];
+    delete draft.custom.enemyStaggerOverrides[enemyId];
   });
 }
 
@@ -282,6 +316,28 @@ const contingencyTotalLevel = computed(() =>
 );
 const activeTriggerCount = computed(() =>
   normalizeCustomCombatTriggers(relayDisplaySourceScheme.value.triggers ?? []).length,
+);
+const rotationComplexities = computed(() => rotationSchemes.value.schemes.map((scheme, index, schemes) => {
+  let stepCount = scheme.rotation.steps.length;
+  for (let laterIndex = index + 1; laterIndex < schemes.length; laterIndex += 1) {
+    const laterScheme = schemes[laterIndex];
+    if (!laterScheme || laterScheme.simulationMode !== "relay_from_previous") break;
+    stepCount += laterScheme.rotation.steps.length;
+  }
+  const triggerCount = normalizeCustomCombatTriggers(scheme.triggers ?? []).length;
+  return stepCount * (triggerCount + 16) / 16;
+}));
+const builderRotationComplexity = computed(() => {
+  const schemes = rotationSchemes.value.schemes;
+  if (schemes.length === 0) return 0;
+  let chainStartIndex = schemes.length - 1;
+  while (chainStartIndex > 0 && schemes[chainStartIndex]?.simulationMode === "relay_from_previous") {
+    chainStartIndex -= 1;
+  }
+  return rotationComplexities.value[chainStartIndex] ?? 0;
+});
+const isLongBuilderRotation = computed(() =>
+  builderRotationComplexity.value > LONG_ROTATION_COMPLEXITY_THRESHOLD,
 );
 const isActiveRotationRelayed = computed(() => activeScheme.value.simulationMode === "relay_from_previous");
 watch(isActiveRotationRelayed, (relayed) => {
@@ -396,17 +452,11 @@ function normalizeEnemyCommandPlacements(source: EnemyCommandPlacement[]): Enemy
 }
 
 function getEnemyCommandPlacementsForSlot(slotId: string): EnemyCommandPlacement[] {
-  const slot = enemySlots.value.find((entry) => entry.slotId === slotId) ?? enemySlots.value[0];
-  const enemyId = slot?.enemyId ?? selectedEnemyId.value;
-  const sourceBySlot = activeScheme.value.enemyCommandsBySlot?.[slotId];
-  if (Array.isArray(sourceBySlot)) {
-    return normalizeEnemyCommandPlacements(sourceBySlot);
-  }
-  const source = activeScheme.value.enemyCommandsByEnemy?.[enemyId];
-  if (!Array.isArray(source)) {
-    return getDefaultEnemyCommandPlacements(enemyId);
-  }
-  return normalizeEnemyCommandPlacements(source);
+  return normalizeEnemyCommandPlacements(
+    (activeScheme.value.rotation.enemySteps ?? [])
+      .filter((step) => step.enemySlotId === slotId)
+      .map(({ enemySlotId: _enemySlotId, ...placement }) => placement),
+  );
 }
 
 function buildEnemyActionWindowsForActiveScheme() {
@@ -571,7 +621,9 @@ function simulateForRotation(rotation: { steps: any[]; groups?: any[] } | null |
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
     enemyHpBaseOverrides: stageEnemyHpBaseOverrides.value,
+    enemyStaggerOverrides: stageEnemyStaggerOverrides.value,
     contingencyContracts: getActiveContractsForActiveScheme(),
+    internalCombatTriggerDefinitions: resolvedStageSettings.value.internalCombatTriggerDefinitions,
     customTriggers: normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []),
     customTriggerVariables: normalizeCustomTriggerVariables(activeScheme.value.triggerVariables ?? []),
     battleStartConsumableIdsBySlot: getBattleStartConsumableIdsForActiveScheme(),
@@ -602,15 +654,16 @@ function rebaseSummaryRotation(rotation: Rotation, displayOffset: number): Rotat
 function getSummaryEnemyActionWindows(scheme: typeof activeScheme.value) {
   const slotIds = new Set([
     ...enemySlots.value.map((slot) => slot.slotId),
-    ...Object.keys(scheme.enemyCommandsBySlot ?? {}),
+    ...(scheme.rotation.enemySteps ?? []).map((step) => step.enemySlotId),
   ]);
   return [...slotIds].flatMap((slotId) => {
     const slot = enemySlots.value.find((entry) => entry.slotId === slotId);
     const enemyId = slot?.enemyId ?? "";
     return buildEnemyActionWindows(
       enemyId,
-      scheme.enemyCommandsBySlot?.[slotId]
-        ?? getDefaultEnemyCommandPlacements(enemyId),
+      (scheme.rotation.enemySteps ?? [])
+        .filter((step) => step.enemySlotId === slotId)
+        .map(({ enemySlotId: _enemySlotId, ...placement }) => placement),
     ).map((window) => ({ ...window, enemySlotId: slotId }));
   });
 }
@@ -699,7 +752,9 @@ function simulateFinalRotationChain(): RotationSimulationResult | null {
       enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
       enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
       enemyHpBaseOverrides: enemyHpOverrides,
+      enemyStaggerOverrides: stage.enemyStaggerOverrides,
       contingencyContracts: contracts,
+      internalCombatTriggerDefinitions: stage.internalCombatTriggerDefinitions,
       customTriggers: triggers,
       customTriggerVariables: triggerVariables,
       battleStartInitialSp: stage.initialSp,
@@ -840,7 +895,9 @@ function simulateForSnapshot(
     enemyFinisherMultiplier: selectedEnemy.value.finisherMultiplier,
     enemyFinisherSpGain: selectedEnemy.value.finisherSpGain,
     enemyHpBaseOverrides: stageEnemyHpBaseOverrides.value,
+    enemyStaggerOverrides: stageEnemyStaggerOverrides.value,
     contingencyContracts: getActiveContractsForActiveScheme(),
+    internalCombatTriggerDefinitions: resolvedStageSettings.value.internalCombatTriggerDefinitions,
     customTriggers: normalizeCustomCombatTriggers(activeScheme.value.triggers ?? []),
     customTriggerVariables: normalizeCustomTriggerVariables(activeScheme.value.triggerVariables ?? []),
     battleStartConsumableIdsBySlot: getBattleStartConsumableIdsForActiveScheme(),
@@ -917,7 +974,18 @@ function getTallyWindowSummary(
 
 const builderRotationSimulation = computed(() => {
   void builderSimulationRevision.value;
-  return simulateFinalRotationChain();
+  if (!isLongBuilderRotation.value) {
+    return simulateFinalRotationChain();
+  }
+  if (
+    cachedLongBuilderSimulationBuildId === activeBuildId.value
+    && cachedLongBuilderSimulation
+  ) {
+    return cachedLongBuilderSimulation;
+  }
+  cachedLongBuilderSimulation = simulateFinalRotationChain();
+  cachedLongBuilderSimulationBuildId = activeBuildId.value;
+  return cachedLongBuilderSimulation;
 });
 
 const builderTallySummary = computed(() =>
@@ -1037,7 +1105,7 @@ function captureSavedBuildRuntimeSnapshot(build: SavedBuild): BuildRuntimeSnapsh
   };
 }
 
-const isActiveTemplateBuild = computed(() => activeBuildSource.value === "template");
+const isActiveTemplateBuild = computed(() => activeBuildSource.value === "template" || activeBuildSource.value === "community");
 
 function hasUnsavedTemplateChanges(): boolean {
   if (!isActiveTemplateBuild.value || !templateBaselineSnapshot.value) {
@@ -1472,12 +1540,18 @@ async function recalculateBuilderRotation() {
   if (simulationTransitionLoading.value) return;
   simulationTransitionLoading.value = true;
   await nextTick();
-  await waitForAnimationFrame();
+  await waitForBrowserPaint();
   try {
     rotationSimulationCache.clear();
     for (const cache of buildSummarySimulationCaches.values()) cache.clear();
+    cachedLongBuilderSimulation = null;
+    cachedLongBuilderSimulationBuildId = "";
+    longRotationNeedsRecalculation.value = false;
     builderSimulationRevision.value += 1;
     await nextTick();
+    void builderRotationSimulation.value;
+    await nextTick();
+    persistCurrentBuild();
   } finally {
     simulationTransitionLoading.value = false;
   }
@@ -1489,8 +1563,20 @@ async function openRotationWorkspace() {
   if (!buildId) return;
   simulationTransitionLoading.value = true;
   await nextTick();
-  await waitForAnimationFrame();
+  await waitForBrowserPaint();
   try {
+    if (isLongBuilderRotation.value && longRotationNeedsRecalculation.value) {
+      rotationSimulationCache.clear();
+      for (const cache of buildSummarySimulationCaches.values()) cache.clear();
+      cachedLongBuilderSimulation = null;
+      cachedLongBuilderSimulationBuildId = "";
+      longRotationNeedsRecalculation.value = false;
+      builderSimulationRevision.value += 1;
+      await nextTick();
+      void builderRotationSimulation.value;
+      await nextTick();
+      persistCurrentBuild();
+    }
     await router.push({ name: "build-rotation", params: { buildId } });
     await nextTick();
   } finally {
@@ -1666,6 +1752,28 @@ function confirmResetGuestUser() {
   resetGuestUser();
 }
 
+function getSummaryForPersistence(): { totalDamage: number; dps: number } {
+  // Only short rotations in the build workspace are meant to simulate live.
+  // Saving from the rotation workspace or leaving a build must never demand a
+  // builder simulation merely to refresh summary metadata.
+  if (workspace.value === "builder" && !isLongBuilderRotation.value) {
+    return {
+      totalDamage: builderTallySummary.value.totalDamage,
+      dps: finalSchemeDps.value,
+    };
+  }
+  if (
+    cachedLongBuilderSimulationBuildId === activeBuildId.value
+    && cachedLongBuilderSimulation
+  ) {
+    return getTallyWindowSummary(cachedLongBuilderSimulation, activeDamageTallyTiming.value);
+  }
+  return {
+    totalDamage: activeBuild.value?.summary.totalDamage ?? 0,
+    dps: activeBuild.value?.summary.dps ?? 0,
+  };
+}
+
 function persistCurrentBuild() {
   if (isHydratingBuildDetail.value || isApplyingRuntimeSnapshot.value) {
     return;
@@ -1700,6 +1808,7 @@ function persistCurrentBuild() {
     return;
   }
   currentBuildSnapshot.value = cloneBuildSnapshot(buildStore.exportStateSnapshot());
+  const summary = getSummaryForPersistence();
 
   buildListStore.updateBuildRuntime({
     buildId: activeBuildId.value,
@@ -1713,8 +1822,8 @@ function persistCurrentBuild() {
       contracts: readScopedStorageState(ROTATION_CONTRACTS_STORAGE_KEY),
     },
     summary: {
-      totalDamage: builderTallySummary.value.totalDamage,
-      dps: finalSchemeDps.value,
+      totalDamage: summary.totalDamage,
+      dps: summary.dps,
     },
     damageTallyTiming: activeDamageTallyTiming.value,
     compareSettings: {
@@ -1734,8 +1843,11 @@ function hydrateBuildDetail(buildId: string): boolean {
 
   isHydratingBuildDetail.value = true;
   try {
+    cachedLongBuilderSimulation = null;
+    cachedLongBuilderSimulationBuildId = "";
+    longRotationNeedsRecalculation.value = false;
     buildListStore.setActiveBuild(buildId);
-    templateBaselineSnapshot.value = buildListStore.isTemplateBuild(buildId)
+    templateBaselineSnapshot.value = buildListStore.isReadonlyBuild(buildId)
       ? captureSavedBuildRuntimeSnapshot(selected)
       : null;
     currentBuildSnapshot.value = cloneBuildSnapshot(selected.currentBuildState);
@@ -1752,12 +1864,24 @@ function hydrateBuildDetail(buildId: string): boolean {
   return true;
 }
 
-function openBuild(buildId: string) {
+async function openBuild(buildId: string) {
   persistCurrentBuild();
-  if (!buildListStore.findBuildById(buildId)) {
+  if (!buildListStore.hasBuild(buildId)) {
     return;
   }
-  void router.push({ name: "build-builder", params: { buildId } });
+  if (simulationTransitionLoading.value) return;
+  simulationTransitionLoading.value = true;
+  await nextTick();
+  await waitForBrowserPaint();
+  try {
+    if (!await buildListStore.ensureBuildLoaded(buildId)) return;
+    await router.push({ name: "build-builder", params: { buildId } });
+    await nextTick();
+    void builderRotationSimulation.value;
+    await nextTick();
+  } finally {
+    simulationTransitionLoading.value = false;
+  }
 }
 
 function updateActiveDamageTallyTiming(next: DamageTallyTiming) {
@@ -1793,9 +1917,9 @@ function importBuild(raw: unknown) {
   void router.push({ name: "build-builder", params: { buildId: id } });
 }
 
-function copyBuild(buildId: string) {
+async function copyBuild(buildId: string) {
   persistCurrentBuild();
-  const id = buildListStore.copyBuild(buildId);
+  const id = await buildListStore.copyBuild(buildId);
   if (!id) {
     if (typeof window !== "undefined") {
       window.alert(t("buildList.maximumBuildsReached"));
@@ -1842,8 +1966,7 @@ function saveTemplateAsNewBuildAndExit() {
     rotationState: snapshot.rotationState,
     scopedRotationUiState: snapshot.scopedRotationUiState,
     summary: {
-      totalDamage: builderTallySummary.value.totalDamage,
-      dps: finalSchemeDps.value,
+      ...getSummaryForPersistence(),
       updatedAt: Date.now(),
     },
     damageTallyTiming: snapshot.damageTallyTiming,
@@ -1874,8 +1997,7 @@ function buildExportPayload(): SavedBuild | null {
     rotationState: cloneJson(runtimeSnapshot.rotationState),
     scopedRotationUiState: cloneJson(runtimeSnapshot.scopedRotationUiState),
     summary: {
-      totalDamage: builderTallySummary.value.totalDamage,
-      dps: finalSchemeDps.value,
+      ...getSummaryForPersistence(),
       updatedAt: Date.now(),
     },
     damageTallyTiming: cloneJson(runtimeSnapshot.damageTallyTiming),
@@ -1906,7 +2028,26 @@ function deleteBuild(buildId: string) {
 }
 
 watch(
-  [slots, activeSlotIndex, rotationSchemes, builderRotationSimulation, finalSchemeDps, page, activeBuildId, activeVariantIndex],
+  [slots, activeVariantIndex],
+  () => {
+    if (
+      isHydratingBuildDetail.value
+      || isApplyingRuntimeSnapshot.value
+      || page.value !== "build-detail"
+      || workspace.value !== "builder"
+      || !isLongBuilderRotation.value
+      || cachedLongBuilderSimulationBuildId !== activeBuildId.value
+      || !cachedLongBuilderSimulation
+    ) {
+      return;
+    }
+    longRotationNeedsRecalculation.value = true;
+  },
+  { deep: true, flush: "sync" },
+);
+
+watch(
+  [slots, activeSlotIndex, rotationSchemes, page, activeBuildId, activeVariantIndex],
   () => {
     persistCurrentBuild();
   },
@@ -1915,7 +2056,7 @@ watch(
 
 watch(
   [() => route.name, routeBuildId],
-  ([nextName, nextBuildId], [prevName, prevBuildId]) => {
+  async ([nextName, nextBuildId], [prevName, prevBuildId]) => {
     const nextIsBuildDetail = isBuildDetailRouteName(nextName);
     const prevIsBuildDetail = isBuildDetailRouteName(prevName);
 
@@ -1932,9 +2073,23 @@ watch(
       return;
     }
 
-    if (!buildListStore.findBuildById(nextBuildId)) {
+    if (!buildListStore.hasBuild(nextBuildId)) {
       void router.replace({ name: "build-list" });
       return;
+    }
+
+    if (!buildListStore.findBuildById(nextBuildId)) {
+      simulationTransitionLoading.value = true;
+      await nextTick();
+      await waitForBrowserPaint();
+      try {
+        if (!await buildListStore.ensureBuildLoaded(nextBuildId)) {
+          void router.replace({ name: "build-list" });
+          return;
+        }
+      } finally {
+        simulationTransitionLoading.value = false;
+      }
     }
 
     if (activeBuildId.value !== nextBuildId || !currentBuildSnapshot.value) {
@@ -2019,12 +2174,22 @@ watch(
             <div class="h-16 w-2 bg-[#ece81a]"></div>
             <div>
               <h1 class="text-3xl font-semibold uppercase tracking-[0.18em] text-[#1b1b1b]">
-                {{ t("ui.combatSimulator") }}
+                {{ mainPageTitle }}
               </h1>
             </div>
           </div>
 
-          <div v-if="page === 'build-detail'" class="flex flex-wrap items-center gap-3">
+          <button
+            v-if="page === 'build-list'"
+            type="button"
+            class="rounded-full border border-[#d0d0d0] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] transition hover:border-[#b9b9b9] hover:text-[#222] disabled:cursor-not-allowed disabled:opacity-45"
+            :disabled="userBuilds.length >= 6"
+            @click="buildListPageRef?.openImportDialog()"
+          >
+            {{ t("buildList.importBuild") }}
+          </button>
+
+          <div v-else class="flex flex-wrap items-center gap-3">
             <button
               type="button"
               class="rounded-full border border-[#d0d0d0] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#4a4a4a] transition hover:border-[#b9b9b9] hover:text-[#222]"
@@ -2106,13 +2271,18 @@ watch(
 
       <BuildListPage
         v-if="page === 'build-list'"
+        ref="buildListPageRef"
         :user-builds="userBuilds"
         :template-builds="templateBuilds"
+        :community-builds="communityBuilds"
+        :community-builds-loading="communityBuildsLoading"
+        :community-builds-error="communityBuildsError"
         :active-build-id="activeBuildId"
         @open="openBuild"
         @create="createBuild"
         @import="importBuild"
         @copy="copyBuild"
+        @refresh-community="buildListStore.loadCommunityBuilds"
         @edit-metadata="editBuildMetadata"
         @delete="deleteBuild"
       />
@@ -2287,6 +2457,8 @@ watch(
               <SummaryPanel
                 :character-name="getCharacterDisplayNameByCharacter(selectedChar)"
                 :weapon-name="getWeaponDisplayNameByWeapon(selectedWeapon)"
+                :main-attribute="selectedChar.mainAttr"
+                :secondary-attribute="selectedChar.secondaryAttr"
                 :out="out"
                 :baseline-out="baselineOut"
                 :active-variant-index="activeVariantIndex"
@@ -2309,6 +2481,8 @@ watch(
                 v-if="selectedChar && selectedWeapon && out"
                 :character-name="getCharacterDisplayNameByCharacter(selectedChar)"
                 :weapon-name="getWeaponDisplayNameByWeapon(selectedWeapon)"
+                :main-attribute="selectedChar.mainAttr"
+                :secondary-attribute="selectedChar.secondaryAttr"
                 :out="out"
                 :baseline-out="baselineOut"
                 :active-variant-index="activeVariantIndex"
@@ -2331,6 +2505,13 @@ watch(
                 <div>
                   <div class="text-xs uppercase tracking-[0.24em] text-[#777]">{{ t("ui.rotation") }}</div>
                   <div class="mt-1 text-lg font-semibold">{{ t("rotation.rotationSummary") }}</div>
+                  <div v-if="debugModeEnabled" class="mt-1 text-xs font-medium text-[#666]">
+                    {{ locale === "zh-CN" ? "轮转复杂度" : "Rotation complexity" }}:
+                    {{ Number.isInteger(builderRotationComplexity) ? builderRotationComplexity : builderRotationComplexity.toFixed(2) }}
+                  </div>
+                  <div v-if="isLongBuilderRotation && longRotationNeedsRecalculation" class="mt-1 text-sm font-semibold text-[#b42323]">
+                    {{ locale === "zh-CN" ? "长轮转，请手动重新计算" : "Long rotation, please manually recalculate" }}
+                  </div>
                 </div>
 
                 <div class="flex items-end gap-2">
@@ -2351,6 +2532,7 @@ watch(
                     </select>
                   </label>
                   <button
+                    v-if="isLongBuilderRotation"
                     type="button"
                     class="rounded-lg border border-[#b8c22d] bg-[#ece81a] px-3 py-2 text-sm font-semibold text-[#292929] transition hover:bg-[#e1dd16] disabled:cursor-wait disabled:opacity-60"
                     :disabled="simulationTransitionLoading"
@@ -2555,6 +2737,12 @@ watch(
               <span class="truncate text-sm text-[#333]">{{ getEnemyDisplayName(String(enemyId), selectableStageEnemies.find((enemy) => enemy.id === enemyId)?.name ?? String(enemyId), locale as 'en' | 'zh-CN') }}</span>
               <input :value="multiplier" type="number" disabled class="w-full cursor-not-allowed rounded-md border border-[#ddd] bg-[#f1f1f1] px-2 py-1.5 text-sm text-[#666]">
             </div>
+            <div class="text-xs font-semibold uppercase tracking-[0.1em] text-[#666]">{{ locale === 'zh-CN' ? '敌人失衡值' : 'Enemy Stagger' }}</div>
+            <div v-if="Object.keys(resolvedStageSettings.enemyStaggerOverrides).length === 0" class="text-sm text-[#888]">{{ locale === 'zh-CN' ? '无失衡值设置' : 'No stagger settings' }}</div>
+            <div v-for="(stagger, enemyId) in resolvedStageSettings.enemyStaggerOverrides" :key="enemyId" class="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-3 rounded-lg border border-[#ddd] bg-white px-3 py-2">
+              <span class="truncate text-sm text-[#333]">{{ getEnemyDisplayName(String(enemyId), selectableStageEnemies.find((enemy) => enemy.id === enemyId)?.name ?? String(enemyId), locale as 'en' | 'zh-CN') }}</span>
+              <input :value="stagger" type="number" disabled class="w-full cursor-not-allowed rounded-md border border-[#ddd] bg-[#f1f1f1] px-2 py-1.5 text-sm text-[#666]">
+            </div>
           </div>
 
           <div v-if="activeBuildStageSettings.mode === 'custom'" class="space-y-4 rounded-xl border border-[#ddd] bg-[#fafafa] p-4">
@@ -2575,10 +2763,11 @@ watch(
                 <button type="button" class="rounded-lg border border-[#bbb] bg-white px-3 py-2 text-sm" @click="addCustomStageEnemyOverride">{{ locale === "zh-CN" ? "添加" : "Add" }}</button>
               </div>
               <div class="mt-3 space-y-2">
-                <div v-for="(hp, enemyId) in activeBuildStageSettings.custom.enemyHpBaseOverrides" :key="enemyId" class="grid grid-cols-[minmax(0,1fr)_110px_100px_auto] items-end gap-2 rounded-lg border border-[#ddd] bg-white p-2">
+                <div v-for="(hp, enemyId) in activeBuildStageSettings.custom.enemyHpBaseOverrides" :key="enemyId" class="grid grid-cols-[minmax(0,1fr)_105px_95px_95px_auto] items-end gap-2 rounded-lg border border-[#ddd] bg-white p-2">
                   <span class="truncate text-sm text-[#333]">{{ getEnemyDisplayName(String(enemyId), selectableStageEnemies.find((enemy) => enemy.id === enemyId)?.name ?? String(enemyId), locale as 'en' | 'zh-CN') }}</span>
                   <label class="text-[10px] uppercase tracking-[0.08em] text-[#777]">{{ locale === 'zh-CN' ? '1级基础生命' : 'Lv.1 Base HP' }}<input :value="hp" type="number" min="1" step="1" class="mt-1 w-full rounded-md border border-[#ccc] px-2 py-1.5 text-sm" @change="setCustomStageEnemyHp(String(enemyId), Number(($event.target as HTMLInputElement).value))"></label>
                   <label class="text-[10px] uppercase tracking-[0.08em] text-[#777]">{{ locale === 'zh-CN' ? '生命倍率' : 'HP Multiplier' }}<input :value="activeBuildStageSettings.custom.enemyHpMultipliers[String(enemyId)] ?? 1" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-md border border-[#ccc] px-2 py-1.5 text-sm" @change="setCustomStageEnemyHpMultiplier(String(enemyId), Number(($event.target as HTMLInputElement).value))"></label>
+                  <label class="text-[10px] uppercase tracking-[0.08em] text-[#777]">{{ locale === 'zh-CN' ? '失衡值' : 'Stagger' }}<input :value="activeBuildStageSettings.custom.enemyStaggerOverrides[String(enemyId)] ?? 1" type="number" min="1" step="1" class="mt-1 w-full rounded-md border border-[#ccc] px-2 py-1.5 text-sm" @change="setCustomStageEnemyStagger(String(enemyId), Number(($event.target as HTMLInputElement).value))"></label>
                   <button type="button" class="rounded-md border border-[#d8bcbc] px-2 py-1.5 text-xs text-[#852f2f]" @click="removeCustomStageEnemyOverride(String(enemyId))">{{ locale === "zh-CN" ? "移除" : "Remove" }}</button>
                 </div>
               </div>

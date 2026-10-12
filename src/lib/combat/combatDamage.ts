@@ -12,6 +12,16 @@ function floorDamageMultiplier(value: number): number {
   return Math.max(MIN_DAMAGE_MULTIPLIER, value);
 }
 
+export function getDefenseMultiplier(defense: number): number {
+  if (defense > 0) {
+    return 1 - defense / (defense + 100);
+  }
+  if (defense < 0) {
+    return 2 - Math.pow(0.99, -defense);
+  }
+  return 1;
+}
+
 function getAttackTypeBonus(attackType: AttackType, mods: ModifierStats): number {
   switch (attackType) {
     case "BASIC_ATTACK":
@@ -277,14 +287,8 @@ export function calculateResolvedHitDamage(args: {
       return 1;
     }
 
-    const defense = args.enemyStats.def;
-    if (defense > 0) {
-      return 1 - defense / (defense + 100);
-    }
-    if (defense < 0) {
-      return 1 + (1 - Math.pow(0.99, -defense));
-    }
-    return 1;
+    const defense = args.enemyStats.def + enemyMods.ENEMY_DEF_FLAT;
+    return getDefenseMultiplier(defense);
   })());
 
   const preCritBase =
@@ -334,16 +338,9 @@ export function calculateReactionDamage(args: {
   const effectiveResistance = getEnemyResistance(args.damageType, args.enemyMods) - getResistanceIgnore(args.damageType, args.attackerMods);
   const resistMultiplier = floorDamageMultiplier(1 - effectiveResistance);
   const susceptibilityMultiplier = floorDamageMultiplier(1 + getEnemySusceptibility(args.damageType, args.enemyMods, args.attackerMods));
-  const defenseMultiplier = floorDamageMultiplier((() => {
-    const defense = args.enemyStats.def;
-    if (defense > 0) {
-      return 1 - defense / (defense + 100);
-    }
-    if (defense < 0) {
-      return 1 + (1 - Math.pow(0.99, -defense));
-    }
-    return 1;
-  })());
+  const defenseMultiplier = floorDamageMultiplier(
+    getDefenseMultiplier(args.enemyStats.def + args.enemyMods.ENEMY_DEF_FLAT),
+  );
   const levelMultiplier = (args.reactionCategory ?? "arts") === "physical"
     ? 1 + (Math.max(1, args.applierLevel) - 1) / 392
     : 1 + (Math.max(1, args.applierLevel) - 1) / 196;

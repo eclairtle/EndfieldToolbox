@@ -21,6 +21,7 @@ export type WeaponSkillId =
   | "PHYSICAL_DMG_UP"
   | "CRYO_DMG_UP"
   | "HEAT_DMG_UP"
+  | "NATURE_DMG_UP"
   | "HEALING_UP"
   | "UNIQUE"
   | "NotImplemented";
@@ -100,6 +101,7 @@ export type WeaponEventListenerContext = {
       threshold?: number;
     }): number;
     getSelfBuffStackCount(buffId: string): number;
+    consumeSelfBuffStacks(buffId: string, stacks: number): void;
     removeSelfBuff(buffId: string): void;
   };
 };

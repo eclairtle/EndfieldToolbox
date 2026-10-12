@@ -107,7 +107,11 @@ function localizedUniqueSkillDescriptionZhCN(weaponId: string, level: number): s
         "同名效果无法叠加。",
       ].join("\n");
     case "stanza_of_memorials":
-      return `装备者通过自身技能恢复技力后，攻击力+${percent(scaledPercentFromRank1(10, y))}，持续15秒。同名效果无法叠加。`;
+      return [
+        `最大生命值+${percent(scaledPercentFromRank1(10, y))}。`,
+        `装备者施放终结技时，和自身属性不同的干员获得攻击力+${percent(scaledPercentFromRank1(8, y))}，持续20秒。`,
+        "同名效果无法叠加。",
+      ].join("\n");
     case "detonation_unit":
       return [
         `副能力+${percent(scaledPercentFromRank1(10, y))}。`,
@@ -125,6 +129,28 @@ function localizedUniqueSkillDescriptionZhCN(weaponId: string, level: number): s
         `治疗效率+${percent(scaledPercentFromRank1(10, y))}。`,
         `装备者通过自身技能治疗后，全队攻击力+${percent(scaledPercentFromRank1(9, y))}，持续15秒。`,
         "同名效果无法叠加。",
+      ].join("\n");
+    case "bedazzling_night_debut":
+      return [
+        `主能力值+${percent(scaledPercentFromRank1(16, y))}。`,
+        `装备者通过自身技能治疗小队内其他干员时，受到装备者治疗的干员攻击力+${percent(scaledPercentFromRank1(3.5, y))}，持续20秒。`,
+        "同名效果最多叠加4层，每层单独计算持续时间，每名干员每0.1秒最多获得一次该效果。",
+      ].join("\n");
+    case "sufferings_end":
+      return [
+        `源石技艺强度+${Math.round(15 * (0.8 + 0.2 * y))}。`,
+        `装备者造成法术爆发时，自然伤害+${percent(scaledPercentFromRank1(2, y))}，持续25秒。`,
+        "该效果最多叠加4层，每层单独计算持续时间，每0.1秒最多触发一次。",
+        `当上述效果为4层时，自然伤害额外+${percent(scaledPercentFromRank1(6, y))}。`,
+        "该效果无法叠加。",
+      ].join("\n");
+    case "umbra_of_frigid_eventide":
+      return [
+        `法术伤害+${percent(scaledPercentFromRank1(16, y))}。`,
+        `装备者施放战技后，源石技艺强度+${Math.round(35 * (0.8 + 0.2 * y))}，并获得4层身形如风，持续15秒。`,
+        "该效果无法叠加，身形如风最多叠加4层。",
+        `装备者造成法术爆发时，消耗1层身形如风，法术伤害+${percent(scaledPercentFromRank1(4, y))}，持续30秒。`,
+        "该效果最多叠加4层，每层单独计算持续时间，每0.1秒最多触发一次。",
       ].join("\n");
     case "eminent_repute":
       return [
@@ -182,6 +208,7 @@ function getLabels(locale: SupportedLocale) {
       physicalDmg: "物理伤害",
       cryoDmg: "寒冷伤害",
       heatDmg: "灼热伤害",
+      natureDmg: "自然伤害",
       artsIntensity: "源石技艺强度",
       healing: "治疗效率",
       ultGain: "终结技充能效率",
@@ -204,6 +231,7 @@ function getLabels(locale: SupportedLocale) {
     physicalDmg: "Physical DMG",
     cryoDmg: "Cryo DMG",
     heatDmg: "Heat DMG",
+    natureDmg: "Nature DMG",
     artsIntensity: "Arts Intensity",
     healing: "Treatment Efficiency",
     ultGain: "Ultimate Gain Efficiency",
@@ -285,6 +313,8 @@ export function getWeaponSkillLiveBonus(
       return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.cryoDmg}`;
     case "HEAT_DMG_UP":
       return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.heatDmg}`;
+    case "NATURE_DMG_UP":
+      return `+${(Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 10).toFixed(1)}% ${labels.natureDmg}`;
     default:
       return labels.notApplied;
   }

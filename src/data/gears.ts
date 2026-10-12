@@ -24,6 +24,7 @@ import { XIRANFLOW, XIRANFLOW_SET_BONUS } from "@/data/gearSets/xiranflow";
 import { QINGBO, QINGBO_SET_BONUS } from "@/data/gearSets/qingbo";
 import { GRIZZLED_EDGE, GRIZZLED_EDGE_SET_BONUS } from "@/data/gearSets/grizzled_edge";
 import { AIC_FIELDWORK, AIC_FIELDWORK_SET_BONUS } from "@/data/gearSets/aic_fieldwork";
+import { DEEP_RAMPART, DEEP_RAMPART_SET_BONUS } from "@/data/gearSets/deep_rampart";
 
 export type GearSlot = "ARMOR" | "GLOVES" | "KIT";
 
@@ -74,6 +75,7 @@ export const GEAR_SET_BONUSES: Record<string, GearSetBonus> = {
   Qingbo: QINGBO_SET_BONUS,
   "Grizzled Edge": GRIZZLED_EDGE_SET_BONUS,
   "AIC Fieldwork": AIC_FIELDWORK_SET_BONUS,
+  "Deep Rampart": DEEP_RAMPART_SET_BONUS,
 };
 
 export const GEARS: GearBase[] = [
@@ -101,6 +103,7 @@ export const GEARS: GearBase[] = [
   ...QINGBO,
   ...GRIZZLED_EDGE,
   ...AIC_FIELDWORK,
+  ...DEEP_RAMPART,
 ];
 
 export function isGearUpgradable(gear: GearBase): boolean {

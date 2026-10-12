@@ -74,6 +74,9 @@ export function applyWeaponSkills(args: {
       case "HEAT_DMG_UP":
         mods.HEAT_DMG_PCT += Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 1000;
         break;
+      case "NATURE_DMG_UP":
+        mods.NATURE_DMG_PCT += Math.floor((11.6 + 44.4 * x) * rankMultiplier) / 1000;
+        break;
       case "ARTS_INTENSITY_UP":
         mods.ARTS_INTENSITY += Math.floor((2 + 8 * x) * rankMultiplier);
         break;

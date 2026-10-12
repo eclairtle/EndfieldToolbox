@@ -186,5 +186,29 @@ export const LYNX: GearBase[] = [
         "value": 0.173
       }
     ],
+  },
+  {
+    id: "item_equip_t4_suit_heal01_body_03",
+    name: "LYNX Cuirass T1",
+    slot: "ARMOR",
+    set: "LYNX",
+    defFlat: 56,
+    subs: [
+      { stat: "WIL", value: 87 },
+      { stat: "AGI", value: 58 },
+      { stat: "ULT_GAIN_PCT", value: 0.1232142857142857 },
+    ],
+  },
+  {
+    id: "item_equip_t4_suit_heal01_hand_03",
+    name: "LYNX Gauntlets T1",
+    slot: "GLOVES",
+    set: "LYNX",
+    defFlat: 42,
+    subs: [
+      { stat: "WIL", value: 65 },
+      { stat: "AGI", value: 43 },
+      { stat: "ULT_GAIN_PCT", value: 0.20535714285714285 },
+    ],
   }
 ];

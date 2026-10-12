@@ -37,7 +37,7 @@ export const GRIZZLED_EDGE: GearBase[] = [
     set: "Grizzled Edge",
     defFlat: 42,
     subs: [
-      { stat: "AGI", value: 65 },
+      { stat: "STR", value: 65 },
       { stat: "WIL", value: 43 },
       { stat: "ARTS_INTENSITY", value: 34.5 },
     ],

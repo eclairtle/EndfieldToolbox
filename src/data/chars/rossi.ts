@@ -210,7 +210,7 @@ const ROSSI_COMMANDS: CommandDefinition[] = [
     damageType: "Physical",
     durationFrames: flat12(56),
     timeFreezeSeconds: flat12(38 / 60),
-    comboCooldownSeconds: flat12(15),
+    comboCooldownSeconds: [15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 14],
     comboCooldownTimeScale: "real",
     comboCooldownStartsAt: "end",
     comboCooldownOwnerCommandId: ROSSI_COMBO_SEGMENT_1_ID,

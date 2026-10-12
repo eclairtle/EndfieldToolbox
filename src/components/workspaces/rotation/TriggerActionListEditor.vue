@@ -8,7 +8,8 @@ import {
   makeDefaultForEachEnemyAction,
   makeDefaultForEachOperatorAction,
   makeDefaultModifyVariableAction,
-  makeDefaultModifyHpAction,
+  makeDefaultModifyOperatorAction,
+  makeDefaultModifyEnemyAction,
   makeDefaultBreakAction,
   makeDefaultRemoveStatusAction,
   makeDefaultRelayRotationAction,
@@ -42,8 +43,10 @@ function makeDefaultActionByType(actionType: TriggerAction["type"]): TriggerActi
     ? makeDefaultRemoveStatusAction()
     : actionType === "REPLACE_ENEMY"
       ? makeDefaultReplaceEnemyAction()
-      : actionType === "MODIFY_HP"
-        ? makeDefaultModifyHpAction()
+      : actionType === "MODIFY_ENEMY"
+        ? makeDefaultModifyEnemyAction()
+      : actionType === "MODIFY_OPERATOR"
+        ? makeDefaultModifyOperatorAction()
         : actionType === "MODIFY_VARIABLE"
           ? makeDefaultModifyVariableAction()
         : actionType === "SET_TARGET_ENEMY"
@@ -308,7 +311,7 @@ function getIfConditionNode(action: TriggerAction): TriggerConditionNode | null 
 
         <template v-else-if="!isIteratorAction(action)">
           <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            <label v-if="action.type !== 'REPLACE_ENEMY' && action.type !== 'MODIFY_HP' && action.type !== 'MODIFY_VARIABLE' && action.type !== 'SET_TARGET_ENEMY' && action.type !== 'EXECUTE_HIT' && action.type !== 'WAIT' && action.type !== 'COUNTDOWN' && action.type !== 'RELAY_ROTATION' && action.type !== 'SET_TRIGGER_ENABLED' && action.type !== 'STOP_TRIGGER' && action.type !== 'BREAK'" class="block">
+            <label v-if="action.type !== 'REPLACE_ENEMY' && action.type !== 'MODIFY_ENEMY' && action.type !== 'MODIFY_OPERATOR' && action.type !== 'MODIFY_VARIABLE' && action.type !== 'SET_TARGET_ENEMY' && action.type !== 'EXECUTE_HIT' && action.type !== 'WAIT' && action.type !== 'COUNTDOWN' && action.type !== 'RELAY_ROTATION' && action.type !== 'SET_TRIGGER_ENABLED' && action.type !== 'STOP_TRIGGER' && action.type !== 'BREAK'" class="block">
               <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#666]">{{ vm.t("rotation.triggerStatus") }}</div>
               <select
                 :value="vm.getTriggerActionStatusId(action)"
@@ -327,14 +330,6 @@ function getIfConditionNode(action: TriggerAction): TriggerConditionNode | null 
                 <option v-for="enemy in enemies" :key="enemy.id" :value="enemy.id">
                   {{ vm.getEnemyDisplayName(enemy.id, enemy.name, vm.locale === 'zh-CN' ? 'zh-CN' : 'en') }}
                 </option>
-              </select>
-            </label>
-
-            <label v-else-if="action.type === 'MODIFY_HP'" class="block">
-              <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#666]">{{ vm.locale === 'zh-CN' ? '生命操作' : 'HP Operation' }}</div>
-              <select :value="vm.getTriggerActionHpOperation(action)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm text-[#1b1b1b]" @change="vm.setTriggerActionHpOperation(action, ($event.target as HTMLSelectElement).value)">
-                <option value="damage">{{ vm.locale === 'zh-CN' ? '伤害' : 'Damage' }}</option>
-                <option value="heal">{{ vm.locale === 'zh-CN' ? '治疗' : 'Heal' }}</option>
               </select>
             </label>
 
@@ -382,7 +377,8 @@ function getIfConditionNode(action: TriggerAction): TriggerConditionNode | null 
                   v-for="option in vm.CUSTOM_TRIGGER_TARGET_OPTIONS.filter((option: any) =>
                     (((action.type === 'APPLY_STATUS' || action.type === 'REMOVE_STATUS')) || (option.id !== 'team' && option.id !== 'global'))
                     &&
-                    ((action.type !== 'REPLACE_ENEMY' && action.type !== 'SET_TARGET_ENEMY' && action.type !== 'EXECUTE_HIT') || (option.id !== 'event_operator' && option.id !== 'controlled_operator'))
+                    ((action.type !== 'REPLACE_ENEMY' && action.type !== 'MODIFY_ENEMY' && action.type !== 'SET_TARGET_ENEMY' && action.type !== 'EXECUTE_HIT') || (option.id !== 'event_operator' && option.id !== 'controlled_operator' && option.id !== 'current_operator'))
+                    && (action.type !== 'MODIFY_OPERATOR' || option.id === 'event_operator' || option.id === 'controlled_operator' || option.id === 'current_operator')
                     && ((option.id !== 'event_enemy_target') || vm.triggerEventSupportsAlias(eventType, 'event_enemy_target'))
                     && ((option.id !== 'event_enemy_group_member') || vm.triggerEventSupportsAlias(eventType, 'event_enemy_group')),
                   )"
@@ -517,11 +513,43 @@ function getIfConditionNode(action: TriggerAction): TriggerConditionNode | null 
             </label>
           </div>
 
-          <div v-if="action.type === 'MODIFY_HP'" class="mt-2">
-            <label class="block">
-              <div class="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#666]">{{ vm.locale === 'zh-CN' ? '生命值数值' : 'HP Amount' }}</div>
-              <input :value="vm.getTriggerActionHpAmount(action)" type="number" min="0" step="1" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm text-[#1b1b1b]" @input="vm.setTriggerActionHpAmount(action, Number(($event.target as HTMLInputElement).value))">
-            </label>
+          <div v-if="action.type === 'MODIFY_OPERATOR'" class="mt-2 grid gap-2 md:grid-cols-2">
+            <div v-for="field in (['hp', 'energy'] as const)" :key="field" class="rounded-lg border border-[#b7b7b7] bg-[#ececec] p-2">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#666]">{{ field === 'hp' ? 'HP' : (vm.locale === 'zh-CN' ? '能量' : 'Energy') }}</div>
+              <div class="grid gap-2 sm:grid-cols-3">
+                <label><div class="mb-1 text-[11px] font-semibold uppercase text-[#777]">{{ vm.locale === 'zh-CN' ? '操作' : 'Operation' }}</div><select :value="vm.getTriggerActionOperatorModificationOperation(action, field)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="vm.setTriggerActionOperatorModificationOperation(action, field, ($event.target as HTMLSelectElement).value)"><option value="add">ADD</option><option value="set">SET</option></select></label>
+                <label><div class="mb-1 text-[11px] font-semibold uppercase text-[#777]">{{ vm.locale === 'zh-CN' ? '模式' : 'Mode' }}</div><select :value="vm.getTriggerActionOperatorModificationMode(action, field)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="vm.setTriggerActionOperatorModificationMode(action, field, ($event.target as HTMLSelectElement).value)"><option value="flat">{{ vm.locale === 'zh-CN' ? '固定值' : 'Flat' }}</option><option value="percent">{{ vm.locale === 'zh-CN' ? '百分比' : 'Percent' }}</option></select></label>
+                <label><div class="mb-1 text-[11px] font-semibold uppercase text-[#777]">{{ vm.locale === 'zh-CN' ? '数值' : 'Value' }}</div><input :value="vm.getTriggerActionOperatorModificationValue(action, field)" type="number" step="0.1" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @input="vm.setTriggerActionOperatorModificationValue(action, field, Number(($event.target as HTMLInputElement).value))"></label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="action.type === 'MODIFY_ENEMY'" class="mt-2 grid gap-2 md:grid-cols-2">
+            <div v-for="field in (['hp', 'stagger'] as const)" :key="field" class="rounded-lg border border-[#b7b7b7] bg-[#ececec] p-2">
+              <div class="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#666]">
+                {{ field === 'hp' ? (vm.locale === 'zh-CN' ? '生命值' : 'HP') : (vm.locale === 'zh-CN' ? '失衡值' : 'Stagger') }}
+              </div>
+              <div class="grid gap-2 sm:grid-cols-3">
+                <label class="block">
+                  <div class="mb-1 text-[11px] font-semibold uppercase text-[#777]">{{ vm.locale === 'zh-CN' ? '操作' : 'Operation' }}</div>
+                  <select :value="vm.getTriggerActionEnemyModificationOperation(action, field)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="vm.setTriggerActionEnemyModificationOperation(action, field, ($event.target as HTMLSelectElement).value)">
+                    <option value="add">ADD</option>
+                    <option value="set">SET</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <div class="mb-1 text-[11px] font-semibold uppercase text-[#777]">{{ vm.locale === 'zh-CN' ? '模式' : 'Mode' }}</div>
+                  <select :value="vm.getTriggerActionEnemyModificationMode(action, field)" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @change="vm.setTriggerActionEnemyModificationMode(action, field, ($event.target as HTMLSelectElement).value)">
+                    <option value="flat">{{ vm.locale === 'zh-CN' ? '固定值' : 'Flat' }}</option>
+                    <option value="percent">{{ vm.locale === 'zh-CN' ? '百分比' : 'Percent' }}</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <div class="mb-1 text-[11px] font-semibold uppercase text-[#777]">{{ vm.locale === 'zh-CN' ? '数值' : 'Value' }}</div>
+                  <input :value="vm.getTriggerActionEnemyModificationValue(action, field)" type="number" step="0.1" class="w-full rounded-lg border border-[#b7b7b7] bg-white px-3 py-2 text-sm" @input="vm.setTriggerActionEnemyModificationValue(action, field, Number(($event.target as HTMLInputElement).value))">
+                </label>
+              </div>
+            </div>
           </div>
 
           <div v-if="action.type === 'REPLACE_ENEMY'" class="mt-2 grid gap-2 md:grid-cols-2">

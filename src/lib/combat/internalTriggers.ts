@@ -10,6 +10,9 @@ export const INTERNAL_TRIGGER_ID_ENCUMBERED_INIT = "internal_team_encumbered_ini
 export const INTERNAL_TRIGGER_ID_ENCUMBERED_SUPPRESSION_FINAL_STRIKE = "internal_team_encumbered_suppression_final_strike";
 export const INTERNAL_TRIGGER_ID_ENCUMBERED_SUPPRESSION_FINISHER = "internal_team_encumbered_suppression_finisher";
 export const INTERNAL_TRIGGER_ID_FROZEN_DURATION_CLEANSE = "internal_ambient_frozen_duration_cleanse";
+export const INTERNAL_TRIGGER_ID_POWERFUL_DECAPITATION_SPAWN = "internal_powerful_decapitation_spawn";
+export const INTERNAL_TRIGGER_ID_POWERFUL_DECAPITATION_BREAK = "internal_powerful_decapitation_break";
+export const INTERNAL_TRIGGER_ID_POWERFUL_DECAPITATION_REINFORCEMENT = "internal_powerful_decapitation_reinforcement";
 
 export type InternalCombatTriggerDefinition = {
   trigger: CustomCombatTrigger;
@@ -689,21 +692,134 @@ export const INTERNAL_COMBAT_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinitio
 
 export const INTERNAL_COMBAT_TRIGGERS: CustomCombatTrigger[] = INTERNAL_COMBAT_TRIGGER_DEFINITIONS.map((entry) => entry.trigger);
 
-export function getActiveInternalCombatTriggerDefinitions(activeContracts: ActiveContingencyContract[] = []) {
+export const POWERFUL_DECAPITATION_INTERNAL_TRIGGER_DEFINITIONS: InternalCombatTriggerDefinition[] = [
+  {
+    trigger: {
+      id: INTERNAL_TRIGGER_ID_POWERFUL_DECAPITATION_SPAWN,
+      name: "Powerful Decapitation: Enemy Spawn",
+      enabled: true,
+      event: { type: "ENEMY_SPAWNED" },
+      conditions: [],
+      actions: [{
+        type: "APPLY_STATUS",
+        status: { type: "status_id_literal", statusId: "powerful_decapitation" },
+        target: { type: "alias_enemy", alias: "event_enemy_target" },
+        durationSeconds: { type: "number_literal", value: 0 },
+        stacks: { type: "number_literal", value: 1 },
+        useDefault: true,
+      }],
+    },
+  },
+  {
+    trigger: {
+      id: INTERNAL_TRIGGER_ID_POWERFUL_DECAPITATION_BREAK,
+      name: "Powerful Decapitation: Break Preparation",
+      enabled: true,
+      event: { type: "STAGGER_POINTS_INFLICTED" },
+      conditions: [{
+        kind: "logic",
+        id: "internal_powerful_decapitation_break_conditions",
+        operator: "AND",
+        conditions: [
+          {
+            kind: "comparator",
+            id: "internal_powerful_decapitation_barrier_active",
+            left: {
+              type: "status_stack_count",
+              target: { type: "alias_enemy", alias: "event_enemy_target" },
+              status: { type: "status_id_literal", statusId: "battle_skill_barrier" },
+            },
+            comparator: "gt",
+            right: { type: "number_literal", value: 0 },
+          },
+          {
+            kind: "comparator",
+            id: "internal_powerful_decapitation_non_battle_skill",
+            left: { type: "event_attack_type" },
+            comparator: "not_equals",
+            right: { type: "attack_type_literal", attackType: "BATTLE_SKILL" },
+          },
+        ],
+      }],
+      actions: [
+        {
+          type: "REMOVE_STATUS",
+          status: { type: "status_id_literal", statusId: "battle_skill_barrier" },
+          target: { type: "alias_enemy", alias: "event_enemy_target" },
+        },
+        {
+          type: "MODIFY_ENEMY",
+          target: { type: "alias_enemy", alias: "event_enemy_target" },
+          hp: { operation: "add", mode: "flat", value: { type: "number_literal", value: 0 } },
+          stagger: { operation: "add", mode: "flat", value: { type: "number_literal", value: 50 } },
+        },
+      ],
+    },
+  },
+  {
+    trigger: {
+      id: INTERNAL_TRIGGER_ID_POWERFUL_DECAPITATION_REINFORCEMENT,
+      name: "Powerful Decapitation: Hill Smasher Reinforcement",
+      enabled: true,
+      event: { type: "ENEMY_DEFEATED" },
+      conditions: [{
+        kind: "comparator",
+        id: "internal_powerful_decapitation_bonekrusher_defeated",
+        left: {
+          type: "enemy_identity",
+          enemy: { type: "alias_enemy", alias: "event_enemy_target" },
+        },
+        comparator: "equals",
+        right: { type: "enemy_id_literal", enemyId: "bonekrusher_executioner" },
+      }],
+      actions: [
+        {
+          type: "SET_TRIGGER_ENABLED",
+          target: { type: "self" },
+          operation: "disable",
+        },
+        {
+          type: "WAIT",
+          durationSeconds: { type: "number_literal", value: 3 },
+        },
+        {
+          type: "REPLACE_ENEMY",
+          target: { type: "enemy_in_slot", slotNumber: { type: "number_literal", value: 1 } },
+          enemyId: { type: "enemy_id_literal", enemyId: "hill_smasher" },
+          resetHp: { type: "boolean_literal", value: true },
+          // A non-positive level preserves the configured level of the enemy slot.
+          level: { type: "number_literal", value: 0 },
+          noDeath: { type: "boolean_literal", value: false },
+        },
+      ],
+    },
+  },
+];
+
+export function getActiveInternalCombatTriggerDefinitions(
+  definitions: InternalCombatTriggerDefinition[] = [],
+  activeContracts: ActiveContingencyContract[] = [],
+) {
   const activeVariantIds = new Set(activeContracts.map((entry) => entry.variantId));
-  return INTERNAL_COMBAT_TRIGGER_DEFINITIONS.filter((entry) =>
+  return definitions.filter((entry) =>
     !entry.enabledContractVariantIds
     || entry.enabledContractVariantIds.some((variantId) => activeVariantIds.has(variantId)),
   );
 }
 
-export function getActiveInternalCombatTriggers(activeContracts: ActiveContingencyContract[] = []) {
-  return getActiveInternalCombatTriggerDefinitions(activeContracts).map((entry) => entry.trigger);
+export function getActiveInternalCombatTriggers(
+  definitions: InternalCombatTriggerDefinition[] = [],
+  activeContracts: ActiveContingencyContract[] = [],
+) {
+  return getActiveInternalCombatTriggerDefinitions(definitions, activeContracts).map((entry) => entry.trigger);
 }
 
-export function getActiveInternalTriggerVariables(activeContracts: ActiveContingencyContract[] = []) {
+export function getActiveInternalTriggerVariables(
+  definitions: InternalCombatTriggerDefinition[] = [],
+  activeContracts: ActiveContingencyContract[] = [],
+) {
   const seen = new Set<string>();
-  return getActiveInternalCombatTriggerDefinitions(activeContracts)
+  return getActiveInternalCombatTriggerDefinitions(definitions, activeContracts)
     .flatMap((entry) => entry.variables ?? [])
     .filter((variable) => {
       if (seen.has(variable.id)) {
@@ -716,9 +832,10 @@ export function getActiveInternalTriggerVariables(activeContracts: ActiveConting
 
 export function getInternalTriggerEnabledByContracts(
   triggerId: string,
+  definitions: InternalCombatTriggerDefinition[] = [],
   activeContracts: ActiveContingencyContract[] = [],
 ) {
-  const definition = INTERNAL_COMBAT_TRIGGER_DEFINITIONS.find((entry) => entry.trigger.id === triggerId);
+  const definition = definitions.find((entry) => entry.trigger.id === triggerId);
   if (!definition) {
     return null;
   }

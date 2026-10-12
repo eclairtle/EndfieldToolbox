@@ -115,7 +115,7 @@ const PERLICA_COMMANDS: CommandDefinition[] = [
     durationFrames: flat12(50),
     timeFreezeSeconds: flat12(0.77),
     spCost: flat12(0),
-    comboCooldownSeconds: flat12(20),
+    comboCooldownSeconds: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 19],
     hits: [
       {
         multiplier: pct([80, 88, 96, 104, 112, 120, 128, 136, 144, 154, 166, 180]),

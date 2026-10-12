@@ -24,6 +24,7 @@ export type CustomTriggerEventType =
   | "BATTLE_SKILL_HIT"
   | "COMBO_SKILL_HIT"
   | "ULTIMATE_HIT"
+  | "STAGGER_POINTS_INFLICTED"
   | "STATUS_APPLIED"
   | "REACTION_TRIGGERED"
   | "ENEMY_DEFEATED";
@@ -42,7 +43,8 @@ export type CustomTriggerActionType =
   | "APPLY_STATUS"
   | "REMOVE_STATUS"
   | "REPLACE_ENEMY"
-  | "MODIFY_HP"
+  | "MODIFY_ENEMY"
+  | "MODIFY_OPERATOR"
   | "MODIFY_VARIABLE"
   | "SET_TARGET_ENEMY"
   | "EXECUTE_HIT"
@@ -57,7 +59,13 @@ export type CustomTriggerActionType =
   | "FOR_EACH_OPERATOR"
   | "FIRE_TRIGGER";
 export type TriggerComparator = "equals" | "not_equals" | "gt" | "gte" | "lt" | "lte";
-export type TriggerHpOperation = "damage" | "heal";
+export type TriggerEnemyModifyOperation = "add" | "set";
+export type TriggerEnemyModifyMode = "flat" | "percent";
+export type TriggerEnemyModification = {
+  operation: TriggerEnemyModifyOperation;
+  mode: TriggerEnemyModifyMode;
+  value: TriggerValueExpression;
+};
 export type TriggerEnableOperation = "enable" | "disable";
 export type TriggerEnemyLifecycleState = "not_spawned" | "active" | "dead";
 export type TriggerVariableType = "string" | "number" | "boolean";
@@ -121,7 +129,9 @@ export type TriggerValueExpression =
   | { type: "event_status_id" }
   | { type: "event_status_duration" }
   | { type: "event_damage_type" }
+  | { type: "event_attack_type" }
   | { type: "damage_type_literal"; damageType: Exclude<ElementType, "Healing"> }
+  | { type: "attack_type_literal"; attackType: AttackType }
   | { type: "enemy_id_literal"; enemyId: string }
   | { type: "enemy_identity"; enemy: TriggerEnemyReferenceExpression }
   | { type: "enemy_rank"; enemy: TriggerEnemyReferenceExpression }
@@ -191,10 +201,16 @@ export type TriggerAction =
       noDeath: TriggerValueExpression;
     }
   | {
-      type: "MODIFY_HP";
-      target: TriggerReferenceExpression;
-      operation: TriggerHpOperation;
-      amount: TriggerValueExpression;
+      type: "MODIFY_ENEMY";
+      target: TriggerEnemyReferenceExpression;
+      hp: TriggerEnemyModification;
+      stagger: TriggerEnemyModification;
+    }
+  | {
+      type: "MODIFY_OPERATOR";
+      target: TriggerOperatorReferenceExpression;
+      hp: TriggerEnemyModification;
+      energy: TriggerEnemyModification;
     }
   | {
       type: "MODIFY_VARIABLE";
@@ -424,6 +440,12 @@ export const CUSTOM_TRIGGER_EVENT_OPTIONS: TriggerEventOption[] = [
     availableAliases: ["event_operator", "event_operator_group", "event_enemy_target", "event_enemy_group", "event_source_command", "event_source_hit", "event_time", "event_game_time"],
   },
   {
+    id: "STAGGER_POINTS_INFLICTED",
+    label: { en: "Stagger Points Inflicted", zh: "造成失衡值" },
+    description: { en: "Runs whenever a hit inflicts a positive amount of stagger.", zh: "在命中造成正数失衡值时运行。" },
+    availableAliases: ["event_operator", "event_operator_group", "event_enemy_target", "event_enemy_group", "event_source_command", "event_source_hit", "event_time", "event_game_time"],
+  },
+  {
     id: "STATUS_APPLIED",
     label: { en: "Status Applied", zh: "状态施加" },
     description: { en: "Runs when a buff, debuff, or status is applied.", zh: "在施加增益、减益或状态时触发。" },
@@ -460,9 +482,14 @@ export const CUSTOM_TRIGGER_ACTION_OPTIONS: TriggerPresetOption<CustomTriggerAct
     description: { en: "Replaces one enemy slot with another enemy identity.", zh: "将一个敌人槽位替换为另一名敌人的身份。" },
   },
   {
-    id: "MODIFY_HP",
-    label: { en: "Modify HP", zh: "修改生命值" },
-    description: { en: "Deals damage or restores HP to an operator or enemy target.", zh: "对干员或敌人目标造成伤害或恢复生命值。" },
+    id: "MODIFY_ENEMY",
+    label: { en: "Modify Enemy", zh: "修改敌人" },
+    description: { en: "Adds to or sets an enemy's HP and stagger using flat or percentage values.", zh: "以固定值或百分比增加或设定敌人的生命值与失衡值。" },
+  },
+  {
+    id: "MODIFY_OPERATOR",
+    label: { en: "Modify Operator", zh: "修改干员" },
+    description: { en: "Adds to or sets an operator's HP and ultimate energy.", zh: "增加或设定干员的生命值与终结技能量。" },
   },
   {
     id: "MODIFY_VARIABLE",
@@ -699,10 +726,6 @@ function isTriggerLogicOperator(value: unknown): value is TriggerLogicOperator {
   return ["AND", "OR", "XOR"].includes(String(value));
 }
 
-function isTriggerHpOperation(value: unknown): value is TriggerHpOperation {
-  return value === "damage" || value === "heal";
-}
-
 function isTriggerEnableOperation(value: unknown): value is TriggerEnableOperation {
   return value === "enable" || value === "disable";
 }
@@ -730,9 +753,12 @@ function isTriggerValueExpression(value: unknown): value is TriggerValueExpressi
     case "event_status_id":
     case "event_status_duration":
     case "event_damage_type":
+    case "event_attack_type":
       return true;
     case "damage_type_literal":
       return CUSTOM_TRIGGER_DAMAGE_TYPE_OPTIONS.some((option) => option.id === typed.damageType);
+    case "attack_type_literal":
+      return ["BASIC_ATTACK", "BATTLE_SKILL", "COMBO_SKILL", "ULTIMATE", "TALENT", "REACTION", "GENERIC"].includes(String(typed.attackType));
     case "enemy_id_literal":
       return typeof typed.enemyId === "string" && typed.enemyId.length > 0;
     case "enemy_identity":
@@ -833,12 +859,21 @@ function normalizeTriggerValueExpression(value: unknown): TriggerValueExpression
       return { type: "event_status_duration" };
     case "event_damage_type":
       return { type: "event_damage_type" };
+    case "event_attack_type":
+      return { type: "event_attack_type" };
     case "damage_type_literal":
       return {
         type: "damage_type_literal",
         damageType: CUSTOM_TRIGGER_DAMAGE_TYPE_OPTIONS.some((option) => option.id === typed.damageType)
           ? typed.damageType as Exclude<ElementType, "Healing">
           : "Physical",
+      };
+    case "attack_type_literal":
+      return {
+        type: "attack_type_literal",
+        attackType: ["BASIC_ATTACK", "BATTLE_SKILL", "COMBO_SKILL", "ULTIMATE", "TALENT", "REACTION", "GENERIC"].includes(String(typed.attackType))
+          ? typed.attackType as AttackType
+          : "GENERIC",
       };
     case "enemy_id_literal":
       return { type: "enemy_id_literal", enemyId: typeof typed.enemyId === "string" ? typed.enemyId : "" };
@@ -1070,17 +1105,49 @@ function normalizeTriggerAction(value: unknown): TriggerAction | null {
         noDeath,
       };
     }
-  if (typed.type === "MODIFY_HP") {
-    const target = normalizeTriggerReferenceExpression(typed.target);
-    const amount = normalizeTriggerValueExpression(typed.amount);
-    if (!target || !amount) {
-      return null;
-    }
+  if (typed.type === "MODIFY_ENEMY") {
+    const target = normalizeTriggerEnemyReferenceExpression(typed.target);
+    const normalizeModification = (entry: unknown): TriggerEnemyModification => {
+      const record = entry && typeof entry === "object" ? entry as Record<string, unknown> : {};
+      return {
+        operation: record.operation === "set" ? "set" : "add",
+        mode: record.mode === "percent" ? "percent" : "flat",
+        value: normalizeTriggerValueExpression(record.value) ?? { type: "number_literal", value: 0 },
+      };
+    };
+    if (!target) return null;
     return {
-      type: "MODIFY_HP",
+      type: "MODIFY_ENEMY",
       target,
-      operation: isTriggerHpOperation(typed.operation) ? typed.operation : "damage",
-      amount,
+      hp: normalizeModification(typed.hp),
+      stagger: normalizeModification(typed.stagger),
+    };
+  }
+  if (typed.type === "MODIFY_OPERATOR" || typed.type === "MODIFY_HP") {
+    const target = normalizeTriggerOperatorReferenceExpression(typed.target);
+    if (!target) return null;
+    const legacyAmount = normalizeTriggerValueExpression(typed.amount) ?? { type: "number_literal" as const, value: 0 };
+    const normalizeModification = (entry: unknown): TriggerEnemyModification => {
+      const record = entry && typeof entry === "object" ? entry as Record<string, unknown> : {};
+      return {
+        operation: record.operation === "set" ? "set" : "add",
+        mode: record.mode === "percent" ? "percent" : "flat",
+        value: normalizeTriggerValueExpression(record.value) ?? { type: "number_literal", value: 0 },
+      };
+    };
+    return {
+      type: "MODIFY_OPERATOR",
+      target,
+      hp: typed.type === "MODIFY_HP"
+        ? {
+            operation: "add",
+            mode: "flat",
+            value: legacyAmount.type === "number_literal"
+              ? { type: "number_literal", value: (typed.operation === "heal" ? 1 : -1) * legacyAmount.value }
+              : legacyAmount,
+          }
+        : normalizeModification(typed.hp),
+      energy: normalizeModification(typed.energy),
     };
   }
   if (typed.type === "MODIFY_VARIABLE") {
@@ -1320,12 +1387,21 @@ export function makeDefaultReplaceEnemyAction(): TriggerAction {
   };
 }
 
-export function makeDefaultModifyHpAction(): TriggerAction {
+export function makeDefaultModifyEnemyAction(): TriggerAction {
   return {
-    type: "MODIFY_HP",
+    type: "MODIFY_ENEMY",
+    target: { type: "alias_enemy", alias: "event_enemy_target" },
+    hp: { operation: "add", mode: "flat", value: { type: "number_literal", value: 0 } },
+    stagger: { operation: "add", mode: "flat", value: { type: "number_literal", value: 0 } },
+  };
+}
+
+export function makeDefaultModifyOperatorAction(): TriggerAction {
+  return {
+    type: "MODIFY_OPERATOR",
     target: { type: "alias_operator", alias: "event_operator" },
-    operation: "damage",
-    amount: { type: "number_literal", value: 1000 },
+    hp: { operation: "add", mode: "flat", value: { type: "number_literal", value: 0 } },
+    energy: { operation: "add", mode: "flat", value: { type: "number_literal", value: 0 } },
   };
 }
 
@@ -1622,11 +1698,15 @@ function sanitizeTriggerActionRecursive(
       action.level = sanitizeTriggerValueExpression(action.level, variablesById);
       action.noDeath = sanitizeTriggerValueExpression(action.noDeath, variablesById);
       return;
-    case "MODIFY_HP":
-      action.target = action.target.type === "alias_operator" || action.target.type === "controlled_operator" || action.target.type === "current_operator"
-        ? sanitizeTriggerOperatorReferenceExpression(action.target)
-        : sanitizeTriggerEnemyReferenceExpression(action.target, variablesById);
-      action.amount = sanitizeTriggerValueExpression(action.amount, variablesById);
+    case "MODIFY_ENEMY":
+      action.target = sanitizeTriggerEnemyReferenceExpression(action.target, variablesById);
+      action.hp.value = sanitizeTriggerValueExpression(action.hp.value, variablesById);
+      action.stagger.value = sanitizeTriggerValueExpression(action.stagger.value, variablesById);
+      return;
+    case "MODIFY_OPERATOR":
+      action.target = sanitizeTriggerOperatorReferenceExpression(action.target);
+      action.hp.value = sanitizeTriggerValueExpression(action.hp.value, variablesById);
+      action.energy.value = sanitizeTriggerValueExpression(action.energy.value, variablesById);
       return;
     case "MODIFY_VARIABLE": {
       const variable = variablesById.get(action.variableId);
@@ -1838,6 +1918,7 @@ export function matchesCustomTriggerEventType(
     case "BATTLE_SKILL_HIT":
     case "COMBO_SKILL_HIT":
     case "ULTIMATE_HIT":
+    case "STAGGER_POINTS_INFLICTED":
     case "ENEMY_DEFEATED":
       return event.type === triggerEventType;
     case "FINAL_STRIKE_HIT":

@@ -31,8 +31,11 @@ const zhCNCharacterNameOverrides: Record<string, string> = {
   rossi: "洛茜",
   pogranichnik: "骏卫",
   zhuangfangyi: "庄方宜",
-  mifu: "弭弗",
-  camille: "卡缪",
+  MIFU: "弭弗",
+  CAMILLE: "卡缪",
+  ARCANE: "诀",
+  LIINO: "梨诺",
+  TYPHOEUS: "提弗洛斯",
 };
 
 export const characterNamesByLocale = {

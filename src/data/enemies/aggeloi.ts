@@ -284,6 +284,35 @@ export const MARBLE_AGGELOMOIRAI_CORE = makeAggeloiEnemy({
   staggerRecoverySeconds: 24,
   finisherMultiplier: 1.75,
   finisherSpGain: 100,
+  listeners: [
+    {
+      eventType: "ENEMY_STAGGERED",
+      effects: [{
+        type: "APPLY_BUFF",
+        buffId: "marble_aggelomoirai_exposed_core",
+        label: "Exposed Core",
+        effects: { ENEMY_DEF_FLAT: -110 },
+        durationSeconds: 24,
+        timeScale: "real",
+      }],
+    },
+    {
+      eventType: "ENEMY_DEFEATED",
+      actionWindow: {
+        commandId: "phase_transition",
+        label: "Phase Transition",
+        durationSeconds: 0.5,
+        startEffects: [
+          { type: "RESET_STAGGER" },
+          { type: "INTERRUPT_ONGOING_COMMANDS" },
+          { type: "REINITIALIZE_COMBAT" },
+        ],
+        endEffects: [
+          { type: "TRANSFORM_ENEMY", enemyId: "marble_aggelomoirai", resetHp: true },
+        ],
+      },
+    },
+  ],
 });
 
 export const AGGELOI_STING_ALPHA = makeAggeloiEnemy({

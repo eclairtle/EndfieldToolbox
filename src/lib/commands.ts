@@ -23,6 +23,8 @@ export type CommandTransformRule = {
   toCommandId: string;
   requiresBuffId?: string;
   requiresBuffIdsAll?: string[];
+  requiresBuffStacksAtLeast?: { buffId: string; stacks: number };
+  requiresBuffStacksExact?: { buffId: string; stacks: number };
   requiresMeltingFlameStacks?: number;
   requiresEnemyStatusId?: string;
   overrideSpCost?: number;
@@ -37,7 +39,7 @@ export type ExecuteHitCritRigOption = {
 
 export type TimeScale = "game" | "real";
 export type ComboCooldownStartTiming = "start" | "end";
-export type EnemyTargeting = "all_enemies" | "targeted_enemy" | "finisher";
+export type EnemyTargeting = "all_enemies" | "targeted_enemy" | "multi_target" | "finisher";
 
 export type CombatCondition =
   | {
@@ -126,6 +128,16 @@ type CommandHitEffectCore =
       durationSeconds?: number;
     }
   | {
+      type: "TRIGGER_ARTS_BURST";
+      element: "Heat" | "Cryo" | "Electric" | "Nature";
+      baseMultiplier?: number;
+      baseMultiplierScaling?: ScalingTable;
+      consumeMatchingInfliction?: boolean;
+      maxConsumedInflictionStacks?: number;
+      consumedInflictionMultiplier?: number;
+      consumedInflictionMultiplierScaling?: ScalingTable;
+    }
+  | {
       type: "APPLY_REACTION";
       reaction:
         | "Combustion"
@@ -202,6 +214,8 @@ type CommandHitEffectCore =
       label?: string;
       effects?: Partial<ModifierStats>;
       blocksOperatorArtsInflictionElements?: Array<"Heat" | "Cryo" | "Electric" | "Nature">;
+      blocksIncomingAttackTypes?: AttackType[];
+      disableStatusIds?: string[];
       durationSeconds: number;
       timeScale?: TimeScale;
       hidden?: boolean;
@@ -213,6 +227,9 @@ type CommandHitEffectCore =
       pauseStatusIds?: string[];
       periods?: number;
       maxPeriods?: number;
+      periodIntervalSeconds?: number;
+      periodicRequiresEnemyNotCrowdControlled?: boolean;
+      periodicRequiresEnemyNotStaggered?: boolean;
       initialEffects?: CommandHitEffectDefinition[];
       periodicEffects?: CommandHitEffectDefinition[];
       expireEffects?: CommandHitEffectDefinition[];
@@ -279,6 +296,8 @@ type CommandHitEffectCore =
       buffId: string;
       label?: string;
       hidden?: boolean;
+      infiniteDuration?: boolean;
+      readyCommandId?: string;
       durationSeconds?: number;
       timeScale?: TimeScale;
       effects?: Partial<ModifierStats>;
@@ -299,6 +318,12 @@ type CommandHitEffectCore =
       stackGroup?: string;
       maxStacks?: number;
       refreshExistingStacks?: boolean;
+      periods?: number;
+      maxPeriods?: number;
+      initialEffects?: CommandHitEffectDefinition[];
+      periodicEffects?: CommandHitEffectDefinition[];
+      expireEffects?: CommandHitEffectDefinition[];
+      removeEffects?: CommandHitEffectDefinition[];
       singleEventPerStep?: boolean;
       requiresEnemyStatusId?: string;
       requiresSelfBuffId?: string;
@@ -309,7 +334,7 @@ type CommandHitEffectCore =
     }
   | {
       type: "REMOVE_BUFF";
-      target: "self" | "enemy";
+      target: "self" | "enemy" | "team";
       buffId: string;
       stacks?: number;
     }
@@ -329,7 +354,8 @@ export type CommandHitDefinition = {
   countsAsFinalStrike?: boolean;
   multiplier: ScalingTable;
   flatAmount?: ScalingTable; // default 0, used by healing/flat formulas
-  scalingStat?: "ATK" | "WIL"; // default ATK
+  scalingStat?: "ATK" | "STR" | "AGI" | "INT" | "WIL"; // default ATK
+  healingTarget?: "controlled" | "self" | "team"; // default controlled
   stagger?: ScalingTable; //default 0
   spGenerated?: ScalingTable; // default 0
   spReturned?: ScalingTable; // default 0
@@ -344,7 +370,9 @@ export type CommandHitDefinition = {
   attackType?: AttackType; //default to same as command
   damageType?: ElementType; //default to same as command
   targets?: EnemyTargeting; // default to same as command
+  maxTargets?: number; // used by multi_target; primary target is selected first
   ignoreEnemyInvulnerability?: boolean;
+  resolveEffectsWithoutEnemy?: boolean;
   noCrit?: boolean;
   accumulator?: HitAccumulatorDefinition;
   effects?: CommandHitEffectDefinition[];
@@ -377,6 +405,7 @@ export type CommandDefinition = {
   attackType: AttackType; 
   damageType: ElementType; 
   targets?: EnemyTargeting;
+  maxTargets?: number;
   durationFrames: ScalingTable;
   spCost: ScalingTable; // can also scale now
   energyCost?: ScalingTable; // for future use, if needed
@@ -426,7 +455,8 @@ export type ResolvedCommandHit = {
   countsAsFinalStrike?: boolean;
   multiplier: ScalingTable;
   flatAmount: ScalingTable;
-  scalingStat: "ATK" | "WIL";
+  scalingStat: "ATK" | "STR" | "AGI" | "INT" | "WIL";
+  healingTarget: "controlled" | "self" | "team";
   stagger: ScalingTable;
   spGenerated: ScalingTable;
   spReturned: ScalingTable;
@@ -441,6 +471,7 @@ export type ResolvedCommandHit = {
   attackType: AttackType;
   damageType: ElementType;
   targets: EnemyTargeting;
+  maxTargets?: number;
   noCrit: boolean;
   accumulator?: ResolvedHitAccumulatorDefinition;
   effects: CommandHitEffectDefinition[];
@@ -463,6 +494,7 @@ export type ResolvedCommandDefinition = {
   attackType: AttackType;
   damageType: ElementType;
   targets: EnemyTargeting;
+  maxTargets?: number;
   durationFrames: ScalingTable;
   spCost: ScalingTable;
   energyCost: ScalingTable;
@@ -517,6 +549,7 @@ export function resolveCommandDefinition(
     attackType: command.attackType,
     damageType: command.damageType,
     targets: resolvedTargets,
+    maxTargets: command.maxTargets,
     durationFrames: command.durationFrames,
     spCost: command.spCost,
     energyCost: command.energyCost ?? flat12(0),
@@ -562,6 +595,7 @@ export function resolveCommandDefinition(
       multiplier: hit.multiplier,
       flatAmount: hit.flatAmount ?? flat12(0),
       scalingStat: hit.scalingStat ?? "ATK",
+      healingTarget: hit.healingTarget ?? "controlled",
       stagger: hit.stagger ?? flat12(0),
       spGenerated: hit.spGenerated ?? flat12(0),
       spReturned: hit.spReturned ?? flat12(0),
@@ -576,6 +610,7 @@ export function resolveCommandDefinition(
       attackType: hit.attackType ?? command.attackType,
       damageType: hit.damageType ?? command.damageType,
       targets: hit.targets ?? resolvedTargets,
+      maxTargets: hit.maxTargets ?? command.maxTargets,
       noCrit: hit.noCrit ?? false,
       accumulator: hit.accumulator
         ? {
@@ -610,7 +645,8 @@ export type ResolvedCommandHitAtLevel = {
   countsAsFinalStrike?: boolean;
   multiplier: number;
   flatAmount: number;
-  scalingStat: "ATK" | "WIL";
+  scalingStat: "ATK" | "STR" | "AGI" | "INT" | "WIL";
+  healingTarget: "controlled" | "self" | "team";
   stagger: number;
   spGenerated: number;
   spReturned: number;
@@ -625,7 +661,9 @@ export type ResolvedCommandHitAtLevel = {
   attackType: AttackType;
   damageType: ElementType;
   targets: EnemyTargeting;
+  maxTargets?: number;
   ignoreEnemyInvulnerability: boolean;
+  resolveEffectsWithoutEnemy: boolean;
   noCrit: boolean;
   accumulator?: ResolvedHitAccumulatorAtLevel;
   effects: CommandHitEffectDefinition[];
@@ -648,6 +686,7 @@ export type ResolvedCommandAtLevel = {
   attackType: AttackType;
   damageType: ElementType;
   targets: EnemyTargeting;
+  maxTargets?: number;
   durationFrames: number;
   spCost: number;
   energyCost: number;
@@ -757,6 +796,17 @@ function inferExecuteHitsFlag(command: CommandDefinition): boolean {
 }
 
 function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: number): CommandHitEffectDefinition {
+  if (effect.type === "TRIGGER_ARTS_BURST") {
+    return {
+      ...effect,
+      baseMultiplier: effect.baseMultiplierScaling ? resolveTable(effect.baseMultiplierScaling, level) : effect.baseMultiplier,
+      consumedInflictionMultiplier: effect.consumedInflictionMultiplierScaling
+        ? resolveTable(effect.consumedInflictionMultiplierScaling, level)
+        : effect.consumedInflictionMultiplier,
+      baseMultiplierScaling: undefined,
+      consumedInflictionMultiplierScaling: undefined,
+    };
+  }
   if (effect.type === "APPLY_STATUS") {
     return {
       ...effect,
@@ -833,6 +883,10 @@ function resolveHitEffectAtLevel(effect: CommandHitEffectDefinition, level: numb
 
   return {
     ...effect,
+    initialEffects: effect.initialEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
+    periodicEffects: effect.periodicEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
+    expireEffects: effect.expireEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
+    removeEffects: effect.removeEffects?.map((nestedEffect) => resolveHitEffectAtLevel(nestedEffect, level)),
     effectAttributeScalings: effect.effectAttributeScalings
       ? Object.fromEntries(
         Object.entries(effect.effectAttributeScalings).map(([key, scaling]) => {
@@ -886,6 +940,7 @@ export function resolveCommandAtLevel(
     attackType: command.attackType,
     damageType: command.damageType,
     targets: resolvedTargets,
+    maxTargets: command.maxTargets,
     durationFrames: resolveTable(command.durationFrames, level),
     spCost: command.spCost ? resolveTable(command.spCost, level) : 0,
     energyCost: command.energyCost ? resolveTable(command.energyCost, level) : 0,
@@ -948,6 +1003,7 @@ export function resolveCommandAtLevel(
       multiplier: resolveTable(hit.multiplier, level) / splitHitCount,
       flatAmount: hit.flatAmount ? resolveTable(hit.flatAmount, level) : 0,
       scalingStat: hit.scalingStat ?? "ATK",
+      healingTarget: hit.healingTarget ?? "controlled",
       stagger: hit.stagger ? resolveTable(hit.stagger, level) : 0,
       spGenerated: hit.spGenerated ? resolveTable(hit.spGenerated, level) : 0,
       spReturned: hit.spReturned ? resolveTable(hit.spReturned, level) : 0,
@@ -962,7 +1018,9 @@ export function resolveCommandAtLevel(
       attackType: hit.attackType?? command.attackType,
       damageType: hit.damageType?? command.damageType,
       targets: hit.targets ?? resolvedTargets,
+      maxTargets: hit.maxTargets ?? command.maxTargets,
       ignoreEnemyInvulnerability: hit.ignoreEnemyInvulnerability ?? false,
+      resolveEffectsWithoutEnemy: hit.resolveEffectsWithoutEnemy ?? false,
       noCrit: hit.noCrit ?? false,
       accumulator: hit.accumulator
         ? {
@@ -1009,6 +1067,7 @@ export function resolveExecuteHitsAtLevel(
         multiplier: resolveTable(executeHit.multiplier, level),
         flatAmount: executeHit.flatAmount ? resolveTable(executeHit.flatAmount, level) : 0,
         scalingStat: executeHit.scalingStat ?? "ATK",
+        healingTarget: executeHit.healingTarget ?? "controlled",
         stagger: executeHit.stagger ? resolveTable(executeHit.stagger, level) : 0,
         spGenerated: executeHit.spGenerated ? resolveTable(executeHit.spGenerated, level) : 0,
         spReturned: executeHit.spReturned ? resolveTable(executeHit.spReturned, level) : 0,
@@ -1024,6 +1083,7 @@ export function resolveExecuteHitsAtLevel(
         damageType: executeHit.damageType,
         targets: executeHit.targets ?? "all_enemies",
         ignoreEnemyInvulnerability: executeHit.ignoreEnemyInvulnerability ?? false,
+        resolveEffectsWithoutEnemy: executeHit.resolveEffectsWithoutEnemy ?? false,
         noCrit: executeHit.noCrit ?? false,
         accumulator: executeHit.accumulator
           ? {
@@ -1083,6 +1143,7 @@ export function applyCommandModifierStats(
 
 export type CommandTransformState = {
   activeBuffIds: string[];
+  activeBuffStacks?: Record<string, number>;
   meltingFlameStacks: number;
   finisherAvailable?: boolean;
   enemyStatusIds?: string[];
@@ -1105,6 +1166,18 @@ export function resolveCommandTransform(
       continue;
     }
     if (rule.requiresBuffIdsAll && rule.requiresBuffIdsAll.some((buffId) => !state.activeBuffIds.includes(buffId))) {
+      continue;
+    }
+    if (
+      rule.requiresBuffStacksAtLeast
+      && (state.activeBuffStacks?.[rule.requiresBuffStacksAtLeast.buffId] ?? 0) < rule.requiresBuffStacksAtLeast.stacks
+    ) {
+      continue;
+    }
+    if (
+      rule.requiresBuffStacksExact
+      && (state.activeBuffStacks?.[rule.requiresBuffStacksExact.buffId] ?? 0) !== rule.requiresBuffStacksExact.stacks
+    ) {
       continue;
     }
 

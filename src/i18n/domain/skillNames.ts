@@ -44,6 +44,19 @@ const weaponSkillDescriptionsByLocale = apiSkillTextByLocale.weaponSkillDescript
   Record<string, readonly string[]>
 >;
 
+const weaponSkillNameOverridesByLocale: Partial<Record<SupportedLocale, Record<string, readonly string[]>>> = {
+  en: {
+    bedazzling_night_debut: ["Medicant: Shimmering Curtain", "Will [L]", "Treatment Efficiency [L]"],
+    sufferings_end: ["Detonate: Dawn of the Long Night", "Agility [L]", "Nature DMG [L]"],
+    umbra_of_frigid_eventide: ["Detonate: Hunter Instinct", "Agility [L]", "ATK [L]"],
+  },
+  "zh-CN": {
+    bedazzling_night_debut: ["医疗·闪耀帷幕", "意志提升·大", "治疗效率提升·大"],
+    sufferings_end: ["迸发·长夜拂晓", "敏捷提升·大", "自然伤害提升·大"],
+    umbra_of_frigid_eventide: ["迸发·猎人本能", "敏捷提升·大", "攻击提升·大"],
+  },
+};
+
 function currentLocale(): SupportedLocale {
   const rawLocale = i18n.global.locale as unknown;
   const value = typeof rawLocale === "string"
@@ -86,6 +99,8 @@ const zhCNCharacterUniqueTalentListOverrides: Record<string, string[]> = {
   xaihi: ["启动进程", "协议冻结"],
   tangtang: ["肝胆相照", "呼风唤浪"],
   pogranichnik: ["活着的旗帜", "战术教导"],
+  arcane: ["筹谋", "厉兵"],
+  TYPHOEUS: ["猎物清单"],
 };
 
 function normalizeTalentBaseName(name: string) {
@@ -208,6 +223,10 @@ export function getWeaponSkillDisplayName(args: {
 
   const locale = currentLocale();
   const apiIndex = resolveWeaponSkillApiIndex(args.skillId, args.skillIndex);
+  const override = weaponSkillNameOverridesByLocale[locale]?.[weaponId]?.[apiIndex];
+  if (override) {
+    return cleanApiText(override);
+  }
   const localized = weaponSkillNamesByLocale[locale]?.[weaponId]?.[apiIndex];
   if (localized) {
     return cleanApiText(localized);

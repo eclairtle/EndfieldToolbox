@@ -110,7 +110,8 @@ import {
   makeDefaultForEachOperatorAction,
   makeDefaultLogicTriggerCondition,
   makeDefaultModifyVariableAction,
-  makeDefaultModifyHpAction,
+  makeDefaultModifyOperatorAction,
+  makeDefaultModifyEnemyAction,
   makeCustomTriggerVariableId,
   makeDefaultReplaceEnemyAction,
   makeDefaultRemoveStatusAction,
@@ -195,7 +196,9 @@ const MAX_TIMELINE_SCALE_PERCENT = 200;
 const axisScale = ref(DEFAULT_AXIS_SCALE);
 const timelineScalePercent = computed(() => Math.round((axisScale.value / DEFAULT_AXIS_SCALE) * 100));
 const AXIS_SNAP_SECONDS = 0.1;
-const TRACK_LABEL_WIDTH = 160;
+const TRACK_LABEL_WIDTH = 192;
+const TYPHOEUS_HUNTING_ARROW_BUFF_ID = "typhoeus_hunting_arrow";
+const TYPHOEUS_SIGN_BUFF_ID = "typhoeus_sign";
 const CONTRACT_TILE_SIZE = 72;
 const CONTRACT_TILE_GAP = 8;
 const CONTRACT_CARD_PADDING = 8;
@@ -389,6 +392,7 @@ const stageEnemyHpBaseOverrides = computed(() => Object.fromEntries(props.enemie
   enemy.id,
   resolveEnemyBaseForStage(enemy, resolvedStageSettings.value).baseHpLv1,
 ])));
+const stageEnemyStaggerOverrides = computed(() => resolvedStageSettings.value.enemyStaggerOverrides);
 function updateStageSettings(mutator: (draft: BuildStageSettings) => void) {
   if (isActiveSchemeRelayed.value) return;
   const draft = structuredClone(activeStageSettings.value);
@@ -402,8 +406,9 @@ function setCustomStageName(value: string) { updateStageSettings((draft) => { dr
 function setCustomStageContractsEnabled(value: boolean) { updateStageSettings((draft) => { draft.custom.contractsEnabled = value; }); if (!value && stageWorkspaceTab.value === "contracts") stageWorkspaceTab.value = "stage"; }
 function setCustomStageEnemyHp(enemyId: string, value: number) { updateStageSettings((draft) => { draft.custom.enemyHpBaseOverrides[enemyId] = Math.max(1, Math.round(value || 1)); }); }
 function setCustomStageEnemyHpMultiplier(enemyId: string, value: number) { updateStageSettings((draft) => { draft.custom.enemyHpMultipliers[enemyId] = Math.max(0.01, value || 1); }); }
-function addCustomStageEnemyOverride() { const enemy = props.enemies.find((entry) => entry.id === stageOverrideEnemyId.value); if (enemy) updateStageSettings((draft) => { draft.custom.enemyHpBaseOverrides[enemy.id] ??= enemy.baseHpLv1; draft.custom.enemyHpMultipliers[enemy.id] ??= 1; }); }
-function removeCustomStageEnemyOverride(enemyId: string) { updateStageSettings((draft) => { delete draft.custom.enemyHpBaseOverrides[enemyId]; delete draft.custom.enemyHpMultipliers[enemyId]; }); }
+function setCustomStageEnemyStagger(enemyId: string, value: number) { updateStageSettings((draft) => { draft.custom.enemyStaggerOverrides[enemyId] = Math.max(1, Math.round(value || 1)); }); }
+function addCustomStageEnemyOverride() { const enemy = props.enemies.find((entry) => entry.id === stageOverrideEnemyId.value); if (enemy) updateStageSettings((draft) => { draft.custom.enemyHpBaseOverrides[enemy.id] ??= enemy.baseHpLv1; draft.custom.enemyHpMultipliers[enemy.id] ??= 1; draft.custom.enemyStaggerOverrides[enemy.id] ??= enemy.staggerGauge; }); }
+function removeCustomStageEnemyOverride(enemyId: string) { updateStageSettings((draft) => { delete draft.custom.enemyHpBaseOverrides[enemyId]; delete draft.custom.enemyHpMultipliers[enemyId]; delete draft.custom.enemyStaggerOverrides[enemyId]; }); }
 function enemyDisplayName(enemyId: string) { const enemy = props.enemies.find((entry) => entry.id === enemyId); return getEnemyDisplayName(enemyId, enemy?.name ?? enemyId, locale.value as "en" | "zh-CN"); }
 function selectPresetStage(id: StagePresetId = NO_STAGE_ID) { updateStageSettings((draft) => { draft.mode = "preset"; draft.presetId = id; }); }
 function selectCustomStage(id: string) { updateStageSettings((draft) => { draft.mode = "custom"; draft.customStageId = id; }); }
@@ -482,13 +487,6 @@ const triggersPopupOpen = computed({
   get: () => props.triggersPopupOpen === true,
   set: (value: boolean) => emit("update:triggersPopupOpen", value),
 });
-const hasBlockingPopupOpen = computed(() =>
-  consumablePickerOpen.value
-  || enemyPickerOpen.value
-  || contractsPopupOpen.value
-  || triggersPopupOpen.value
-  || stageWorkspacePopupOpen.value,
-);
 const activeSchemeIndex = computed(() =>
   rotationSchemes.value.schemes.findIndex((scheme) => scheme.id === activeScheme.value.id),
 );
@@ -585,19 +583,10 @@ function syncSchemeRelayDisplayOffset(
       ...step,
       startTime: typeof step.startTime === "number" ? step.startTime + deltaTime : step.startTime,
     }));
-    if (scheme.enemyCommandsBySlot && typeof scheme.enemyCommandsBySlot === "object") {
-      scheme.enemyCommandsBySlot = Object.fromEntries(
-        Object.entries(scheme.enemyCommandsBySlot).map(([slotId, placements]) => [
-          slotId,
-          Array.isArray(placements)
-            ? placements.map((placement) => ({
-                ...placement,
-                startTime: Number.isFinite(placement.startTime) ? placement.startTime + deltaTime : placement.startTime,
-              }))
-            : [],
-        ]),
-      );
-    }
+    scheme.rotation.enemySteps = (scheme.rotation.enemySteps ?? []).map((step) => ({
+      ...step,
+      startTime: Number.isFinite(step.startTime) ? step.startTime + deltaTime : step.startTime,
+    }));
   }
 
   scheme.relayDisplayTimeOffset = nextDisplayTimeOffset;
@@ -863,10 +852,16 @@ const activeCustomTriggerVariables = computed<TriggerVariableDefinition[]>(() =>
   return normalizeCustomTriggerVariables(scheme.triggerVariables ?? []);
 });
 const activeInternalTriggers = computed<CustomCombatTrigger[]>(() =>
-  getActiveInternalCombatTriggers(activeContingencyContracts.value),
+  getActiveInternalCombatTriggers(
+    resolvedStageSettings.value.internalCombatTriggerDefinitions,
+    activeContingencyContracts.value,
+  ),
 );
 const activeInternalTriggerVariables = computed<TriggerVariableDefinition[]>(() =>
-  getActiveInternalTriggerVariables(activeContingencyContracts.value),
+  getActiveInternalTriggerVariables(
+    resolvedStageSettings.value.internalCombatTriggerDefinitions,
+    activeContingencyContracts.value,
+  ),
 );
 const activeTriggerVariables = computed<TriggerVariableDefinition[]>(() =>
   getAllTriggerVariables(activeCustomTriggerVariables.value),
@@ -1472,8 +1467,10 @@ function makeDefaultTriggerActionByType(actionType: TriggerAction["type"]): Trig
     ? makeDefaultRemoveStatusAction()
     : actionType === "REPLACE_ENEMY"
       ? makeDefaultReplaceEnemyAction()
-        : actionType === "MODIFY_HP"
-          ? makeDefaultModifyHpAction()
+      : actionType === "MODIFY_ENEMY"
+        ? makeDefaultModifyEnemyAction()
+        : actionType === "MODIFY_OPERATOR"
+          ? makeDefaultModifyOperatorAction()
           : actionType === "MODIFY_VARIABLE"
             ? makeDefaultModifyVariableAction()
         : actionType === "SET_TARGET_ENEMY"
@@ -1767,7 +1764,7 @@ function getTriggerActionTargetOption(action: TriggerAction): "event_operator" |
   if (!hasTriggerActionTarget(action)) {
     return "event_operator";
   }
-  if (action.type === "REPLACE_ENEMY" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT") {
+  if (action.type === "REPLACE_ENEMY" || action.type === "MODIFY_ENEMY" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT") {
     if (action.target.type === "enemy_from_group") {
       return "event_enemy_group_member";
     }
@@ -1804,7 +1801,7 @@ function setTriggerActionTargetOption(action: TriggerAction, option: string) {
   if (!hasTriggerActionTarget(action)) {
     return;
   }
-  if (action.type === "REPLACE_ENEMY" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT") {
+  if (action.type === "REPLACE_ENEMY" || action.type === "MODIFY_ENEMY" || action.type === "SET_TARGET_ENEMY" || action.type === "EXECUTE_HIT") {
     if (option === "current_enemy") { action.target = { type: "current_enemy" }; return; }
     if (option === "event_enemy_target") {
       action.target = { type: "alias_enemy", alias: "event_enemy_target" };
@@ -2161,8 +2158,12 @@ function isReplaceEnemyTriggerAction(action: TriggerAction): action is Extract<T
   return action.type === "REPLACE_ENEMY";
 }
 
-function isModifyHpTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "MODIFY_HP" }> {
-  return action.type === "MODIFY_HP";
+function isModifyEnemyTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "MODIFY_ENEMY" }> {
+  return action.type === "MODIFY_ENEMY";
+}
+
+function isModifyOperatorTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "MODIFY_OPERATOR" }> {
+  return action.type === "MODIFY_OPERATOR";
 }
 
 function isSetTargetEnemyTriggerAction(action: TriggerAction): action is Extract<TriggerAction, { type: "SET_TARGET_ENEMY" }> {
@@ -2263,9 +2264,16 @@ function getTriggerActionPrimarySummary(action: TriggerAction) {
     }
     return `${getEnemyDisplayName(enemy.id, enemy.name, locale.value as "en" | "zh-CN")} Lv${getTriggerActionReplaceEnemyLevel(action)}`;
   }
-  if (action.type === "MODIFY_HP") {
-    const amount = action.amount.type === "number_literal" ? action.amount.value : 0;
-    return `${action.operation === "heal" ? (locale.value === "zh-CN" ? "治疗" : "Heal") : (locale.value === "zh-CN" ? "伤害" : "Damage")} ${amount}`;
+  if (action.type === "MODIFY_ENEMY") {
+    const format = (field: "hp" | "stagger") => {
+      const modification = action[field];
+      const value = modification.value.type === "number_literal" ? modification.value.value : 0;
+      return `${modification.operation.toUpperCase()} ${value}${modification.mode === "percent" ? "%" : ""}`;
+    };
+    return `HP ${format("hp")} · ${locale.value === "zh-CN" ? "失衡" : "Stagger"} ${format("stagger")}`;
+  }
+  if (action.type === "MODIFY_OPERATOR") {
+    return locale.value === "zh-CN" ? "修改生命值 / 能量" : "Modify HP / Energy";
   }
   if (action.type === "MODIFY_VARIABLE") {
     const variable = activeTriggerVariables.value.find((entry) => entry.id === action.variableId);
@@ -2317,29 +2325,50 @@ function getTriggerActionPrimarySummary(action: TriggerAction) {
   return getTriggerStatusLabel(getTriggerActionStatusId(action));
 }
 
-function getTriggerActionHpOperation(action: TriggerAction) {
-  return isModifyHpTriggerAction(action) ? action.operation : "damage";
+function getTriggerActionEnemyModificationOperation(action: TriggerAction, field: "hp" | "stagger") {
+  return isModifyEnemyTriggerAction(action) ? action[field].operation : "add";
 }
 
-function setTriggerActionHpOperation(action: TriggerAction, operation: "damage" | "heal") {
-  if (!isModifyHpTriggerAction(action)) {
-    return;
-  }
-  action.operation = operation;
+function getTriggerActionOperatorModificationOperation(action: TriggerAction, field: "hp" | "energy") {
+  return isModifyOperatorTriggerAction(action) ? action[field].operation : "add";
+}
+function setTriggerActionOperatorModificationOperation(action: TriggerAction, field: "hp" | "energy", value: "add" | "set") {
+  if (isModifyOperatorTriggerAction(action)) action[field].operation = value;
+}
+function getTriggerActionOperatorModificationMode(action: TriggerAction, field: "hp" | "energy") {
+  return isModifyOperatorTriggerAction(action) ? action[field].mode : "flat";
+}
+function setTriggerActionOperatorModificationMode(action: TriggerAction, field: "hp" | "energy", value: "flat" | "percent") {
+  if (isModifyOperatorTriggerAction(action)) action[field].mode = value;
+}
+function getTriggerActionOperatorModificationValue(action: TriggerAction, field: "hp" | "energy") {
+  const expression = isModifyOperatorTriggerAction(action) ? action[field].value : null;
+  return expression?.type === "number_literal" ? expression.value : 0;
+}
+function setTriggerActionOperatorModificationValue(action: TriggerAction, field: "hp" | "energy", value: number) {
+  if (isModifyOperatorTriggerAction(action)) action[field].value = { type: "number_literal", value: Number.isFinite(value) ? value : 0 };
 }
 
-function getTriggerActionHpAmount(action: TriggerAction) {
-  return isModifyHpTriggerAction(action) && action.amount.type === "number_literal" ? action.amount.value : 0;
+function setTriggerActionEnemyModificationOperation(action: TriggerAction, field: "hp" | "stagger", value: "add" | "set") {
+  if (isModifyEnemyTriggerAction(action)) action[field].operation = value;
 }
 
-function setTriggerActionHpAmount(action: TriggerAction, value: number) {
-  if (!isModifyHpTriggerAction(action)) {
-    return;
-  }
-  action.amount = {
-    type: "number_literal",
-    value: Math.max(0, Number.isFinite(value) ? value : 0),
-  };
+function getTriggerActionEnemyModificationMode(action: TriggerAction, field: "hp" | "stagger") {
+  return isModifyEnemyTriggerAction(action) ? action[field].mode : "flat";
+}
+
+function setTriggerActionEnemyModificationMode(action: TriggerAction, field: "hp" | "stagger", value: "flat" | "percent") {
+  if (isModifyEnemyTriggerAction(action)) action[field].mode = value;
+}
+
+function getTriggerActionEnemyModificationValue(action: TriggerAction, field: "hp" | "stagger") {
+  const expression = isModifyEnemyTriggerAction(action) ? action[field].value : null;
+  return expression?.type === "number_literal" ? expression.value : 0;
+}
+
+function setTriggerActionEnemyModificationValue(action: TriggerAction, field: "hp" | "stagger", value: number) {
+  if (!isModifyEnemyTriggerAction(action)) return;
+  action[field].value = { type: "number_literal", value: Number.isFinite(value) ? value : 0 };
 }
 
 function getTriggerActionExecuteHitName(action: TriggerAction) {
@@ -2636,10 +2665,10 @@ const stageSettingsVm = computed(() => ({
     else if (field === "initialEnergyPct") draft.initialEnergyPct = Math.max(0, Math.min(100, Number(value) || 0));
     else if (field === "disableConsumables") draft.disableConsumables = value === true;
   }),
-  enemyRows: [...new Set([...Object.keys(selectedStageDefinition.value.enemyHpBaseOverrides), ...Object.keys(selectedStageDefinition.value.enemyHpMultipliers)])].map((id) => ({ id, baseHp: selectedStageDefinition.value.enemyHpBaseOverrides[id], multiplier: selectedStageDefinition.value.enemyHpMultipliers[id] })),
-  addEnemyOverride: () => { const enemy = props.enemies.find((entry) => entry.id === stageOverrideEnemyId.value); if (enemy) updateSelectedCustomStage((draft) => { draft.enemyHpBaseOverrides[enemy.id] ??= enemy.baseHpLv1; draft.enemyHpMultipliers[enemy.id] ??= 1; }); },
-  updateEnemy: (id: string, field: string, value: number) => updateSelectedCustomStage((draft) => { if (field === "baseHp") draft.enemyHpBaseOverrides[id] = Math.max(1, Math.round(value || 1)); else draft.enemyHpMultipliers[id] = Math.max(0.01, value || 1); }),
-  removeEnemy: (id: string) => updateSelectedCustomStage((draft) => { delete draft.enemyHpBaseOverrides[id]; delete draft.enemyHpMultipliers[id]; }),
+  enemyRows: [...new Set([...Object.keys(selectedStageDefinition.value.enemyHpBaseOverrides), ...Object.keys(selectedStageDefinition.value.enemyHpMultipliers), ...Object.keys(selectedStageDefinition.value.enemyStaggerOverrides)])].map((id) => ({ id, baseHp: selectedStageDefinition.value.enemyHpBaseOverrides[id], multiplier: selectedStageDefinition.value.enemyHpMultipliers[id], stagger: selectedStageDefinition.value.enemyStaggerOverrides[id] })),
+  addEnemyOverride: () => { const enemy = props.enemies.find((entry) => entry.id === stageOverrideEnemyId.value); if (enemy) updateSelectedCustomStage((draft) => { draft.enemyHpBaseOverrides[enemy.id] ??= enemy.baseHpLv1; draft.enemyHpMultipliers[enemy.id] ??= 1; draft.enemyStaggerOverrides[enemy.id] ??= enemy.staggerGauge; }); },
+  updateEnemy: (id: string, field: string, value: number) => updateSelectedCustomStage((draft) => { if (field === "baseHp") draft.enemyHpBaseOverrides[id] = Math.max(1, Math.round(value || 1)); else if (field === "stagger") draft.enemyStaggerOverrides[id] = Math.max(1, Math.round(value || 1)); else draft.enemyHpMultipliers[id] = Math.max(0.01, value || 1); }),
+  removeEnemy: (id: string) => updateSelectedCustomStage((draft) => { delete draft.enemyHpBaseOverrides[id]; delete draft.enemyHpMultipliers[id]; delete draft.enemyStaggerOverrides[id]; }),
   stageScriptDraft: stageScriptDraft.value, stageScriptStatus: stageScriptStatus.value,
   setStageScript: (value: string) => { stageScriptDraft.value = value; }, copyStageScript, applyStageScript,
 }));
@@ -2756,10 +2785,18 @@ const triggersPopupVm = computed(() => ({
   setTriggerActionStatusId,
   getTriggerActionEnemyId,
   setTriggerActionEnemyId,
-  getTriggerActionHpOperation,
-  setTriggerActionHpOperation,
-  getTriggerActionHpAmount,
-  setTriggerActionHpAmount,
+  getTriggerActionOperatorModificationOperation,
+  setTriggerActionOperatorModificationOperation,
+  getTriggerActionOperatorModificationMode,
+  setTriggerActionOperatorModificationMode,
+  getTriggerActionOperatorModificationValue,
+  setTriggerActionOperatorModificationValue,
+  getTriggerActionEnemyModificationOperation,
+  setTriggerActionEnemyModificationOperation,
+  getTriggerActionEnemyModificationMode,
+  setTriggerActionEnemyModificationMode,
+  getTriggerActionEnemyModificationValue,
+  setTriggerActionEnemyModificationValue,
   getTriggerActionExecuteHitName,
   setTriggerActionExecuteHitName,
   getTriggerActionExecuteHitSource,
@@ -2848,21 +2885,24 @@ const enemyCommandDefinitions = computed(() =>
 );
 const enemyCommands = ref<EnemyCommandPlacement[]>([]);
 
+function getStoredEnemyCommandsForSlot(slotId: string): EnemyCommandPlacement[] {
+  return (activeScheme.value.rotation.enemySteps ?? [])
+    .filter((step) => step.enemySlotId === slotId)
+    .map(({ enemySlotId: _enemySlotId, ...placement }) => ({ ...placement }));
+}
+
+function setStoredEnemyCommandsForSlot(slotId: string, placements: EnemyCommandPlacement[]) {
+  const retained = (activeScheme.value.rotation.enemySteps ?? [])
+    .filter((step) => step.enemySlotId !== slotId);
+  activeScheme.value.rotation.enemySteps = [
+    ...retained,
+    ...placements.map((placement) => ({ ...placement, enemySlotId: slotId })),
+  ];
+}
+
 function ensureEnemyCommandsForActiveContext(): EnemyCommandPlacement[] {
-  if (!activeScheme.value.enemyCommandsBySlot) {
-    activeScheme.value.enemyCommandsBySlot = {};
-  }
   const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
-  const bySlot = activeScheme.value.enemyCommandsBySlot;
-
-  const existing = bySlot[slotId];
-  if (Array.isArray(existing)) {
-    return existing;
-  }
-
-  const defaults = getDefaultEnemyCommandPlacements(selectedEnemyEditorSlot.value?.enemyId ?? targetedEnemyId.value);
-  bySlot[slotId] = defaults.map((entry) => ({ ...entry }));
-  return bySlot[slotId]!;
+  return getStoredEnemyCommandsForSlot(slotId);
 }
 
 function syncEnemyCommandsFromLayouts() {
@@ -2891,10 +2931,7 @@ watch(
   enemyCommands,
   (value) => {
     const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
-    if (!activeScheme.value.enemyCommandsBySlot) {
-      activeScheme.value.enemyCommandsBySlot = {};
-    }
-    activeScheme.value.enemyCommandsBySlot[slotId] = value.map((entry) => ({ ...entry }));
+    setStoredEnemyCommandsForSlot(slotId, value);
   },
   { deep: true },
 );
@@ -2904,25 +2941,10 @@ const enemyTimelineCommands = computed(() =>
 );
 
 function getEnemyCommandsForSlot(slotId: string): EnemyCommandPlacement[] {
-  if (slotId === props.targetedEnemySlotId) {
+  if (slotId === (selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId)) {
     return enemyCommands.value;
   }
-  if (!activeScheme.value.enemyCommandsBySlot) {
-    activeScheme.value.enemyCommandsBySlot = {};
-  }
-  const existing = activeScheme.value.enemyCommandsBySlot[slotId];
-  if (Array.isArray(existing)) {
-    return existing;
-  }
-  const slot = getLogicalEnemySlotById(slotId);
-  const enemyId = slot?.enemyId ?? "";
-  if (!enemyId) {
-    activeScheme.value.enemyCommandsBySlot[slotId] = [];
-    return activeScheme.value.enemyCommandsBySlot[slotId]!;
-  }
-  const defaults = getDefaultEnemyCommandPlacements(enemyId).map((entry) => ({ ...entry }));
-  activeScheme.value.enemyCommandsBySlot[slotId] = defaults;
-  return activeScheme.value.enemyCommandsBySlot[slotId]!;
+  return getStoredEnemyCommandsForSlot(slotId);
 }
 
 function buildEnemyTimelineCommandsForSlot(slotId: string) {
@@ -3215,10 +3237,9 @@ function removeEnemySlot(slotId: string) {
 
 function selectEnemy(enemyId: string) {
   const slotId = selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId;
-  if (!activeScheme.value.enemyCommandsBySlot) {
-    activeScheme.value.enemyCommandsBySlot = {};
-  }
-  activeScheme.value.enemyCommandsBySlot[slotId] = getDefaultEnemyCommandPlacements(enemyId).map((entry) => ({ ...entry }));
+  const defaults = getDefaultEnemyCommandPlacements(enemyId).map((entry) => ({ ...entry }));
+  setStoredEnemyCommandsForSlot(slotId, defaults);
+  enemyCommands.value = defaults;
   if (!isConfiguredEnemySlot(slotId)) {
     configureEnemySlot(slotId, { enemyId });
   } else {
@@ -3286,11 +3307,17 @@ function updateSelectedEnemyNoDeath(enabled: boolean) {
 }
 
 const libraryCharacter = computed(() => partyBySlot.value.get(selectedLibrarySlot.value) ?? null);
-const visibleLibraryCommands = computed(() =>
-  sidebarMode.value === "character"
-    ? (libraryCharacter.value?.commands ?? []).filter((command) => !command.hiddenInLibrary)
-    : [],
-);
+const visibleLibraryCommands = computed(() => {
+  if (sidebarMode.value !== "character" || !libraryCharacter.value) return [];
+  const visible = libraryCharacter.value.commands.filter((command) => !command.hiddenInLibrary);
+  const readyCommandId = cursorCombatState.value.readyCommandBySlot.get(selectedLibrarySlot.value);
+  const readyCommand = readyCommandId
+    ? libraryCharacter.value.commands.find((command) => command.id === readyCommandId)
+    : null;
+  if (!readyCommand || visible.some((command) => command.id === readyCommand.id)) return visible;
+  const replaced = visible.map((command) => command.attackType === readyCommand.attackType ? readyCommand : command);
+  return replaced.some((command) => command.id === readyCommand.id) ? replaced : [...replaced, readyCommand];
+});
 const selectedSidebarTitle = computed(() =>
   sidebarMode.value === "enemy"
     ? (currentEnemyData.value ? getEnemyLocalizedName(currentEnemyData.value) : t("enemy.noEnemy"))
@@ -3510,7 +3537,9 @@ const libraryCharacterStatuses = computed<GroupedStatusDisplayItem[]>(() => {
       );
       items.push({
         label: debuffName,
-        details: `${(debuff.value * 100).toFixed(1)}%`,
+        details: debuff.stat.endsWith("_PCT")
+          ? `${(debuff.value * 100).toFixed(1)}%`
+          : debuff.value.toFixed(1),
         remainingSeconds,
         modifierEntries: [{
           key: debuff.stat,
@@ -3643,6 +3672,7 @@ function getCommandStateAtTime(
   simulationResult: RotationSimulationResult = simulation.value,
 ): {
   activeBuffIds: string[];
+  activeBuffStacks: Record<string, number>;
   meltingFlameStacks: number;
   finisherAvailable: boolean;
   enemyStatusIds: string[];
@@ -3658,8 +3688,13 @@ function getCommandStateAtTime(
       return baseId === buff.id ? [buff.id] : [buff.id, baseId];
     }),
   ));
+  const activeBuffStacks = Object.fromEntries(activeBuffIds.map((buffId) => [
+    buffId,
+    actorState.activeBuffs.filter((buff) => buff.id === buffId || buff.id.startsWith(`${buffId}:`)).length,
+  ]));
   return {
     activeBuffIds,
+    activeBuffStacks,
     meltingFlameStacks: actorState.meltingFlameStacks,
     finisherAvailable: getLogicalEnemySlots().some((enemySlot) =>
       getEnemyStateAtTime(simulationResult, realTime, enemySlot.slotId).activeStatuses.some(
@@ -3668,6 +3703,26 @@ function getCommandStateAtTime(
     enemyStatusIds: Array.from(new Set(enemyState.activeStatuses.map((status) => status.id))),
     canUseFinisherTransform: controlState.controlledSlot === slot,
   };
+}
+
+const typhoeusResourceStacksBySlot = computed(() => {
+  const stacksBySlot = new Map<PartySlot, { huntingArrows: number; signs: number }>();
+  for (const [slot, actor] of partyBySlot.value) {
+    if (actor.characterId !== "TYPHOEUS") continue;
+    const actorState = getActorStateAtTime(simulation.value, slot, cursorTime.value);
+    const countStacks = (buffId: string) => actorState.activeBuffs.filter(
+      (buff) => buff.id === buffId || buff.id.startsWith(`${buffId}:`),
+    ).length;
+    stacksBySlot.set(slot, {
+      huntingArrows: Math.min(4, countStacks(TYPHOEUS_HUNTING_ARROW_BUFF_ID)),
+      signs: Math.min(8, countStacks(TYPHOEUS_SIGN_BUFF_ID)),
+    });
+  }
+  return stacksBySlot;
+});
+
+function getTyphoeusResourceStacks(slot: PartySlot) {
+  return typhoeusResourceStacksBySlot.value.get(slot) ?? null;
 }
 
 const rotationGroups = computed(() => rotation.value.groups ?? []);
@@ -3900,7 +3955,7 @@ function getSchemeCustomTriggerVariables(scheme: typeof activeScheme.value): Tri
 function getSchemeEnemyActionWindows(scheme: typeof activeScheme.value) {
   const slotIds = new Set([
     ...props.enemySlots.map((slot) => slot.slotId),
-    ...Object.keys(scheme.enemyCommandsBySlot ?? {}),
+    ...(scheme.rotation.enemySteps ?? []).map((step) => step.enemySlotId),
   ]);
   return [...slotIds].flatMap((slotId) => {
     // Simulation inputs must not depend on simulatedEnemySlots: that output is
@@ -3910,8 +3965,9 @@ function getSchemeEnemyActionWindows(scheme: typeof activeScheme.value) {
     const enemyId = slot?.enemyId ?? "";
     return buildEnemyActionWindows(
       enemyId,
-      scheme.enemyCommandsBySlot?.[slotId]?.map((entry) => ({ ...entry }))
-        ?? getDefaultEnemyCommandPlacements(enemyId).map((entry) => ({ ...entry })),
+      (scheme.rotation.enemySteps ?? [])
+        .filter((step) => step.enemySlotId === slotId)
+        .map(({ enemySlotId: _enemySlotId, ...placement }) => ({ ...placement })),
     ).map((window) => ({
       ...window,
       enemySlotId: slotId,
@@ -3947,7 +4003,9 @@ function calculateSimulation(): RotationSimulationResult {
       battleStartConsumableIdsBySlot: stageConsumableIdsBySlot.value,
       enemyActionWindows: rebaseEnemyActionWindowsForSimulation(getSchemeEnemyActionWindows(activeScheme.value), 0),
       contingencyContracts: activeContingencyContracts.value,
+      internalCombatTriggerDefinitions: resolvedStageSettings.value.internalCombatTriggerDefinitions,
       enemyHpBaseOverrides: stageEnemyHpBaseOverrides.value,
+      enemyStaggerOverrides: stageEnemyStaggerOverrides.value,
       customTriggers: activeCustomTriggers.value,
       customTriggerVariables: activeCustomTriggerVariables.value,
     }).result;
@@ -3977,7 +4035,9 @@ function calculateSimulation(): RotationSimulationResult {
       battleStartConsumableIdsBySlot: stageConsumableIdsBySlot.value,
       enemyActionWindows: rebaseEnemyActionWindowsForSimulation(getSchemeEnemyActionWindows(activeScheme.value), 0),
       contingencyContracts: activeContingencyContracts.value,
+      internalCombatTriggerDefinitions: resolvedStageSettings.value.internalCombatTriggerDefinitions,
       enemyHpBaseOverrides: stageEnemyHpBaseOverrides.value,
+      enemyStaggerOverrides: stageEnemyStaggerOverrides.value,
       customTriggers: activeCustomTriggers.value,
       customTriggerVariables: activeCustomTriggerVariables.value,
     }).result;
@@ -4048,7 +4108,9 @@ function calculateSimulation(): RotationSimulationResult {
         : getTeamSpConfigForSchemeId(scheme.id).consumableBySlot,
       enemyActionWindows: getSchemeEnemyActionWindows(scheme),
       contingencyContracts: schemeContingencyContracts,
+      internalCombatTriggerDefinitions: schemeStage.internalCombatTriggerDefinitions,
       enemyHpBaseOverrides: getEnemyHpOverridesForStage(schemeStage),
+      enemyStaggerOverrides: schemeStage.enemyStaggerOverrides,
       customTriggers: schemeCustomTriggers,
       customTriggerVariables: schemeCustomTriggerVariables,
     };
@@ -4089,6 +4151,7 @@ function calculateSimulation(): RotationSimulationResult {
           battleStartConsumableIdsBySlot: makeDefaultTeamSpConfig().consumableBySlot,
           contingencyContracts: inheritedContingencyContracts,
           enemyHpBaseOverrides: getEnemyHpOverridesForStage(schemeStage),
+          enemyStaggerOverrides: schemeStage.enemyStaggerOverrides,
           customTriggers: inheritedCustomTriggers,
           customTriggerVariables: inheritedCustomTriggerVariables,
           initialState: buildInitialStateFromCheckpoint(
@@ -4223,7 +4286,7 @@ const visibleEnemySlots = computed(() => {
     }
   }
 
-  for (const slotId of Object.keys(activeScheme.value.enemyCommandsBySlot ?? {})) {
+  for (const slotId of new Set((activeScheme.value.rotation.enemySteps ?? []).map((step) => step.enemySlotId))) {
     const index = slotIndexById.get(slotId);
     if (index != null) {
       highestVisibleIndex = Math.max(highestVisibleIndex, index);
@@ -4397,10 +4460,15 @@ const gameSeconds = computed(() =>
     })).filter((entry) => entry.realTime >= timelineStart.value - 0.0001 && entry.realTime <= timelineDuration.value + 0.0001);
   })(),
 );
-const preBattleBandStyle = computed(() => ({
-  left: "0px",
-  width: `${Math.max(0, timeToPx(0))}px`,
-}));
+const preBattleBandStyle = computed(() => {
+  const zeroPosition = Math.max(0, Math.min(timelineWidth.value, (0 - timelineStart.value) * axisScale.value));
+  return {
+    left: "0px",
+    width: `${zeroPosition}px`,
+    backgroundColor: "rgba(105, 169, 235, 0.30)",
+    borderRight: zeroPosition > 0 ? "1px solid rgba(61, 116, 176, 0.38)" : "none",
+  };
+});
 const relayInheritedBandStyle = computed(() => {
   if (!isActiveSchemeRelayed.value) {
     return { left: "0px", width: "0px" };
@@ -5162,6 +5230,28 @@ function getLocalizedCommandName(
   if (!command) {
     return fallbackName ?? "";
   }
+  if (command.id === "typhoeus_aerial_basic_attack") {
+    return "ABA";
+  }
+  if (command.id === "typhoeus_power_shot" || command.id === "typhoeus_aerial_final_strike") {
+    return currentLocale() === "zh-CN" ? "强力射击" : "Power Shot";
+  }
+  if (characterId === "ARCANE" || command.id.startsWith("arcane_")) {
+    const names: Record<string, { en: string; zh: string }> = {
+      arcane_battle_skill: { en: "Jadecrushing Grid", zh: "摧玉网格" },
+      arcane_battle_skill_int: { en: "Jadecrushing Grid: INT", zh: "摧玉网格：智" },
+      arcane_battle_skill_will: { en: "Jadecrushing Grid: WILL", zh: "摧玉网格：意" },
+      arcane_combo_skill_int: { en: "Yinglung Stance IV: INT", zh: "应龙四式：智" },
+      arcane_combo_skill_will: { en: "Yinglung Stance IV: WILL", zh: "应龙四式：意" },
+      arcane_ultimate: { en: "Gloompurge", zh: "破晦" },
+      arcane_ultimate_int: { en: "Gloompurge: INT", zh: "破晦：智" },
+      arcane_ultimate_will: { en: "Gloompurge: WILL", zh: "破晦：意" },
+      arcane_gloompurge_arcana_int: { en: "Gloompurge Arcana: INT", zh: "破晦诀明：智" },
+      arcane_gloompurge_arcana_will: { en: "Gloompurge Arcana: WILL", zh: "破晦诀明：意" },
+    };
+    const localized = names[command.id];
+    if (localized) return currentLocale() === "zh-CN" ? localized.zh : localized.en;
+  }
   if (command.id === "alesh_combo_skill_rare_fin") {
     return currentLocale() === "zh-CN"
       ? "（珍鳞）凿孔底钓术"
@@ -5266,6 +5356,11 @@ function getPrimaryCommandForSlot(
   if (!actor) {
     return null;
   }
+  const readyCommandId = cursorCombatState.value.readyCommandBySlot.get(slot);
+  const readyCommand = readyCommandId
+    ? actor.commands.find((command) => command.id === readyCommandId && command.attackType === attackType)
+    : null;
+  if (readyCommand) return readyCommand;
   const visible = actor.commands.filter((command) => command.attackType === attackType && !command.hiddenInLibrary);
   const all = actor.commands.filter((command) => command.attackType === attackType);
   const candidates = visible.length > 0 ? visible : all;
@@ -5331,14 +5426,14 @@ function getInsertionSlotForCommand(baseSlot: PartySlot, commandId: string, star
   if (command.genericActionType === "switch") {
     return baseSlot;
   }
-  if (command.attackType === "BASIC_ATTACK" || command.requiresControlledOperator) {
+  if (command.requiresControlledOperator) {
     return currentControlState.value.controlledSlot;
   }
   return baseSlot;
 }
 
-function executeControlledBasicAttack() {
-  const slot = currentControlState.value.controlledSlot;
+function executeSelectedBasicAttack() {
+  const slot = selectedLibrarySlot.value;
   const command = getPrimaryCommandForSlot(slot, "BASIC_ATTACK");
   if (!command) {
     return;
@@ -5462,6 +5557,7 @@ function getSimpleComboCooldownLabel(slot: PartySlot): string {
 }
 
 function getSimpleUltimateEnergyRatio(slot: PartySlot): number {
+  if (cursorCombatState.value.readyUltimateSlots.has(slot)) return 1;
   const display = partyDisplay.value.find((entry) => entry.slot === slot);
   if (!display || display.ultimateMaxEnergy <= 0) {
     return 0;
@@ -5471,6 +5567,7 @@ function getSimpleUltimateEnergyRatio(slot: PartySlot): number {
 }
 
 function isSimpleUltimateReady(slot: PartySlot): boolean {
+  if (cursorCombatState.value.readyUltimateSlots.has(slot)) return true;
   const display = partyDisplay.value.find((entry) => entry.slot === slot);
   if (!display || display.ultimateMaxEnergy <= 0) {
     return false;
@@ -5484,35 +5581,29 @@ const controlTimeline = computed(() => {
   const markers: ControlSwitchMarker[] = [];
   let controlledSlot: PartySlot = getInitialControlledOperatorSlotForSimulation(simulation.value);
   let segmentStart = timelineStart.value;
-  const switchBackLockedUntilBySlot = getInitialSwitchBackLockedUntilBySlotForSimulation(simulation.value);
+  const successfulSwitches = simulation.value.events.filter((event) =>
+    event.type === "OPERATOR_SWITCHED" && event.slot != null && event.stepId,
+  );
 
-  for (const action of getAuthoredSwitchActions()) {
-    if (action.slot === controlledSlot) {
-      continue;
-    }
-
-    const lockedUntil = switchBackLockedUntilBySlot.get(action.slot) ?? NO_SWITCH_LOCK_UNTIL;
-    if (action.realStartTime < lockedUntil - 0.001) {
-      continue;
-    }
+  for (const event of successfulSwitches) {
+    const action = simulation.value.actions.find((entry) => entry.stepId === event.stepId);
+    if (!action) continue;
 
     segments.push({
       slot: controlledSlot,
       startTime: segmentStart,
-      endTime: action.realStartTime,
+      endTime: event.time,
     });
 
     markers.push({
       stepId: action.stepId,
-      slot: action.slot,
+      slot: event.slot!,
       previousSlot: controlledSlot,
-      time: action.realStartTime,
+      time: event.time,
     });
 
-    const previousControlledSlot = controlledSlot;
-    controlledSlot = action.slot;
-    segmentStart = action.realStartTime;
-    switchBackLockedUntilBySlot.set(previousControlledSlot, action.realStartTime + SWITCH_BACK_COOLDOWN_SECONDS);
+    controlledSlot = event.slot!;
+    segmentStart = event.time;
   }
 
   segments.push({
@@ -5713,6 +5804,20 @@ function getCommandForAction(action: RotationSimulationResult["actions"][number]
     ?? null;
 }
 
+function getCommandForActionAtInputBoundary(action: RotationSimulationResult["actions"][number]) {
+  const actor = partyBySlot.value.get(action.slot);
+  if (!actor) {
+    return null;
+  }
+  // One-use transform buffs can be consumed by the command's initial effects
+  // at this exact timestamp. Resource costs must use the state that accepted
+  // the input, immediately before those effects run.
+  const commandState = getCommandStateAtTime(action.slot, action.realStartTime - 0.0001);
+  return resolveCommandTransform(actor.commands, action.commandId, commandState)
+    ?? getRawCommandForAction(action)
+    ?? null;
+}
+
 function getActiveTargetedEnemySlotAtRealTime(
   targetTime: number,
   simulationResult: RotationSimulationResult = simulation.value,
@@ -5733,25 +5838,16 @@ function getControlStateAtRealTime(
   targetTime: number,
   simulationResult: RotationSimulationResult = simulation.value,
 ): ControlStateSnapshot {
-  const switchActions = getAuthoredSwitchActions()
-    .filter((action) => action.realStartTime <= targetTime);
-
   let controlledSlot: PartySlot = getInitialControlledOperatorSlotForSimulation(simulationResult);
   const switchBackLockedUntilBySlot = getInitialSwitchBackLockedUntilBySlotForSimulation(simulationResult);
 
-  for (const action of switchActions) {
-    if (action.slot === controlledSlot) {
-      continue;
+  for (const event of simulationResult.events) {
+    if (event.time > targetTime + 0.0001) break;
+    if (event.type !== "OPERATOR_SWITCHED" || event.slot == null) continue;
+    if (event.sourceSlot != null) {
+      switchBackLockedUntilBySlot.set(event.sourceSlot, event.time + SWITCH_BACK_COOLDOWN_SECONDS);
     }
-
-    const lockedUntil = switchBackLockedUntilBySlot.get(action.slot) ?? NO_SWITCH_LOCK_UNTIL;
-    if (action.realStartTime < lockedUntil - 0.001) {
-      continue;
-    }
-
-    const previousControlledSlot = controlledSlot;
-    controlledSlot = action.slot;
-    switchBackLockedUntilBySlot.set(previousControlledSlot, action.realStartTime + SWITCH_BACK_COOLDOWN_SECONDS);
+    controlledSlot = event.slot;
   }
 
   return {
@@ -5807,7 +5903,19 @@ function addPassiveSpRegenSegment(
     return;
   }
 
-  const slotZeroStates = simulationResult.actorStateTimeline.filter((state) => state.slot === 0 && state.time <= end);
+  // Only the latest state at/before this interval and state changes inside it
+  // can affect passive SP regen. Scanning the full inherited history here is
+  // especially expensive because cast validation calls this for every action.
+  const actorStates = simulationResult.actorStateTimeline;
+  const endIndex = upperBoundByTime(actorStates, end);
+  const slotZeroStatesReversed: ActorCombatStateSnapshot[] = [];
+  for (let index = endIndex - 1; index >= 0; index -= 1) {
+    const entry = actorStates[index]!;
+    if (entry.slot !== 0) continue;
+    slotZeroStatesReversed.push(entry);
+    if (entry.time <= start + 0.0001) break;
+  }
+  const slotZeroStates = slotZeroStatesReversed.reverse();
   const statusExpiryTimes = slotZeroStates.flatMap((state) => state.activeTeamStatuses
     .filter((status) => status.id === "team_encumbered" || status.id === "team_encumbered_suppression")
     .map((status) => status.timeScale === "real"
@@ -5867,13 +5975,14 @@ function hasNoEnergyGainBuffAtTime(args: {
   time: number;
   actorStates: ActorCombatStateSnapshot[];
 }): boolean {
-  const latest = [...args.actorStates]
-    .filter((state) => state.slot === args.slot && state.time <= args.time + 0.0001)
-    .sort((a, b) => b.time - a.time)[0];
-  if (!latest) {
-    return false;
+  const endIndex = upperBoundByTime(args.actorStates, args.time);
+  for (let index = endIndex - 1; index >= 0; index -= 1) {
+    const state = args.actorStates[index]!;
+    if (state.slot === args.slot) {
+      return state.activeBuffs.some((buff) => buff.id === "no_energy_gain");
+    }
   }
-  return latest.activeBuffs.some((buff) => buff.id === "no_energy_gain");
+  return false;
 }
 
 function canGainEnergyFromSource(args: {
@@ -6006,12 +6115,18 @@ type CursorResourceEvent =
   }
   | { time: number; type: "bonus-return"; amount: number }
   | { time: number; type: "bonus-generated"; amount: number }
-  | { time: number; type: "skill-return"; amount: number };
+  | { time: number; type: "skill-return"; amount: number }
+  | { time: number; type: "energy-modified"; slot: PartySlot; amount: number; operation: "add" | "set"; mode: "flat" | "percent" };
 
 const compiledCursorResourceEvents = computed<CursorResourceEvent[]>(() => {
   const events: CursorResourceEvent[] = [];
+  const successfulSwitchStepIds = new Set(
+    simulation.value.events
+      .filter((event) => event.type === "OPERATOR_SWITCHED" && event.stepId)
+      .map((event) => event.stepId!),
+  );
   for (const action of simulation.value.actions) {
-    const command = getRawCommandForAction(action);
+    const command = getCommandForActionAtInputBoundary(action);
     if (!command || action.nullified) continue;
     events.push({
       time: action.realStartTime,
@@ -6020,7 +6135,7 @@ const compiledCursorResourceEvents = computed<CursorResourceEvent[]>(() => {
       spCost: command.spCost,
       energyCost: command.energyCost,
       commandAttackType: command.attackType,
-      isSwitch: command.genericActionType === "switch",
+      isSwitch: command.genericActionType === "switch" && successfulSwitchStepIds.has(action.stepId),
     });
     if (!action.interrupted) {
       events.push({
@@ -6056,7 +6171,11 @@ const compiledCursorResourceEvents = computed<CursorResourceEvent[]>(() => {
   for (const event of getBonusSpGeneratedEventsForSimulation(simulation.value)) {
     events.push({ time: event.time, type: "bonus-generated", amount: event.amount });
   }
-  const order = { "action-start": 0, "bonus-return": 1, "bonus-generated": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
+  for (const event of simulation.value.events) {
+    if (event.type !== "ULTIMATE_ENERGY_MODIFIED" || event.slot == null || !Number.isFinite(event.amount)) continue;
+    events.push({ time: event.time, type: "energy-modified", slot: event.slot, amount: event.amount ?? 0, operation: event.resourceOperation === "set" ? "set" : "add", mode: event.resourceMode === "percent" ? "percent" : "flat" });
+  }
+  const order = { "action-start": 0, "energy-modified": 1, "bonus-return": 1, "bonus-generated": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
   return events.sort((left, right) => left.time - right.time || order[left.type] - order[right.type]);
 });
 
@@ -6066,6 +6185,21 @@ const compiledCursorDamageTimeline = computed(() => {
     time: entry.time,
     total: (total += entry.damage),
   }));
+});
+
+const comboActionsBySlotAndCommand = computed(() => {
+  const indexed = new Map<string, Array<{ time: number; action: RotationSimulationResult["actions"][number] }>>();
+  for (const action of simulation.value.actions) {
+    const actor = partyBySlot.value.get(action.slot);
+    const command = actor?.commands.find((entry) => entry.id === action.commandId);
+    if (command?.attackType !== "COMBO_SKILL") continue;
+    const key = `${action.slot}:${action.commandId}`;
+    const entries = indexed.get(key) ?? [];
+    entries.push({ time: action.realStartTime, action });
+    indexed.set(key, entries);
+  }
+  for (const entries of indexed.values()) entries.sort((left, right) => left.time - right.time);
+  return indexed;
 });
 
 function upperBoundByTime<T extends { time: number }>(entries: T[], targetTime: number): number {
@@ -6133,6 +6267,11 @@ function buildSimulationResourceStateAtTime(simulationResult: RotationSimulation
       if (event.isSwitch) {
         controlledSlot = event.slot;
       }
+    } else if (event.type === "energy-modified") {
+      const maxEnergy = energyMaxBySlot.get(event.slot) ?? 0;
+      const currentEnergy = energyBySlot.get(event.slot) ?? 0;
+      const operand = event.mode === "percent" ? maxEnergy * event.amount / 100 : event.amount;
+      energyBySlot.set(event.slot, Math.max(0, Math.min(maxEnergy, event.operation === "set" ? operand : currentEnergy + operand)));
     }
 
     if (event.type === "action-end") {
@@ -6289,6 +6428,8 @@ const cursorCombatState = computed(() => {
   const energyBySlot = resourceState.energyBySlot;
   const energyMaxBySlot = resourceState.energyMaxBySlot;
   const comboBySlot = new Map<PartySlot, { readyRatio: number; label: string; mode?: "normal" | "triggered" | "perfect_window" | "executing" }>();
+  const readyCommandBySlot = new Map<PartySlot, string>();
+  const readyUltimateSlots = new Set<PartySlot>();
   for (const display of partyDisplay.value) {
     comboBySlot.set(display.slot, { readyRatio: 1, label: t("rotation.ready"), mode: "normal" });
   }
@@ -6339,19 +6480,41 @@ const cursorCombatState = computed(() => {
       continue;
     }
 
-    const comboAction = [...simulation.value.actions]
-      .filter(
-        (action) =>
-          action.slot === display.slot &&
-          comboLineageIds.has(action.commandId) &&
-          action.realStartTime <= targetTime + 0.001,
-      )
-      .sort((a, b) => b.realStartTime - a.realStartTime)[0];
+    const comboActionCandidates = (display.actor?.commands ?? [])
+      .filter((command) => command.attackType === "COMBO_SKILL")
+      .map((command) => {
+        const indexedActions = comboActionsBySlotAndCommand.value.get(`${display.slot}:${command.id}`) ?? [];
+        const actionIndex = upperBoundByTime(indexedActions, targetTime) - 1;
+        const action = actionIndex >= 0 ? indexedActions[actionIndex]?.action : undefined;
+        if (!action) return null;
+        const cooldown = action.resolvedComboCooldownSeconds ?? command.comboCooldownSeconds ?? 0;
+        const cooldownStartTimes = getComboCooldownStartTimes({ slot: display.slot, command, action });
+        const cooldownStart = command.comboCooldownTimeScale === "real"
+          ? cooldownStartTimes.real
+          : cooldownStartTimes.game;
+        const cooldownNow = command.comboCooldownTimeScale === "real" ? targetTime : currentGameTime;
+        return { action, command, remaining: Math.max(0, cooldownStart + cooldown - cooldownNow) };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry != null);
+    const activeComboAction = comboActionCandidates
+      .filter((entry) => entry.remaining > 0.0001)
+      .sort((a, b) => b.remaining - a.remaining || b.action.realStartTime - a.action.realStartTime)[0];
+    const fallbackComboAction = [...comboActionCandidates]
+      .sort((a, b) => b.action.realStartTime - a.action.realStartTime)[0];
+    const selectedComboAction = activeComboAction ?? fallbackComboAction;
+    const comboAction = selectedComboAction?.action;
+    const cooldownCommand = selectedComboAction?.command ?? comboCommand;
 
     if (!comboAction) {
+      const inheritedComboCommand = (display.actor?.commands ?? [])
+        .filter((command) =>
+          command.attackType === "COMBO_SKILL"
+          && (command.comboCooldownOwnerCommandId ?? command.id) === command.id)
+        .sort((left, right) => right.comboCooldownSeconds - left.comboCooldownSeconds)[0]
+        ?? comboCommand;
       const inheritedCooldownState = getInheritedComboCooldownStateAtTime({
         slot: display.slot,
-        comboCommand,
+        comboCommand: inheritedComboCommand,
         targetTime,
         currentGameTime,
       });
@@ -6360,7 +6523,7 @@ const cursorCombatState = computed(() => {
           ? Math.max(0, inheritedCooldownState.pendingCooldown.durationSeconds)
           : Math.max(0, inheritedCooldownState.cooldownUntil - inheritedCooldownState.currentTime);
         const totalDuration = inheritedCooldownState.pendingCooldown?.durationSeconds
-          ?? comboCommand?.comboCooldownSeconds
+          ?? inheritedComboCommand?.comboCooldownSeconds
           ?? 0;
         const progress = totalDuration > 0
           ? Math.min(1, Math.max(0, 1 - remaining / totalDuration))
@@ -6377,7 +6540,7 @@ const cursorCombatState = computed(() => {
     }
 
     if (
-      comboCommand?.comboCooldownStartsAt === "end"
+      cooldownCommand?.comboCooldownStartsAt === "end"
       && comboAction.realStartTime <= targetTime
       && targetTime < comboAction.realEndTime
       && !comboAction.interrupted
@@ -6387,13 +6550,13 @@ const cursorCombatState = computed(() => {
     }
 
     const cooldown = comboAction.resolvedComboCooldownSeconds
-      ?? comboCommand?.comboCooldownSeconds
+      ?? cooldownCommand?.comboCooldownSeconds
       ?? 0;
-    const cooldownTimeScale = comboCommand?.comboCooldownTimeScale ?? "real";
-    const cooldownStartTimes = comboCommand
+    const cooldownTimeScale = cooldownCommand?.comboCooldownTimeScale ?? "real";
+    const cooldownStartTimes = cooldownCommand
       ? getComboCooldownStartTimes({
         slot: display.slot,
-        command: comboCommand,
+        command: cooldownCommand,
         action: comboAction,
       })
       : { real: comboAction.realStartTime, game: comboAction.startTime };
@@ -6414,6 +6577,18 @@ const cursorCombatState = computed(() => {
     });
   }
 
+  for (const display of partyDisplay.value) {
+    const actorState = getActorStateAtTime(simulation.value, display.slot, targetTime);
+    const readyCommandId = actorState.activeBuffs.find((buff) => buff.readyCommandId)?.readyCommandId;
+    if (!readyCommandId) continue;
+    readyCommandBySlot.set(display.slot, readyCommandId);
+    const readyCommand = display.actor?.commands.find((command) => command.id === readyCommandId);
+    if (readyCommand?.attackType === "ULTIMATE") readyUltimateSlots.add(display.slot);
+    if (readyCommand?.attackType === "COMBO_SKILL") {
+      comboBySlot.set(display.slot, { readyRatio: 1, label: t("rotation.ready"), mode: "triggered" });
+    }
+  }
+
   return {
     cursorTime: targetTime,
     cursorGameTime: currentGameTime,
@@ -6423,6 +6598,8 @@ const cursorCombatState = computed(() => {
     totalDamage,
     stagger: currentEnemyState.value.currentStagger,
     energyBySlot,
+    readyCommandBySlot,
+    readyUltimateSlots,
     comboBySlot,
   };
 });
@@ -6446,6 +6623,7 @@ const actionValidationByStep = computed(() => {
     | { time: number; type: "bonus-return"; amount: number }
     | { time: number; type: "bonus-generated"; amount: number }
     | { time: number; type: "skill-return"; amount: number }
+    | { time: number; type: "energy-modified"; slot: PartySlot; amount: number; operation: "add" | "set"; mode: "flat" | "percent" }
   > = [];
 
   for (const action of simulation.value.actions) {
@@ -6469,13 +6647,17 @@ const actionValidationByStep = computed(() => {
   for (const event of bonusSpGeneratedEvents.value) {
     validationEvents.push({ time: event.time, type: "bonus-generated", amount: event.amount });
   }
+  for (const event of simulation.value.events) {
+    if (event.type !== "ULTIMATE_ENERGY_MODIFIED" || event.slot == null || !Number.isFinite(event.amount)) continue;
+    validationEvents.push({ time: event.time, type: "energy-modified", slot: event.slot, amount: event.amount ?? 0, operation: event.resourceOperation === "set" ? "set" : "add", mode: event.resourceMode === "percent" ? "percent" : "flat" });
+  }
 
   validationEvents.sort((a, b) => {
     if (a.time !== b.time) {
       return a.time - b.time;
     }
 
-    const order = { "action-start": 0, "bonus-return": 1, "bonus-generated": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
+    const order = { "action-start": 0, "energy-modified": 1, "bonus-return": 1, "bonus-generated": 1, "skill-return": 1, hit: 2, "action-end": 3 } as const;
     return order[a.type] - order[b.type];
   });
 
@@ -6485,50 +6667,6 @@ const actionValidationByStep = computed(() => {
   let lastSpTime = simulation.value.displayTimeOffset !== 0
     ? 0
     : Math.min(0, timelineStart.value);
-  const validationEndTime = validationEvents[validationEvents.length - 1]?.time ?? lastSpTime;
-  const slotZeroStates = simulation.value.actorStateTimeline
-    .filter((state) => state.slot === 0 && state.time <= validationEndTime + 0.0001)
-    .sort((left, right) => left.time - right.time);
-  const validationBoundaryTimes = [...new Set([
-    lastSpTime,
-    ...slotZeroStates.flatMap((state) => [
-      state.time,
-      ...state.activeTeamStatuses
-        .filter((status) => status.id === "team_encumbered" || status.id === "team_encumbered_suppression")
-        .map((status) => status.timeScale === "real"
-          ? status.expiresAt
-          : toRealTimeFromExtensions(status.expiresAt, simulation.value.timeExtensions)),
-    ]),
-    validationEndTime,
-  ])]
-    .filter((time) => Number.isFinite(time) && time >= lastSpTime - 0.0001 && time <= validationEndTime + 0.0001)
-    .sort((left, right) => left - right);
-  const validationSpSegments: Array<{ start: number; end: number; blocked: boolean }> = [];
-  let validationStateIndex = -1;
-  for (let index = 0; index < validationBoundaryTimes.length - 1; index += 1) {
-    const start = validationBoundaryTimes[index]!;
-    const end = validationBoundaryTimes[index + 1]!;
-    if (end <= start + 0.0001) {
-      continue;
-    }
-    while (
-      validationStateIndex + 1 < slotZeroStates.length
-      && slotZeroStates[validationStateIndex + 1]!.time <= start + 0.0001
-    ) {
-      validationStateIndex += 1;
-    }
-    const state = slotZeroStates[validationStateIndex];
-    const gameTime = toGameTimeFromExtensions(start, simulation.value.timeExtensions);
-    const activeStatusIds = new Set((state?.activeTeamStatuses ?? [])
-      .filter((status) => status.timeScale === "real" ? status.expiresAt > start : status.expiresAt > gameTime)
-      .map((status) => status.id));
-    validationSpSegments.push({
-      start,
-      end,
-      blocked: activeStatusIds.has("team_encumbered") && !activeStatusIds.has("team_encumbered_suppression"),
-    });
-  }
-  let validationSpSegmentIndex = 0;
   const consumedComboWindowByKey = new Map<string, RotationSimulationResult["comboWindows"][number]>();
   for (const window of simulation.value.comboWindows) {
     if (window.consumedAt == null) {
@@ -6537,42 +6675,11 @@ const actionValidationByStep = computed(() => {
     consumedComboWindowByKey.set(`${window.slot}:${window.commandId}:${window.consumedAt.toFixed(3)}`, window);
   }
   const previousComboActionByKey = new Map<string, RotationSimulationResult["actions"][number]>();
-  const addValidationPassiveSp = (fromTime: number, toTime: number) => {
-    while (
-      validationSpSegmentIndex < validationSpSegments.length
-      && validationSpSegments[validationSpSegmentIndex]!.end <= fromTime + 0.0001
-    ) {
-      validationSpSegmentIndex += 1;
-    }
-    let index = validationSpSegmentIndex;
-    while (index < validationSpSegments.length) {
-      const segment = validationSpSegments[index]!;
-      if (segment.start >= toTime - 0.0001) {
-        break;
-      }
-      const start = Math.max(fromTime, segment.start);
-      const end = Math.min(toTime, segment.end);
-      if (!segment.blocked && end > start + 0.0001) {
-        const startGameTime = toGameTimeFromExtensions(start, simulation.value.timeExtensions);
-        const endGameTime = toGameTimeFromExtensions(end, simulation.value.timeExtensions);
-        if (startGameTime < 0 && endGameTime > 0) {
-          addGeneratedSp(teamSp, -startGameTime * PRE_BATTLE_SP_REGEN_RATE, PRE_BATTLE_SP_MAX);
-          addGeneratedSp(teamSp, endGameTime * simulation.value.initialResources.spRegenRate, TEAM_SP_MAX);
-        } else if (endGameTime > startGameTime) {
-          const rules = startGameTime < 0
-            ? { cap: PRE_BATTLE_SP_MAX, regen: PRE_BATTLE_SP_REGEN_RATE }
-            : { cap: TEAM_SP_MAX, regen: simulation.value.initialResources.spRegenRate };
-          addGeneratedSp(teamSp, (endGameTime - startGameTime) * rules.regen, rules.cap);
-        }
-      }
-      if (segment.end <= toTime + 0.0001) {
-        index += 1;
-      } else {
-        break;
-      }
-    }
-    validationSpSegmentIndex = index;
-  };
+  const addValidationPassiveSp = (fromTime: number, toTime: number) =>
+    addPassiveSpRegenSegment(teamSp, fromTime, toTime, simulation.value);
+  let availabilityTimestamp = Number.NEGATIVE_INFINITY;
+  let sameTimestampSpSpent = 0;
+  const sameTimestampEnergySpentBySlot = new Map<PartySlot, number>();
 
   for (const event of validationEvents) {
     addValidationPassiveSp(lastSpTime, event.time);
@@ -6588,6 +6695,13 @@ const actionValidationByStep = computed(() => {
     }
     if (event.type === "bonus-generated") {
       addGeneratedSp(teamSp, event.amount);
+      continue;
+    }
+    if (event.type === "energy-modified") {
+      const maxEnergy = energyMaxBySlot.get(event.slot) ?? 0;
+      const currentEnergy = energyBySlot.get(event.slot) ?? 0;
+      const operand = event.mode === "percent" ? maxEnergy * event.amount / 100 : event.amount;
+      energyBySlot.set(event.slot, Math.max(0, Math.min(maxEnergy, event.operation === "set" ? operand : currentEnergy + operand)));
       continue;
     }
 
@@ -6615,7 +6729,9 @@ const actionValidationByStep = computed(() => {
     }
 
     const action = event.action;
-    const command = getCommandForAction(action);
+    const command = event.type === "action-start"
+      ? getCommandForActionAtInputBoundary(action)
+      : getCommandForAction(action);
     if (!command) {
       continue;
     }
@@ -6638,16 +6754,45 @@ const actionValidationByStep = computed(() => {
       continue;
     }
 
+    if (Math.abs(event.time - availabilityTimestamp) > 0.0001) {
+      availabilityTimestamp = event.time;
+      sameTimestampSpSpent = 0;
+      sameTimestampEnergySpentBySlot.clear();
+    }
+    // Rebased action/resource timestamps can differ by a few sub-frame
+    // milliseconds. Keep cast validation clearly before command-start costs
+    // while remaining well below a rendered frame, so the command's own spend
+    // cannot leak into its availability check.
+    const castConditionTime = event.time - 0.005;
+    const displayedResourcesBeforeInput = buildSimulationResourceStateAtTime(simulation.value, castConditionTime);
+    const currentEnergy = Math.max(
+      0,
+      (displayedResourcesBeforeInput.energyBySlot.get(action.slot) ?? 0)
+        - (sameTimestampEnergySpentBySlot.get(action.slot) ?? 0),
+    );
+    const currentTeamSp = Math.max(
+      0,
+      displayedResourcesBeforeInput.teamSpGenerated
+        + displayedResourcesBeforeInput.teamSpReturned
+        - sameTimestampSpSpent,
+    );
     const reasons: string[] = [];
-    const currentEnergy = energyBySlot.get(action.slot) ?? 0;
-    const currentTeamSp = teamSp.generated + teamSp.returned;
 
     if (command.energyCost > currentEnergy + 0.001) {
-      reasons.push(t("rotation.notEnoughEnergy"));
+      if (currentEnergy <= 0.001) {
+        reasons.push(t("rotation.currentEnergyIsZero"));
+      } else {
+        const currentEnergyGain = getUltEnergyGainMultiplierAtTime(action.slot, castConditionTime, simulation.value);
+        const requiredEnergyGainPct = command.energyCost / currentEnergy * currentEnergyGain * 100;
+        reasons.push(t("rotation.notEnoughEnergyRequiredGain", { value: requiredEnergyGainPct.toFixed(1) }));
+      }
     }
 
     if (command.spCost > currentTeamSp + 0.001) {
-      reasons.push(t("rotation.notEnoughSp"));
+      reasons.push(t("rotation.notEnoughSpWithValues", {
+        current: currentTeamSp.toFixed(1),
+        required: command.spCost.toFixed(1),
+      }));
     }
 
     if (command.requiresControlledOperator && action.slot !== controlledSlot) {
@@ -6745,8 +6890,15 @@ const actionValidationByStep = computed(() => {
       validations.set(action.stepId, reasons[0]!);
     }
 
+    sameTimestampSpSpent += command.spCost;
+    sameTimestampEnergySpentBySlot.set(
+      action.slot,
+      (sameTimestampEnergySpentBySlot.get(action.slot) ?? 0) + command.energyCost,
+    );
+
     if (command.energyCost > 0) {
-      energyBySlot.set(action.slot, Math.max(0, currentEnergy - command.energyCost));
+      const ledgerCurrentEnergy = energyBySlot.get(action.slot) ?? 0;
+      energyBySlot.set(action.slot, Math.max(0, ledgerCurrentEnergy - command.energyCost));
     }
 
     const generatedConsumed = consumeTeamSp(teamSp, command.spCost);
@@ -6801,7 +6953,10 @@ const enemyCommandValidationById = computed(() => {
           validations.set(key, t("rotation.conditionNotFulfilled"));
         }
       }
-      if (slotEnemyId === "nefarith_bonekrusher" && command.commandId === "phase_transition") {
+      if (
+        (slotEnemyId === "nefarith_bonekrusher" || slotEnemyId === "marble_aggelomoirai_core")
+        && command.commandId === "phase_transition"
+      ) {
         const stateBefore = getEnemyStateAtTime(
           simulation.value,
           Math.max(0, command.startTime - 0.0001),
@@ -7436,6 +7591,9 @@ function addEnemyCommandAtTimeForSlot(slotId: string, commandId: string, startTi
     interruptedSpGain: 0,
     interruptedStagger: 0,
   });
+  if (slotId !== (selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId)) {
+    setStoredEnemyCommandsForSlot(slotId, targetCommands);
+  }
 }
 
 function removeEnemyCommand(commandPlacementId: string, slotId = selectedEnemyCommandSlotId.value ?? props.targetedEnemySlotId) {
@@ -7443,6 +7601,9 @@ function removeEnemyCommand(commandPlacementId: string, slotId = selectedEnemyCo
   const index = targetCommands.findIndex((entry) => entry.id === commandPlacementId);
   if (index >= 0) {
     targetCommands.splice(index, 1);
+    if (slotId !== (selectedEnemyEditorSlot.value?.slotId ?? props.targetedEnemySlotId)) {
+      setStoredEnemyCommandsForSlot(slotId, targetCommands);
+    }
   }
   if (selectedEnemyCommandId.value === commandPlacementId && selectedEnemyCommandSlotId.value === slotId) {
     selectedEnemyCommandId.value = null;
@@ -7889,7 +8050,10 @@ function getTimelineCommandTypeLabel(entry: {
 }) {
   const command = getActionCommand({ slot: entry.slot, commandId: entry.commandId });
   if (!command) {
-    return entry.commandName;
+    return getLocalizedHitName({
+      hitName: entry.commandName,
+      characterId: partyBySlot.value.get(entry.slot)?.characterId,
+    });
   }
 
   if (command.showNameInTimeline) {
@@ -7973,6 +8137,10 @@ function getTimelineCommandTypeLabel(entry: {
 function getCommandDisplayType(command: CharacterCombatSnapshot["commands"][number] | null | undefined): string {
   if (!command) {
     return t("builder.battleSkill");
+  }
+
+  if (command.showNameInTimeline) {
+    return getLocalizedCommandName(command, undefined, command.name);
   }
 
   const enhancedPrefix = command.enhanced ? "*" : "";
@@ -8833,7 +9001,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 <button
                   type="button"
                   class="col-span-2 row-span-2 h-24 rounded-xl border border-[#dcdcdc] bg-white px-3 text-sm font-semibold text-[#1b1b1b] transition hover:border-[#c8d13c] hover:bg-[#fffde2]"
-                  @click="executeControlledBasicAttack"
+                  @click="executeSelectedBasicAttack"
                 >
                   {{ t("rotation.basicAttackSequence") }}
                 </button>
@@ -9001,6 +9169,12 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                         :stroke-dasharray="`${getSimpleUltimateEnergyRatio(slotView.slot) * 97.4} 97.4`"
                       />
                     </svg>
+                    <span
+                      v-if="cursorCombatState.readyUltimateSlots.has(slotView.slot)"
+                      class="absolute inset-x-0 bottom-0 bg-[#ece81a]/90 py-0.5 text-center text-[8px] font-bold uppercase text-[#1b1b1b]"
+                    >
+                      {{ t("rotation.ready") }}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -9119,6 +9293,12 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                       {{ getCommandVariantLabel(command) ?? getLocalizedCommandBelongsType(command) }}
                     </div>
                   </div>
+                  <span
+                    v-if="cursorCombatState.readyCommandBySlot.get(selectedLibrarySlot) === command.id"
+                    class="shrink-0 rounded bg-[#ece81a] px-2 py-0.5 text-[10px] font-semibold uppercase text-[#1b1b1b]"
+                  >
+                    {{ t("rotation.ready") }}
+                  </span>
                 </div>
               </button>
             </div>
@@ -9243,7 +9423,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
       <div class="relative">
         <div ref="timelineViewportEl" class="max-h-[calc(72vh+200px)] select-none overflow-auto pt-5">
         <div class="min-w-full" :style="{ width: `${TRACK_LABEL_WIDTH + timelineWidth}px` }">
-          <div class="grid grid-cols-[160px_minmax(0,1fr)]">
+          <div class="grid grid-cols-[192px_minmax(0,1fr)]">
             <div class="sticky left-0 z-[30] border-b border-r border-[#ececec] bg-[#fafafa] px-4 py-3 text-sm font-medium text-[#5d5d5d]">
               {{ t("rotation.realTime") }}
             </div>
@@ -9259,7 +9439,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   backgroundImage: `repeating-linear-gradient(to right, rgba(27,27,27,0.06) 0, rgba(27,27,27,0.06) 1px, transparent 1px, transparent ${axisScale}px)`,
                 }"
               >
-                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div class="pointer-events-none absolute inset-y-0 z-[1]" :style="preBattleBandStyle" />
                 <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
                 <div
                   v-for="second in realSeconds"
@@ -9287,7 +9467,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   backgroundImage: `repeating-linear-gradient(to right, rgba(27,27,27,0.04) 0, rgba(27,27,27,0.04) 1px, transparent 1px, transparent ${axisScale}px)`,
                 }"
               >
-                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div class="pointer-events-none absolute inset-y-0 z-[1]" :style="preBattleBandStyle" />
                 <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
                 <div
                   v-for="second in gameSeconds"
@@ -9322,9 +9502,8 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
             <template v-for="slotIndex in 4" :key="slotIndex">
               <button
                 type="button"
-                class="sticky left-0 border-b border-r border-[#efefef] px-3 py-3 text-left transition hover:bg-[#fffef2]"
+                class="sticky left-0 z-[30] border-b border-r border-[#efefef] px-3 py-3 text-left transition hover:bg-[#fffef2]"
                 :class="[
-                  hasBlockingPopupOpen ? 'z-[30]' : 'z-[90]',
                   sidebarMode === 'character' && selectedLibrarySlot === ((slotIndex - 1) as PartySlot)
                     ? 'bg-[#fff8bf]'
                     : 'bg-white',
@@ -9334,6 +9513,36 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                   selectedLibrarySlot = (slotIndex - 1) as PartySlot
                 "
               >
+                <div
+                  v-if="getTyphoeusResourceStacks((slotIndex - 1) as PartySlot)"
+                  class="absolute left-[55px] top-3 grid grid-cols-[18px_5px_5px] grid-rows-4 gap-x-0.5 gap-y-0.5 rounded-sm border border-[#c7c7c7] bg-[#dedede] px-1 py-1 shadow-inner"
+                  aria-label="Typhoeus resources"
+                >
+                  <template v-for="row in 4" :key="`typhoeus-resource-${slotIndex}-${row}`">
+                    <span
+                      class="h-[5px] w-[18px] self-center"
+                      :style="{
+                        backgroundColor: row > 4 - (getTyphoeusResourceStacks((slotIndex - 1) as PartySlot)?.huntingArrows ?? 0) ? '#43c9cf' : '#9a9a9a',
+                        maskImage: `url(${toAssetUrl('/avatars/TYPHOEUS/deco_char_passive_typhoea_arrow.webp')})`,
+                        maskRepeat: 'no-repeat',
+                        maskPosition: 'center',
+                        maskSize: 'contain',
+                      }"
+                    />
+                    <span
+                      v-for="column in 2"
+                      :key="`typhoeus-sign-${slotIndex}-${row}-${column}`"
+                      class="h-[5px] w-[5px] self-center"
+                      :style="{
+                        backgroundColor: ((row - 1) * 2 + column) > 8 - (getTyphoeusResourceStacks((slotIndex - 1) as PartySlot)?.signs ?? 0) ? '#ffffff' : '#9a9a9a',
+                        maskImage: `url(${toAssetUrl('/avatars/TYPHOEUS/deco_char_passive_typhoea_point.webp')})`,
+                        maskRepeat: 'no-repeat',
+                        maskPosition: 'center',
+                        maskSize: 'contain',
+                      }"
+                    />
+                  </template>
+                </div>
                 <div class="grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-2">
                   <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#ece81a] text-xs font-semibold text-[#1b1b1b]">
                     <img
@@ -9346,7 +9555,10 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                       {{ getAvatarInitials(getLocalizedCharacterName(partyDisplay[slotIndex - 1]?.actor?.characterId, partyDisplay[slotIndex - 1]?.actor?.characterName)) }}
                     </span>
                   </div>
-                  <div class="min-w-0 self-center">
+                  <div
+                    class="min-w-0 self-center"
+                    :class="partyDisplay[slotIndex - 1]?.actor?.characterId === 'TYPHOEUS' ? 'pl-10' : ''"
+                  >
                     <div class="truncate text-sm font-medium text-[#1b1b1b]">
                       {{ getLocalizedCharacterName(partyDisplay[slotIndex - 1]?.actor?.characterId, partyDisplay[slotIndex - 1]?.actor?.characterName) || slots[slotIndex - 1]?.label }}
                     </div>
@@ -9368,12 +9580,16 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                           stroke-width="3"
                           stroke-linecap="round"
                           :stroke-dasharray="`${((partyDisplay[slotIndex - 1]?.ultimateMaxEnergy ?? 0) > 0
-                            ? ((cursorCombatState.energyBySlot.get((slotIndex - 1) as PartySlot) ?? 0) / (partyDisplay[slotIndex - 1]?.ultimateMaxEnergy ?? 1)) * 97
+                            ? (cursorCombatState.readyUltimateSlots.has((slotIndex - 1) as PartySlot)
+                              ? 97
+                              : ((cursorCombatState.energyBySlot.get((slotIndex - 1) as PartySlot) ?? 0) / (partyDisplay[slotIndex - 1]?.ultimateMaxEnergy ?? 1)) * 97)
                             : 0)} 97`"
                         />
                       </svg>
-                      <span class="relative z-10 text-[10px] font-semibold text-[#1b1b1b]">
-                        {{ (cursorCombatState.energyBySlot.get((slotIndex - 1) as PartySlot) ?? 0).toFixed(0) }}
+                      <span class="relative z-10 text-[9px] font-semibold text-[#1b1b1b]">
+                        {{ cursorCombatState.readyUltimateSlots.has((slotIndex - 1) as PartySlot)
+                          ? t("rotation.ready")
+                          : (cursorCombatState.energyBySlot.get((slotIndex - 1) as PartySlot) ?? 0).toFixed(0) }}
                       </span>
                     </div>
                   </div>
@@ -9420,7 +9636,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                 @dragover.prevent
                 @drop="handleLaneDrop($event, (slotIndex - 1) as PartySlot)"
               >
-                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div class="pointer-events-none absolute inset-y-0 z-[1]" :style="preBattleBandStyle" />
                 <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
                 <div
                   v-for="marker in countdownTimelineMarkers"
@@ -9800,7 +10016,7 @@ function toRealTimeFromExtensions(gameTime: number, timeExtensions: RotationTime
                     width: `${Math.max(0, Math.min(timelineWidth, timeToPx(getEnemySpawnTimeForSlot(enemySlot.slotId) ?? 0)))}px`,
                   }"
                 />
-                <div class="pointer-events-none absolute inset-y-0 z-[1] bg-[#8fc3ff]/20" :style="preBattleBandStyle" />
+                <div class="pointer-events-none absolute inset-y-0 z-[1]" :style="preBattleBandStyle" />
                 <div v-if="isActiveSchemeRelayed" class="pointer-events-none absolute inset-y-0 z-[1] bg-[#9a9a9a]/18" :style="relayInheritedBandStyle" />
                 <div
                   v-for="marker in countdownTimelineMarkers"

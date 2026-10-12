@@ -730,7 +730,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     attackType: "COMBO_SKILL",
     damageType: "Electric",
     durationFrames: flat12(84),
-    comboCooldownSeconds: flat12(18),
+    comboCooldownSeconds: [18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17],
     comboCooldownTimeScale: "real",
     comboTriggerId: ZHUANGFANGYI_COMBO_TRIGGER_ID,
     spCost: flat12(0),
@@ -914,7 +914,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
     hiddenInLibrary: true,
     enhanced: true,
     durationFrames: flat12(72),
-    comboCooldownSeconds: flat12(18),
+    comboCooldownSeconds: [18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17],
     comboCooldownTimeScale: "real",
     comboTriggerId: ZHUANGFANGYI_COMBO_TRIGGER_ID,
     spCost: flat12(0),
@@ -955,6 +955,7 @@ const ZHUANGFANGYI_COMMANDS: CommandDefinition[] = [
       {
         multiplier: flat12(0),
         offsetFrames: flat12(159),
+        resolveEffectsWithoutEnemy: true,
         effects: [
           {
             type: "APPLY_BUFF",

@@ -1,8 +1,14 @@
 import type { EnemyBase } from "@/data/enemies";
+import {
+  INTERNAL_COMBAT_TRIGGER_DEFINITIONS,
+  POWERFUL_DECAPITATION_INTERNAL_TRIGGER_DEFINITIONS,
+  type InternalCombatTriggerDefinition,
+} from "@/lib/combat/internalTriggers";
 
 export const CONTINGENCY_CONTRACTS_STAGE_ID = "contingency_contracts" as const;
+export const POWERFUL_DECAPITATION_STAGE_ID = "powerful_decapitation" as const;
 export const NO_STAGE_ID = "none" as const;
-export type StagePresetId = typeof NO_STAGE_ID | typeof CONTINGENCY_CONTRACTS_STAGE_ID;
+export type StagePresetId = typeof NO_STAGE_ID | typeof CONTINGENCY_CONTRACTS_STAGE_ID | typeof POWERFUL_DECAPITATION_STAGE_ID;
 
 export type CustomStageSettings = {
   name: string;
@@ -13,6 +19,7 @@ export type CustomStageSettings = {
   disableConsumables: boolean;
   enemyHpMultipliers: Record<string, number>;
   enemyHpBaseOverrides: Record<string, number>;
+  enemyStaggerOverrides: Record<string, number>;
 };
 
 export type CustomStageDefinition = CustomStageSettings & {
@@ -45,6 +52,7 @@ export function makeCustomStageDefinition(index = 1): CustomStageDefinition {
     spRegenRate: 8,
     enemyHpMultipliers: {},
     enemyHpBaseOverrides: {},
+    enemyStaggerOverrides: {},
   };
 }
 
@@ -72,8 +80,11 @@ export type ResolvedStageSettings = {
   disableConsumables: boolean;
   enemyHpMultipliers: Record<string, number>;
   enemyHpBaseOverrides: Record<string, number>;
+  enemyStaggerOverrides: Record<string, number>;
   initialSp: number;
   spRegenRate: number;
+  /** Developer-authored simulation behavior. Custom stages cannot define this. */
+  internalCombatTriggerDefinitions: InternalCombatTriggerDefinition[];
 };
 
 export const STAGE_PRESETS: ResolvedStageSettings[] = [{
@@ -86,8 +97,10 @@ export const STAGE_PRESETS: ResolvedStageSettings[] = [{
   disableConsumables: false,
   enemyHpMultipliers: {},
   enemyHpBaseOverrides: {},
+  enemyStaggerOverrides: {},
   initialSp: 200,
   spRegenRate: 8,
+  internalCombatTriggerDefinitions: [],
 }, {
   id: CONTINGENCY_CONTRACTS_STAGE_ID,
   name: "Contingency Contracts",
@@ -106,8 +119,29 @@ export const STAGE_PRESETS: ResolvedStageSettings[] = [{
     aggeloi_ram: 180,
     hedron: 198,
   },
+  enemyStaggerOverrides: {},
   initialSp: 200,
   spRegenRate: 8,
+  internalCombatTriggerDefinitions: INTERNAL_COMBAT_TRIGGER_DEFINITIONS,
+}, {
+  id: POWERFUL_DECAPITATION_STAGE_ID,
+  name: "Powerful Decapitation",
+  name_cn: "斩首蓄势",
+  contractsEnabled: false,
+  lockInitialEnergy: false,
+  initialEnergyPct: 100,
+  disableConsumables: false,
+  enemyHpMultipliers: {
+    bonekrusher_executioner: 1.6,
+    hill_smasher: 1.6,
+  },
+  enemyHpBaseOverrides: {},
+  enemyStaggerOverrides: {
+    bonekrusher_executioner: 250,
+  },
+  initialSp: 200,
+  spRegenRate: 8,
+  internalCombatTriggerDefinitions: POWERFUL_DECAPITATION_INTERNAL_TRIGGER_DEFINITIONS,
 }];
 
 export const LEGACY_STAGE_ENEMY_ID_MAP: Record<string, string> = {
@@ -145,6 +179,7 @@ export function makeDefaultBuildStageSettings(): BuildStageSettings {
       disableConsumables: false,
       enemyHpMultipliers: {},
       enemyHpBaseOverrides: {},
+      enemyStaggerOverrides: {},
     },
   };
 }
@@ -160,11 +195,16 @@ export function normalizeBuildStageSettings(value: unknown): BuildStageSettings 
   const multipliers = Object.fromEntries(Object.entries(customRaw.enemyHpMultipliers ?? {})
     .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] > 0)
     .map(([enemyId, multiplier]) => [LEGACY_STAGE_ENEMY_ID_MAP[enemyId] ?? enemyId, Math.max(0.01, multiplier)]));
+  const staggerOverrides = Object.fromEntries(Object.entries(customRaw.enemyStaggerOverrides ?? {})
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] > 0)
+    .map(([enemyId, stagger]) => [LEGACY_STAGE_ENEMY_ID_MAP[enemyId] ?? enemyId, Math.max(1, Math.round(stagger))]));
   return {
     mode: raw.mode === "custom" ? "custom" : "preset",
     presetId: raw.presetId === CONTINGENCY_CONTRACTS_STAGE_ID
       ? CONTINGENCY_CONTRACTS_STAGE_ID
-      : NO_STAGE_ID,
+      : raw.presetId === POWERFUL_DECAPITATION_STAGE_ID
+        ? POWERFUL_DECAPITATION_STAGE_ID
+        : NO_STAGE_ID,
     customStageId: typeof raw.customStageId === "string" ? raw.customStageId : undefined,
     initialSp: typeof raw.initialSp === "number" && Number.isFinite(raw.initialSp)
       ? Math.max(0, raw.initialSp)
@@ -183,6 +223,7 @@ export function normalizeBuildStageSettings(value: unknown): BuildStageSettings 
       disableConsumables: customRaw.disableConsumables === true,
       enemyHpMultipliers: multipliers,
       enemyHpBaseOverrides: overrides,
+      enemyStaggerOverrides: staggerOverrides,
     },
   };
 }
@@ -200,13 +241,14 @@ export function resolveBuildStageSettings(value: BuildStageSettings, customStage
     const shared = customStages.find((stage) => stage.id === normalized.customStageId);
     if (shared) {
       const { id: _customStageId, ...settings } = shared;
-      return { id: "custom", ...settings };
+      return { id: "custom", ...settings, internalCombatTriggerDefinitions: [] };
     }
     return {
       id: "custom",
       ...normalized.custom,
       initialSp: normalized.initialSp,
       spRegenRate: normalized.spRegenRate,
+      internalCombatTriggerDefinitions: [],
     };
   }
   const preset = STAGE_PRESETS.find((stage) => stage.id === normalized.presetId) ?? STAGE_PRESETS[0]!;
@@ -221,5 +263,8 @@ export function resolveEnemyBaseForStage(base: EnemyBase, stage: ResolvedStageSe
   const canonicalId = LEGACY_STAGE_ENEMY_ID_MAP[base.id] ?? base.id;
   const trueBaseHp = stage.enemyHpBaseOverrides[canonicalId] ?? base.baseHpLv1;
   const resolvedBaseHp = Math.max(1, trueBaseHp * (stage.enemyHpMultipliers[canonicalId] ?? 1));
-  return resolvedBaseHp === base.baseHpLv1 ? base : { ...base, baseHpLv1: resolvedBaseHp };
+  const resolvedStaggerGauge = stage.enemyStaggerOverrides[canonicalId] ?? base.staggerGauge;
+  return resolvedBaseHp === base.baseHpLv1 && resolvedStaggerGauge === base.staggerGauge
+    ? base
+    : { ...base, baseHpLv1: resolvedBaseHp, staggerGauge: resolvedStaggerGauge };
 }

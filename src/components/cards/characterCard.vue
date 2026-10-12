@@ -5,13 +5,13 @@ import {
   ASCENSION_LEVEL_CAPS,
   ASCENSION_LEVEL_MINS,
   isCharacterTalentUnlocked,
-  getCharacterTalentBonus,
   type AscensionStage,
   type PotentialLevel,
 } from "@/lib/build/progression";
 import { isBuildConditionMet } from "@/lib/build/buildConditions";
 import {
   CHARACTER_TALENT_KEYS,
+  getCharacterTalentBonuses,
   type CharacterTalentKey,
   type CharacterTalentToggles,
 } from "@/lib/build/characterTalents";
@@ -22,6 +22,8 @@ import { getCharacterDisplayNameByCharacter } from "@/i18n/domain/displayNames";
 import {
   getCharacterUniqueTalentDisplayName,
 } from "@/i18n/domain/skillNames";
+import { getLocalizedCharacterElementLabel } from "@/i18n/domain/elementLabels";
+import { getLocalizedWeaponTypeLabel } from "@/i18n/domain/weaponTypeLabels";
 
 const props = defineProps<{
   characters: CharacterBase[];
@@ -97,6 +99,24 @@ const formatSkillLevel = (value: number) => {
   if (value === 12) return "M3";
   return `${t("ui.levelShort")} ${value}`;
 };
+
+function getTalentBonusEntries(index: number) {
+  if (!props.selectedCharacter) return [];
+  return Object.entries(getCharacterTalentBonuses(props.selectedCharacter, index))
+    .filter((entry): entry is ["STR" | "AGI" | "INT" | "WIL", number] => typeof entry[1] === "number");
+}
+
+function getTalentAttributeLabel(index: number) {
+  return getTalentBonusEntries(index)
+    .map(([attribute]) => t(`stats.${attribute}` as never))
+    .join("/");
+}
+
+function getTalentBonusLabel(index: number) {
+  return getTalentBonusEntries(index)
+    .map(([attribute, bonus]) => `+${bonus} ${t(`stats.${attribute}` as never)}`)
+    .join(" / ");
+}
 
 function formatCompareValue(currentValue: string | number, compareValue?: string | number) {
   if (compareValue == null || compareValue === currentValue) {
@@ -298,10 +318,10 @@ function pickCharacter(id: string) {
             "
           >
             <div class="font-semibold">
-              {{ t("builder.statTalentUp", { attr: t(`stats.${selectedCharacter.mainAttr}` as never), index: index + 1 }) }}
+              {{ t("builder.statTalentUp", { attr: getTalentAttributeLabel(index), index: index + 1 }) }}
             </div>
             <div class="mt-1 text-xs">
-              +{{ getCharacterTalentBonus(index) }} {{ t(`stats.${selectedCharacter.mainAttr}` as never) }}
+              {{ getTalentBonusLabel(index) }}
             </div>
           </button>
         </div>
@@ -464,7 +484,7 @@ function pickCharacter(id: string) {
                 :key="`element-${element}`"
                 :value="element"
               >
-                {{ element }}
+                {{ getLocalizedCharacterElementLabel(element) }}
               </option>
             </select>
           </label>
@@ -481,7 +501,7 @@ function pickCharacter(id: string) {
                 :key="`weaponType-${weaponType}`"
                 :value="weaponType"
               >
-                {{ weaponType }}
+                {{ getLocalizedWeaponTypeLabel(weaponType) }}
               </option>
             </select>
           </label>
@@ -510,14 +530,14 @@ function pickCharacter(id: string) {
           >
             <img
               :src="getCharacterImagePath(character)"
-              :alt="character.name"
+              :alt="getCharacterDisplayNameByCharacter(character)"
               class="aspect-[9/10] w-full bg-[#f0f0f0] object-cover"
               @error="(($event.target as HTMLImageElement).src = '/icons/no_selection.svg')"
             />
             <div class="p-2">
               <div class="truncate text-sm font-semibold text-[#222]">{{ getCharacterDisplayNameByCharacter(character) }}</div>
               <div class="mt-0.5 truncate text-[11px] text-[#666]">
-                {{ character.rarity }}★ · {{ character.element }} · {{ character.weaponType }}
+                {{ character.rarity }}★ · {{ getLocalizedCharacterElementLabel(character.element) }} · {{ getLocalizedWeaponTypeLabel(character.weaponType) }}
               </div>
             </div>
           </button>
